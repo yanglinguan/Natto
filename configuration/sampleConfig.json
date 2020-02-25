@@ -1,25 +1,25 @@
 {
   "servers": {
     "1": {
-      "ip": "",
-      "port": "",
+      "ip": "localhost",
+      "port": "10001",
       "dataCenterId": "D1"
     },
     "2": {
-      "ip": "",
-      "port": "",
+      "ip": "localhost",
+      "port": "10002",
       "dataCenterId": "D2"
     },
     "3": {
-      "ip": "",
-      "port": "",
+      "ip": "localhost",
+      "port": "10003",
       "dataCenterId": "D3"
     }
   },
   "clients": {
     "1": {
-      "ip": "",
-      "port": "",
+      "ip": "localhost",
+      "port": "10004",
       "dataCenterId": "D1"
     }
   },

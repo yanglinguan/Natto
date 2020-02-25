@@ -63,10 +63,17 @@ type FileConfiguration struct {
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
 	c := &FileConfiguration{
-		servers:              make(map[string]string),
-		clients:              make(map[string]string),
-		partitions:           make([][]string, 0),
-		serverToPartitionMap: make(map[string]int),
+		servers:                    make(map[string]string),
+		clients:                    make(map[string]string),
+		partitions:                 make([][]string, 0),
+		serverToPartitionMap:       make(map[string]int),
+		serverMode:                 0,
+		keys:                       make([][]string, 0),
+		keyNum:                     0,
+		dataCenterDistance:         make(map[string]map[string]time.Duration),
+		serverToDataCenterId:       make(map[string]string),
+		dataCenterIdToServerIdList: make(map[string][]string),
+		clientToDataCenterId:       make(map[string]string),
 	}
 	c.loadFile(filePath)
 	return c
@@ -78,7 +85,7 @@ func (f *FileConfiguration) loadFile(configFilePath string) {
 		log.Fatalf("cannot read the configuration file: err %s", err)
 	}
 	config := make(map[string]interface{})
-	err = json.Unmarshal(data, config)
+	err = json.Unmarshal(data, &config)
 	if err != nil {
 		log.Fatal("cannot parse the json file: err %s", err)
 	}
@@ -93,31 +100,34 @@ func (f *FileConfiguration) loadFile(configFilePath string) {
 
 func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	for sId, kv := range config {
-		addr := kv.(map[string]string)
-		address := addr["ip"] + ":" + addr["port"]
+		addr := kv.(map[string]interface{})
+		address := addr["ip"].(string) + ":" + addr["port"].(string)
 		f.servers[sId] = address
-		f.serverToDataCenterId[sId] = addr["dataCenterId"]
-		if _, exist := f.dataCenterIdToServerIdList[addr["dataCenterId"]]; !exist {
-			f.dataCenterIdToServerIdList[addr["dataCenterId"]] = make([]string, 0)
+		dcId := addr["dataCenterId"].(string)
+		f.serverToDataCenterId[sId] = dcId
+		if _, exist := f.dataCenterIdToServerIdList[dcId]; !exist {
+			f.dataCenterIdToServerIdList[dcId] = make([]string, 0)
 		}
-		f.dataCenterIdToServerIdList[addr["dataCenterId"]] = append(f.dataCenterIdToServerIdList[addr["dataCenterId"]], sId)
+		f.dataCenterIdToServerIdList[dcId] = append(f.dataCenterIdToServerIdList[dcId], sId)
 	}
 }
 
 func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 	for cId, kv := range config {
-		addr := kv.(map[string]string)
-		address := addr["ip"] + ":" + addr["port"]
+		addr := kv.(map[string]interface{})
+		address := addr["ip"].(string) + ":" + addr["port"].(string)
 		f.clients[cId] = address
-		f.clientToDataCenterId[cId] = addr["dataCenterId"]
+		f.clientToDataCenterId[cId] = addr["dataCenterId"].(string)
 	}
 }
 
 func (f *FileConfiguration) loadPartitions(config []interface{}) {
 	for pId, servers := range config {
 		sList := servers.([]interface{})
+		f.partitions = append(f.partitions, make([]string, 0))
 		for _, sId := range sList {
 			f.partitions[pId] = append(f.partitions[pId], sId.(string))
+			f.serverToPartitionMap[sId.(string)] = pId
 		}
 	}
 }
@@ -151,8 +161,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.serverMode = GTS_DEP_GRAPH
 			}
 		} else if key == "totalKey" {
-			keyNum := v.(int)
-			f.keyNum = keyNum
+			keyNum := v.(float64)
+			f.keyNum = int(keyNum)
 		} else if key == "oneWayDelay" {
 			f.loadDataCenterDistance(v.(map[string]interface{}))
 		}
@@ -166,6 +176,7 @@ func convertToString(size int, key int) string {
 
 func (f *FileConfiguration) loadKey() {
 	totalPartition := len(f.partitions)
+	f.keys = make([][]string, totalPartition)
 	for key := 0; key < f.keyNum; key++ {
 		partitionId := key % totalPartition
 		f.keys[partitionId] = append(f.keys[partitionId], convertToString(KeySize, key))
