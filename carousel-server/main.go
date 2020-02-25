@@ -1,6 +1,7 @@
-package server
+package main
 
 import (
+	"Carousel-GTS/server"
 	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
@@ -14,9 +15,9 @@ func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
 
-	server := NewServer(serverId, configFile)
+	s := server.NewServer(serverId, configFile)
 
-	server.Start()
+	s.Start()
 }
 
 func parseArgs() {

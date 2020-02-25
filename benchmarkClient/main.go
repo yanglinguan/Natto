@@ -1,4 +1,4 @@
-package benchmarkClient
+package main
 
 import (
 	"Carousel-GTS/client"
@@ -18,10 +18,10 @@ func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
 
-	client := client.NewClient(clientId, configFile)
+	c := client.NewClient(clientId, configFile)
 
 	for i := 0; i < 10; i++ {
-		go execTxn(client)
+		go execTxn(c)
 	}
 
 }
