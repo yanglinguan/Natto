@@ -8,11 +8,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"strconv"
+	"sync"
 )
 
 var isDebug bool = false
 var clientId string = ""
 var configFile string = ""
+
+var wg sync.WaitGroup
 
 func main() {
 	parseArgs()
@@ -21,9 +24,11 @@ func main() {
 	c := client.NewClient(clientId, configFile)
 
 	for i := 0; i < 10; i++ {
+		wg.Add(1)
 		go execTxn(c)
 	}
-
+	wg.Wait()
+	c.PrintTxnStatisticData()
 }
 
 func convertToString(size int, key int) string {
@@ -48,6 +53,7 @@ func execTxn(client *client.Client) {
 	}
 
 	client.Commit(writeKeyValue, txnId)
+	wg.Done()
 }
 
 func getTxn(totalKey int, txnSize int) ([]string, []string) {

@@ -15,6 +15,7 @@ import (
 
 const RPCTimeOut = 10
 const PoolSize = 10
+const QueueLen = 1024
 
 type Transaction struct {
 	txn                 *rpc.Transaction
@@ -69,8 +70,12 @@ func NewClient(clientId string, configFile string) *Client {
 		clientId:           clientId,
 		config:             configuration.NewFileConfiguration(configFile),
 		clientDataCenterId: "",
-		connections:        nil,
+		connections:        make(map[string]*connection.Connection),
+		sendTxnRequest:     make(chan *SendOp, QueueLen),
+		commitTxnRequest:   make(chan *CommitOp, QueueLen),
 		count:              0,
+		txnStore:           make(map[string]*Transaction),
+		lock:               sync.Mutex{},
 	}
 
 	c.clientDataCenterId = c.config.GetClientDataCenterIdByClientId(clientId)
