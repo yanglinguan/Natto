@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package rpc;
+
+service Carousel {
+    rpc ReadAndPrepare(ReadAndPrepareRequest) returns (ReadAndPrepareReply) {}
+    rpc Commit(CommitRequest) returns (CommitReply) {}
+    rpc Abort(AbortRequest) returns (AbortReply) {}
+
+    // RPCs for transaction participants sending prepare result to transaction coordinators
+    rpc PrepareResult(PrepareResultRequest) returns (PrepareResultReply) {}
+}
+
+message Transaction {
+    string txnId = 1;
+    repeated string readKeyList = 2;
+    repeated string writeKeyList = 3;
+    repeated int32 participatedPartitionIds = 4;
+    int32 coordPartitionId = 5; // Coordination partition id
+}
+
+message ReadAndPrepareRequest {
+    Transaction txn = 1;
+    bool isRead = 2;
+    bool isNotParticipant = 3; // If the server is a participant of the transaction
+    int64 timestamp = 4;
+    string clientId = 5;
+}
+
+message KeyValueVersion {
+    string key = 1;
+    string value = 2;
+    uint64 version = 3;
+}
+
+message KeyVersion {
+    string key = 1;
+    uint64 version = 2;
+}
+
+message KeyValue {
+    string key = 1;
+    string value = 2;
+}
+
+message ReadAndPrepareReply {
+    repeated KeyValueVersion keyValVerList = 1;
+    string leaderAddr = 2; // partition leader's network address
+    bool isRead = 3;
+}
+
+message PrepareResultRequest {
+    string txnId = 1;
+    repeated KeyVersion readKeyVerList = 2;
+    repeated KeyVersion writeKeyVerList = 3;
+    int32 partitionId = 4;
+    int32 prepareStatus = 5;
+}
+
+message PrepareResultReply {
+    string leaderAddr = 1;
+}
+
+message CommitRequest {
+    string txnId = 1;
+    repeated KeyValue writeKeyValList = 2;
+    bool isCoordinator = 3;
+    repeated KeyVersion readKeyVerList = 4;
+    bool isReadAnyReplica = 5;
+}
+
+message CommitReply {
+    bool result = 1;
+    string leaderAddr = 2;
+}
+
+message AbortRequest {
+    string txnId = 1;
+    bool isCoordinator = 2;
+}
+
+message AbortReply {
+    string leaderAddr = 1;
+}
+
+message Empty {
+}

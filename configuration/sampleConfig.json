@@ -1,0 +1,41 @@
+{
+  "servers": {
+    "1": {
+      "ip": "",
+      "port": "",
+      "dataCenterId": "D1"
+    },
+    "2": {
+      "ip": "",
+      "port": "",
+      "dataCenterId": "D2"
+    },
+    "3": {
+      "ip": "",
+      "port": "",
+      "dataCenterId": "D3"
+    }
+  },
+  "clients": {
+    "1": {
+      "ip": "",
+      "port": "",
+      "dataCenterId": "D1"
+    }
+  },
+  "partitions": [
+    ["1"],
+    ["2"],
+    ["3"]
+  ],
+  "experiment": {
+    "mode": "occ",
+    "replication": false,
+    "totalKey": 10000,
+    "oneWayDelay" : {
+      "D1": {"D2": "50ms", "D3": "100ms"},
+      "D2": {"D1": "50ms", "D3": "80ms"},
+      "D3": {"D1": "100ms", "D2": "80ms"}
+    }
+  }
+}
