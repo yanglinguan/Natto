@@ -12,26 +12,34 @@ type ReadAndPrepareSender struct {
 	request    *rpc.ReadAndPrepareRequest
 	txn        *Transaction
 	timeout    time.Duration
-	connection *connection.Connection
+	connection connection.Connection
+}
+
+func NewReadAndPrepareSender(request *rpc.ReadAndPrepareRequest,
+	txn *Transaction, connection connection.Connection) *ReadAndPrepareSender {
+	r := &ReadAndPrepareSender{
+		request:    request,
+		txn:        txn,
+		timeout:    0,
+		connection: connection,
+	}
+
+	return r
 }
 
 func (s *ReadAndPrepareSender) Send() {
-	//ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
-	//defer cancel()
-
-	conn, err := s.connection.ConnectionPool.Get(context.Background())
-
-	defer conn.Close()
-	if err != nil {
-		logrus.Fatalf("cannot get connection from the pool client send txn %v", s.connection.DstServerAddr)
+	conn := s.connection.GetConn()
+	if s.connection.GetPoolSize() > 0 {
+		defer s.connection.Close(conn)
 	}
-	logrus.Infof("Send txn %v", s.request.Txn.TxnId)
-	client := rpc.NewCarouselClient(conn.ClientConn)
+
+	client := rpc.NewCarouselClient(conn)
+	logrus.Infof("SEND ReadAndPrepare %v", s.request.Txn.TxnId)
+
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err == nil {
-		logrus.Infof("Get Read result for txn %v", s.request.Txn.TxnId)
+		logrus.Infof("RECEIVE ReadResult %v", s.request.Txn.TxnId)
 		s.txn.readAndPrepareReply <- reply
-		logrus.Infof("log here")
 	} else {
 		logrus.Fatalf("rpc error %v", err)
 	}
@@ -41,24 +49,31 @@ type CommitRequestSender struct {
 	request    *rpc.CommitRequest
 	txn        *Transaction
 	timeout    time.Duration
-	connection *connection.Connection
+	connection connection.Connection
+}
+
+func NewCommitRequestSender(request *rpc.CommitRequest,
+	txn *Transaction, connection connection.Connection) *CommitRequestSender {
+	s := &CommitRequestSender{
+		request:    request,
+		txn:        txn,
+		timeout:    0,
+		connection: connection,
+	}
+	return s
 }
 
 func (c *CommitRequestSender) Send() {
-	//ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	//defer cancel()
-
-	conn, err := c.connection.ConnectionPool.Get(context.Background())
-
-	defer conn.Close()
-	if err != nil {
-		logrus.Fatalf("cannot get connection from the pool client send txn %v", c.connection.DstServerAddr)
+	conn := c.connection.GetConn()
+	if c.connection.GetPoolSize() > 0 {
+		defer c.connection.Close(conn)
 	}
-	logrus.Infof("send commit txn %v", c.request.TxnId)
-	client := rpc.NewCarouselClient(conn.ClientConn)
+
+	client := rpc.NewCarouselClient(conn)
+	logrus.Infof("SEND Commit %v", c.request.TxnId)
 	reply, err := client.Commit(context.Background(), c.request)
 	if err == nil {
-		logrus.Infof("get commit request %v", c.request.TxnId)
+		logrus.Infof("RECEIVE CommitResult %v", c.request.TxnId)
 		c.txn.commitReply <- reply
 	} else {
 		logrus.Fatalf("rpc error %v", err)

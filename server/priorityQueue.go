@@ -47,6 +47,8 @@ func (pq MinHeap) Less(i, j int) bool {
 		return true
 	} else if pq[i].request.Timestamp == pq[j].request.Timestamp {
 		return pq[i].request.ClientId < pq[i].request.ClientId
+	} else if pq[i].request.ClientId == pq[i].request.ClientId {
+		return pq[i].request.Txn.TxnId < pq[i].request.Txn.TxnId
 	} else {
 		return false
 	}

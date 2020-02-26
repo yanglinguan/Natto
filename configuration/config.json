@@ -4,16 +4,6 @@
       "ip": "localhost",
       "port": "10001",
       "dataCenterId": "D1"
-    },
-    "2": {
-      "ip": "localhost",
-      "port": "10002",
-      "dataCenterId": "D1"
-    },
-    "3": {
-      "ip": "localhost",
-      "port": "10003",
-      "dataCenterId": "D1"
     }
   },
   "clients": {
@@ -24,17 +14,14 @@
     }
   },
   "partitions": [
-    ["1"],
-    ["2"],
-    ["3"]
+    ["1"]
   ],
   "experiment": {
     "mode": "gts_dep_graph",
     "replication": false,
-    "totalKey": 3,
+    "totalKey": 10,
     "delay": "200ms",
     "RPCPoolSize": 200,
-    "keySize": 1,
     "oneWayDelay" : {
       "D1": {"D2": "50ms", "D3": "100ms"},
       "D2": {"D1": "50ms", "D3": "80ms"},

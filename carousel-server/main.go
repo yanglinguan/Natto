@@ -13,7 +13,7 @@ var configFile string = ""
 
 func main() {
 	parseArgs()
-	utils.ConfigLogger(isDebug)
+	utils.ConfigLogger(isDebug, serverId)
 
 	s := server.NewServer(serverId, configFile)
 

@@ -13,7 +13,6 @@ import (
 	"time"
 )
 
-const RPCTimeOut = 10
 const QueueLen = 1024
 
 type Transaction struct {
@@ -54,7 +53,7 @@ type Client struct {
 	config             configuration.Configuration
 	clientDataCenterId string
 
-	connections map[string]*connection.Connection
+	connections map[string]connection.Connection
 
 	sendTxnRequest   chan *SendOp
 	commitTxnRequest chan *CommitOp
@@ -69,7 +68,7 @@ func NewClient(clientId string, configFile string) *Client {
 		clientId:           clientId,
 		config:             configuration.NewFileConfiguration(configFile),
 		clientDataCenterId: "",
-		connections:        make(map[string]*connection.Connection),
+		connections:        make(map[string]connection.Connection),
 		sendTxnRequest:     make(chan *SendOp, QueueLen),
 		commitTxnRequest:   make(chan *CommitOp, QueueLen),
 		count:              0,
@@ -78,8 +77,14 @@ func NewClient(clientId string, configFile string) *Client {
 	}
 
 	c.clientDataCenterId = c.config.GetClientDataCenterIdByClientId(clientId)
-	for sId, addr := range c.config.GetServerAddressMap() {
-		c.connections[sId] = connection.NewConnection(addr, c.config.GetConnectionPoolSize())
+	if c.config.GetConnectionPoolSize() == 0 {
+		for sId, addr := range c.config.GetServerAddressMap() {
+			c.connections[sId] = connection.NewSingleConnect(addr)
+		}
+	} else {
+		for sId, addr := range c.config.GetServerAddressMap() {
+			c.connections[sId] = connection.NewPoolConnection(addr, c.config.GetConnectionPoolSize())
+		}
 	}
 
 	go c.sendReadAndPrepareRequest()
@@ -92,7 +97,6 @@ func (c *Client) sendReadAndPrepareRequest() {
 		op := <-c.sendTxnRequest
 		c.handleReadAndPrepareRequest(op)
 	}
-
 }
 
 func (c *Client) sendCommitRequest() {
@@ -126,11 +130,9 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 	for {
 		readAndPrepareRequest := <-ongoingTxn.readAndPrepareReply
 		for _, kv := range readAndPrepareRequest.KeyValVerList {
-			//	logrus.Infof("%v: %v", kv.Key, kv.Value)
 			ongoingTxn.readKeyValueVersion = append(ongoingTxn.readKeyValueVersion, kv)
 		}
 
-		//	logrus.Infof("received: %v, required: %v", len(ongoingTxn.readKeyValueVersion), len(ongoingTxn.txn.ReadKeyList))
 		if len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.txn.ReadKeyList) {
 			break
 		}
@@ -163,26 +165,31 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
+	participants := make(map[int]bool)
 	for _, key := range readKeyList {
 		pId := c.config.GetPartitionIdByKey(key)
+		logrus.Debugf("key %v, pId %v", key, pId)
 		if _, exist := partitionSet[pId]; !exist {
 			partitionSet[pId] = make([][]string, 2)
 		}
 		partitionSet[pId][0] = append(partitionSet[pId][0], key)
+		participants[pId] = true
 	}
 
 	for _, key := range writeKeyList {
 		pId := c.config.GetPartitionIdByKey(key)
+		logrus.Debugf("key %v, pId %v", key, pId)
 		if _, exist := partitionSet[pId]; !exist {
 			partitionSet[pId] = make([][]string, 2)
 		}
 		partitionSet[pId][1] = append(partitionSet[pId][1], key)
+		participants[pId] = true
 	}
 
 	participatedPartitions := make([]int32, len(partitionSet))
 	serverDcIds := make([]string, len(partitionSet))
 	i := 0
-	for pId, _ := range partitionSet {
+	for pId := range partitionSet {
 		participatedPartitions[i] = int32(pId)
 		sId := c.config.GetServerIdByPartitionId(pId)
 		serverDcIds[i] = c.config.GetDataCenterIdByServerId(sId)
@@ -233,7 +240,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		request := &rpc.ReadAndPrepareRequest{
 			Txn:              txn,
 			IsRead:           false,
-			IsNotParticipant: false,
+			IsNotParticipant: !participants[pId],
 			Timestamp:        0,
 			ClientId:         c.clientId,
 		}
@@ -243,12 +250,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		}
 
 		sId := c.config.GetServerIdByPartitionId(pId)
-		sender := &ReadAndPrepareSender{
-			request:    request,
-			txn:        ongoingTxn,
-			timeout:    RPCTimeOut,
-			connection: c.connections[sId],
-		}
+		sender := NewReadAndPrepareSender(request, ongoingTxn, c.connections[sId])
 
 		go sender.Send()
 	}
@@ -294,7 +296,6 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		}
 		i++
 	}
-	//logrus.Infof("%v, %v", writeKeyValueList, len(writeKeyValue))
 
 	ongoingTxn := c.getTxn(txnId)
 
@@ -317,12 +318,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	}
 
 	coordinatorId := c.config.GetServerIdByPartitionId(int(ongoingTxn.txn.CoordPartitionId))
-	sender := &CommitRequestSender{
-		request:    request,
-		txn:        ongoingTxn,
-		timeout:    RPCTimeOut,
-		connection: c.connections[coordinatorId],
-	}
+	sender := NewCommitRequestSender(request, ongoingTxn, c.connections[coordinatorId])
 
 	go sender.Send()
 
@@ -332,23 +328,40 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 func (c *Client) PrintTxnStatisticData() {
 	file, err := os.Create("statistic.log")
-	if err != nil {
+	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
+		return
 	}
 
-	file.WriteString("#txnId, commit result, latency\n")
+	_, err = file.WriteString("#txnId, commit result, latency, start time, end time\n")
+	if err != nil {
+		logrus.Fatalf("Cannot write to file, %v", err)
+		return
+	}
 
 	for _, txn := range c.txnStore {
-		s := fmt.Sprintf("%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v, %v, %v\n",
 			txn.txn.TxnId,
 			txn.commitResult,
-			txn.endTime.Sub(txn.startTime).Microseconds())
-		file.WriteString(s)
+			txn.endTime.Sub(txn.startTime).Nanoseconds(),
+			txn.startTime.UnixNano(),
+			txn.endTime.UnixNano())
+		_, err = file.WriteString(s)
+		if err != nil {
+			logrus.Fatalf("Cannot write to file %v", err)
+		}
 	}
 
-	file.Close()
+	err = file.Close()
+	if err != nil {
+		logrus.Fatalf("cannot close file %v", err)
+	}
 }
 
 func (c *Client) GetKeyNum() int {
 	return c.config.GetKeyNum()
+}
+
+func (c *Client) GetKeySize() int {
+	return c.config.GetKeySize()
 }

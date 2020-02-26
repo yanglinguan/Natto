@@ -71,7 +71,7 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 	}
 
 	if op.canCommit || s.checkCommit(txnId) {
-		log.Infof("txn %v committed", txnId)
+		log.Infof("COMMIT %v", txnId)
 		for _, rk := range op.request.ReadKeyVerList {
 			delete(s.kvStore[rk.Key].PreparedTxnRead, txnId)
 		}
@@ -85,14 +85,15 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		s.txnStore[txnId].status = COMMIT
 		s.txnStore[txnId].receiveFromCoordinator = true
 
-		log.Debugf("@@@@@@@@@@@@@")
-
 		s.getNextCommitListByCommitOrAbort(txnId)
 
 		delete(s.readyToCommitTxn, txnId)
 		op.wait <- true
+		for key, kv := range s.kvStore {
+			log.Debugf("After commit txn %v key %v: %v (%v)", txnId, key, kv.Value, kv.Version)
+		}
 	} else {
-		log.Debugf("txn %v wait to commit", txnId)
+		log.Debugf("WAIT COMMIT %v", txnId)
 		s.waitToCommitTxn[txnId] = op
 	}
 }
@@ -119,9 +120,7 @@ func (s *GTSStorageDepGraph) selfAbort(op *ReadAndPrepareOp) {
 		if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
 			s.server.coordinator.Wait2PCResultTxn <- op
 		}
-		log.WithFields(log.Fields{
-			"txnId": txnId,
-		}).Debugln("receive readAndPrepareRequest, abort txn, create txnInfo")
+		log.Infof("ABORT %v (self abort)", op.request.Txn.TxnId)
 
 		s.txnStore[txnId] = &TxnInfo{
 			readAndPrepareRequestOp: op,
@@ -129,7 +128,6 @@ func (s *GTSStorageDepGraph) selfAbort(op *ReadAndPrepareOp) {
 			receiveFromCoordinator:  false,
 		}
 	}
-
 }
 
 func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
@@ -152,10 +150,7 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 			}).Fatalln("txn is already committed")
 			break
 		default:
-			log.WithFields(log.Fields{
-				"txnId":  txnId,
-				"status": txnInfo.status,
-			}).Debugln("release lock")
+			log.Infof("ABORT %v (coordinator)", txnId)
 
 			s.getNextCommitListByCommitOrAbort(txnId)
 
@@ -174,9 +169,7 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 			break
 		}
 	} else {
-		log.WithFields(log.Fields{
-			"txnId": txnId,
-		}).Debugln("txn does not receive a readAndPrepareRequest, create txnInfo")
+		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
 
 		s.txnStore[txnId] = &TxnInfo{
 			readAndPrepareRequestOp: nil,
@@ -312,9 +305,10 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 
 	switch status {
 	case PREPARED:
-		log.Infof("txn %v prepared", op.request.Txn.TxnId)
+		log.Infof("PREPARED %v", op.request.Txn.TxnId)
 		s.prepareResult(op)
 	case ABORT:
+		log.Infof("ABORT %v", op.request.Txn.TxnId)
 		op.prepareResult = &rpc.PrepareResultRequest{
 			TxnId:           op.request.Txn.TxnId,
 			ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
@@ -331,7 +325,7 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 }
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("process txn %v", op.request.Txn.TxnId)
+	log.Infof("PROCESSING %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId
 	if s.isAborted(txnId) {
 		log.Infof("txn %v is already aborted", op.request.Txn.TxnId)
@@ -359,7 +353,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 			op.RecordPreparedKey(rk, READ)
 			s.kvStore[rk].PreparedTxnRead[txnId] = true
 		} else {
-			log.Infof("txn %v read on key %v", op.request.Txn.TxnId, rk)
+			log.Debugf("txn %v read on key %v", op.request.Txn.TxnId, rk)
 			notPreparedKey[rk] = true
 		}
 	}
@@ -370,7 +364,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 			op.RecordPreparedKey(wk, WRITE)
 			s.kvStore[wk].PreparedTxnWrite[txnId] = true
 		} else {
-			log.Infof("txn %v waite on key %v", op.request.Txn.TxnId, wk)
+			log.Debugf("txn %v waite on key %v", op.request.Txn.TxnId, wk)
 			notPreparedKey[wk] = true
 		}
 	}

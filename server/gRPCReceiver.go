@@ -8,41 +8,22 @@ import (
 
 func (s *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
-	logrus.Infof("receive read and prepare for txn %v", request.Txn.TxnId)
-	requestOp := &ReadAndPrepareOp{
-		request:             request,
-		wait:                make(chan bool, 1),
-		readKeyMap:          make(map[string]bool),
-		writeKeyMap:         make(map[string]bool),
-		preparedWriteKeyNum: 0,
-		preparedReadKeyNum:  0,
-	}
-	for _, rk := range request.Txn.ReadKeyList {
-		requestOp.readKeyMap[rk] = false
-	}
-	for _, wk := range request.Txn.WriteKeyList {
-		requestOp.writeKeyMap[wk] = false
-	}
-
-	requestOp.numPartitions = len(request.Txn.ParticipatedPartitionIds)
+	logrus.Infof("RECEIVE ReadAndPrepare %v", request.Txn.TxnId)
+	requestOp := NewReadAndPrepareOp(request)
 
 	s.scheduler.Schedule(requestOp)
 
 	requestOp.BlockOwner()
 
-	logrus.Infof("send read result back to client")
+	logrus.Infof("REPLY ReadAndPrepare %v", request.Txn.TxnId)
 
 	return requestOp.GetReply(), nil
 }
 
 func (s *Server) Commit(ctx context.Context,
 	request *rpc.CommitRequest) (*rpc.CommitReply, error) {
-	logrus.Infof("receive commit for txn %v", request.TxnId)
-	op := &CommitRequestOp{
-		request:   request,
-		canCommit: false,
-		wait:      make(chan bool, 1),
-	}
+	logrus.Infof("RECEIVE Commit %v %v", request.TxnId, request.IsCoordinator)
+	op := NewCommitRequestOp(request)
 	if request.IsCoordinator {
 		s.executor.CommitTxn <- op
 	} else {
@@ -50,7 +31,7 @@ func (s *Server) Commit(ctx context.Context,
 	}
 
 	op.BlockOwner()
-
+	logrus.Infof("REPLY Commit %v %v", request.TxnId, request.IsCoordinator)
 	return &rpc.CommitReply{
 		Result:     op.result,
 		LeaderAddr: s.serverAddress,
@@ -59,12 +40,8 @@ func (s *Server) Commit(ctx context.Context,
 
 func (s *Server) Abort(ctx context.Context,
 	request *rpc.AbortRequest) (*rpc.AbortReply, error) {
-	op := &AbortRequestOp{
-		abortRequest:      request,
-		request:           nil,
-		isFromCoordinator: false,
-		sendToCoordinator: false,
-	}
+	logrus.Infof("RECEIVE Abort %v %v", request.TxnId, request.IsCoordinator)
+	op := NewAbortRequestOp(request, nil)
 	if request.IsCoordinator {
 		op.isFromCoordinator = true
 		s.executor.AbortTxn <- op
@@ -78,10 +55,9 @@ func (s *Server) Abort(ctx context.Context,
 }
 
 func (s *Server) PrepareResult(ctx context.Context, request *rpc.PrepareResultRequest) (*rpc.PrepareResultReply, error) {
-	op := &PrepareResultOp{
-		Request:          request,
-		CoordPartitionId: s.partitionId,
-	}
+	logrus.Infof("RECEIVE PrepareResult %v partition %v result %v",
+		request.TxnId, request.PartitionId, request.PrepareStatus)
+	op := NewPrepareRequestOp(request, s.partitionId)
 	s.coordinator.PrepareResult <- op
 	return &rpc.PrepareResultReply{
 		LeaderAddr: s.serverAddress,

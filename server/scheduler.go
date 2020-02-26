@@ -6,7 +6,6 @@ import (
 
 type Scheduler interface {
 	Schedule(op *ReadAndPrepareOp)
-	//GetNextRequest() *ReadAndPrepareOp
 }
 
 type NoScheduler struct {
@@ -64,12 +63,7 @@ func (ts *TimestampScheduler) resetTimer() {
 
 func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 	if op.request.Timestamp < time.Now().UnixNano() {
-		ts.server.executor.AbortTxn <- &AbortRequestOp{
-			abortRequest:      nil,
-			request:           op,
-			isFromCoordinator: false,
-			sendToCoordinator: false,
-		}
+		ts.server.executor.AbortTxn <- NewAbortRequestOp(nil, op)
 		return
 	}
 

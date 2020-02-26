@@ -130,7 +130,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	canPrepare := true
-	for _, key := range op.request.Txn.ReadKeyList {
+	for key := range op.readKeyMap {
 		// read write conflict
 		if s.preparedWriteKey[key] > 0 {
 			canPrepare = false
@@ -138,7 +138,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 		}
 	}
 
-	for _, key := range op.request.Txn.WriteKeyList {
+	for key := range op.writeKeyMap {
 		if !canPrepare || s.preparedReadKey[key] > 0 || s.preparedWriteKey[key] > 0 {
 			canPrepare = false
 			break
@@ -158,19 +158,15 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 
 	s.txnStore[txnId].status = ABORT
 
-	abortOp := &AbortRequestOp{
-		abortRequest:      nil,
-		request:           op,
-		isFromCoordinator: false,
-		sendToCoordinator: false,
-	}
+	abortOp := NewAbortRequestOp(nil, op)
 	s.server.executor.AbortTxn <- abortOp
 
 }
 
 func (s *OccStorage) Commit(op *CommitRequestOp) {
-	log.Infof("commit txn %v", op.request.TxnId)
+	log.Infof("COMMIT %v", op.request.TxnId)
 	for _, kv := range op.request.WriteKeyValList {
+		log.Debugf("key %v, value %v", kv.Key, kv.Value)
 		s.kvStore[kv.Key].Value = kv.Value
 		s.kvStore[kv.Key].Version++
 		s.preparedWriteKey[kv.Key]--
@@ -204,18 +200,13 @@ func (s *OccStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			}).Fatalln("txn is already committed")
 			break
 		default:
-			log.WithFields(log.Fields{
-				"txnId":  txnId,
-				"status": txnInfo.status,
-			}).Debugln("release lock")
+			log.Infof("ABORT %v (coordinator)", txnId)
 			txnInfo.receiveFromCoordinator = true
 			txnInfo.status = ABORT
 			break
 		}
 	} else {
-		log.WithFields(log.Fields{
-			"txnId": txnId,
-		}).Debugln("txn does not receive a readAndPrepareRequest, create txnInfo")
+		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
 
 		s.txnStore[txnId] = &TxnInfo{
 			readAndPrepareRequestOp: nil,

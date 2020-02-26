@@ -1,5 +1,7 @@
 package server
 
+import "github.com/sirupsen/logrus"
+
 type Executor struct {
 	server *Server
 	// try to prepare txn
@@ -42,16 +44,13 @@ func (e *Executor) run() {
 func (e *Executor) sendPreparedResultToCoordinator() {
 	for {
 		op := <-e.PrepareResult
+		logrus.Debugf("send prepare result %v to coordinator %v txn %v", op.Request.PrepareStatus, op.CoordPartitionId, op.Request.TxnId)
 		if op.CoordPartitionId == e.server.partitionId {
 			e.server.coordinator.PrepareResult <- op
 		} else {
 			coordinatorId := e.server.config.GetServerIdByPartitionId(op.CoordPartitionId)
 			connection := e.server.connections[coordinatorId]
-			sender := &PrepareResultSender{
-				request:    op.Request,
-				timeout:    10,
-				connection: connection,
-			}
+			sender := NewPrepareResultSender(op.Request, connection)
 			go sender.Send()
 		}
 	}

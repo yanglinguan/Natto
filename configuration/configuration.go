@@ -14,10 +14,8 @@ type ServerMode int
 const (
 	OCC = iota
 	GTS
-	GTS_DEP_GRAPH
+	GtsDepGraph
 )
-
-const KeySize = 10
 
 type Configuration interface {
 	GetServerAddressByServerId(serverId string) string
@@ -37,6 +35,7 @@ type Configuration interface {
 	GetKeyNum() int
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
+	GetKeySize() int
 }
 
 type FileConfiguration struct {
@@ -64,6 +63,7 @@ type FileConfiguration struct {
 
 	delay    time.Duration
 	poolSize int
+	keySize  int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -164,7 +164,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			} else if mode == "gts" {
 				f.serverMode = GTS
 			} else if mode == "gts_dep_graph" {
-				f.serverMode = GTS_DEP_GRAPH
+				f.serverMode = GtsDepGraph
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
@@ -178,6 +178,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			}
 		} else if key == "RPCPoolSize" {
 			f.poolSize = int(v.(float64))
+		} else if key == "keySize" {
+			f.keySize = int(v.(float64))
 		}
 	}
 }
@@ -192,7 +194,7 @@ func (f *FileConfiguration) loadKey() {
 	f.keys = make([][]string, totalPartition)
 	for key := 0; key < f.keyNum; key++ {
 		partitionId := key % totalPartition
-		f.keys[partitionId] = append(f.keys[partitionId], convertToString(KeySize, key))
+		f.keys[partitionId] = append(f.keys[partitionId], convertToString(f.keySize, key))
 	}
 }
 
@@ -314,4 +316,8 @@ func (f *FileConfiguration) GetDelay() time.Duration {
 
 func (f *FileConfiguration) GetConnectionPoolSize() int {
 	return f.poolSize
+}
+
+func (f *FileConfiguration) GetKeySize() int {
+	return f.keySize
 }

@@ -21,7 +21,7 @@ type Server struct {
 	executor    *Executor
 	coordinator *Coordinator
 
-	connections   map[string]*connection.Connection
+	connections   map[string]connection.Connection
 	serverAddress string
 	partitionId   int
 	serverId      string
@@ -32,7 +32,7 @@ func NewServer(serverId string, configFile string) *Server {
 	server := &Server{
 		serverId:    serverId,
 		gRPCServer:  grpc.NewServer(),
-		connections: make(map[string]*connection.Connection),
+		connections: make(map[string]connection.Connection),
 	}
 
 	server.config = configuration.NewFileConfiguration(configFile)
@@ -52,7 +52,7 @@ func NewServer(serverId string, configFile string) *Server {
 		server.scheduler = NewTimestampScheduler(server)
 		server.storage = NewGTSStorage(server)
 		break
-	case configuration.GTS_DEP_GRAPH:
+	case configuration.GtsDepGraph:
 		server.scheduler = NewTimestampScheduler(server)
 		server.storage = NewGTSStorageDepGraph(server)
 		break
@@ -61,9 +61,15 @@ func NewServer(serverId string, configFile string) *Server {
 	}
 
 	server.storage.LoadKeys(server.config.GetKeyList(server.partitionId))
-
-	for sId, addr := range server.config.GetServerAddressMap() {
-		server.connections[sId] = connection.NewConnection(addr, server.config.GetConnectionPoolSize())
+	poolSize := server.config.GetConnectionPoolSize()
+	if poolSize == 0 {
+		for sId, addr := range server.config.GetServerAddressMap() {
+			server.connections[sId] = connection.NewSingleConnect(addr)
+		}
+	} else {
+		for sId, addr := range server.config.GetServerAddressMap() {
+			server.connections[sId] = connection.NewPoolConnection(addr, poolSize)
+		}
 	}
 
 	rpc.RegisterCarouselServer(server.gRPCServer, server)

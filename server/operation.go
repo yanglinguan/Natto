@@ -19,6 +19,8 @@ type ReadAndPrepareOp struct {
 	writeKeyMap         map[string]bool
 	preparedWriteKeyNum int
 
+	keyMap map[string]bool
+
 	// prepare result will send to coordinator
 	prepareResult *rpc.PrepareResultRequest
 
@@ -26,6 +28,36 @@ type ReadAndPrepareOp struct {
 	numPartitions int
 
 	sendToCoordinator bool
+}
+
+func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareOp {
+	r := &ReadAndPrepareOp{
+		request:             request,
+		wait:                make(chan bool, 1),
+		index:               0,
+		reply:               nil,
+		readKeyMap:          make(map[string]bool),
+		preparedReadKeyNum:  0,
+		writeKeyMap:         make(map[string]bool),
+		preparedWriteKeyNum: 0,
+		keyMap:              make(map[string]bool),
+		prepareResult:       nil,
+		numPartitions:       0,
+		sendToCoordinator:   false,
+	}
+
+	for _, rk := range request.Txn.ReadKeyList {
+		r.readKeyMap[rk] = false
+		r.keyMap[rk] = true
+	}
+	for _, wk := range request.Txn.WriteKeyList {
+		r.writeKeyMap[wk] = false
+		r.keyMap[wk] = true
+	}
+
+	r.numPartitions = len(request.Txn.ParticipatedPartitionIds)
+
+	return r
 }
 
 func (o *ReadAndPrepareOp) RecordPreparedKey(key string, keyType KeyType) {
@@ -58,6 +90,17 @@ type CommitRequestOp struct {
 	result    bool
 }
 
+func NewCommitRequestOp(request *rpc.CommitRequest) *CommitRequestOp {
+	c := &CommitRequestOp{
+		request:   request,
+		canCommit: false,
+		wait:      make(chan bool, 1),
+		result:    false,
+	}
+
+	return c
+}
+
 func (c *CommitRequestOp) BlockOwner() bool {
 	return <-c.wait
 }
@@ -67,6 +110,16 @@ type AbortRequestOp struct {
 	request           *ReadAndPrepareOp
 	isFromCoordinator bool
 	sendToCoordinator bool
+}
+
+func NewAbortRequestOp(abortRequest *rpc.AbortRequest, request *ReadAndPrepareOp) *AbortRequestOp {
+	a := &AbortRequestOp{
+		abortRequest:      abortRequest,
+		request:           request,
+		isFromCoordinator: false,
+		sendToCoordinator: false,
+	}
+	return a
 }
 
 func (o *AbortRequestOp) GetTxnId() string {
@@ -83,4 +136,13 @@ func (o *AbortRequestOp) GetTxnId() string {
 type PrepareResultOp struct {
 	Request          *rpc.PrepareResultRequest
 	CoordPartitionId int
+}
+
+func NewPrepareRequestOp(request *rpc.PrepareResultRequest, coordinatorPartitionId int) *PrepareResultOp {
+	p := &PrepareResultOp{
+		Request:          request,
+		CoordPartitionId: coordinatorPartitionId,
+	}
+
+	return p
 }

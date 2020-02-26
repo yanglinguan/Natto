@@ -37,7 +37,7 @@ func (s *GTSStorage) LoadKeys(keys []string) {
 func (s *GTSStorage) Commit(op *CommitRequestOp) {
 
 	txnId := op.request.TxnId
-	log.Infof("txn %v committed", txnId)
+	log.Infof("COMMITTED: %v", txnId)
 	if txnInfo, exist := s.txnStore[txnId]; !exist || txnInfo.status != PREPARED {
 		log.WithFields(log.Fields{
 			"txnId":  txnId,
@@ -58,6 +58,9 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true
 	op.wait <- true
+	for key, kv := range s.kvStore {
+		log.Debugf("After commit txn %v key %v: %v (%v)", txnId, key, kv.Value, kv.Version)
+	}
 }
 
 func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
@@ -82,9 +85,7 @@ func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
 		if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
 			s.server.coordinator.Wait2PCResultTxn <- op
 		}
-		log.WithFields(log.Fields{
-			"txnId": txnId,
-		}).Debugln("receive readAndPrepareRequest, abort txn, create txnInfo")
+		log.Infof("ABORT: %v (self abort)", txnId)
 
 		s.txnStore[txnId] = &TxnInfo{
 			readAndPrepareRequestOp: op,
@@ -116,10 +117,7 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			}).Fatalln("txn is already committed")
 			break
 		default:
-			log.WithFields(log.Fields{
-				"txnId":  txnId,
-				"status": txnInfo.status,
-			}).Debugln("release lock")
+			log.Infof("ABORT: %v (coordinator)", txnId)
 
 			for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
 				if isPrepared {
@@ -202,7 +200,6 @@ func (s *GTSStorage) checkPrepare(key string) {
 		if op.IsPrepared() {
 			s.setPrepareResult(op, PREPARED)
 		}
-
 	}
 }
 
@@ -277,9 +274,10 @@ func (s *GTSStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
 
 	switch status {
 	case PREPARED:
-		log.Infof("txn %v prepared", op.request.Txn.TxnId)
+		log.Infof("PREPARED %v", op.request.Txn.TxnId)
 		s.prepareResult(op)
 	case ABORT:
+		log.Infof("ABORT %v", op.request.Txn.TxnId)
 		op.prepareResult = &rpc.PrepareResultRequest{
 			TxnId:           op.request.Txn.TxnId,
 			ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
@@ -319,7 +317,7 @@ func (s *GTSStorage) hasConflict(key string, txnId string, keyType KeyType, isTo
 }
 
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("process txn %v", op.request.Txn.TxnId)
+	log.Infof("PROCESSING txn %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId
 	if s.isAborted(txnId) {
 		log.Infof("txn %v is already aborted", op.request.Txn.TxnId)
@@ -342,27 +340,29 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 
 	notPreparedKey := make(map[string]bool)
 	for rk := range op.readKeyMap {
-		log.Debugf("txn %v key %v", txnId, rk)
+		log.Debugf("txn %v read key %v", txnId, rk)
 		if !s.hasConflict(rk, txnId, READ, false) {
 			op.RecordPreparedKey(rk, READ)
 			s.kvStore[rk].PreparedTxnRead[txnId] = true
 		} else {
+			log.Debugf("txn %v wait read key %v", txnId, rk)
 			notPreparedKey[rk] = true
 		}
 	}
 
 	for wk := range op.writeKeyMap {
+		log.Debugf("txn %v write key %v", txnId, wk)
 		if !s.hasConflict(wk, txnId, WRITE, false) {
 			op.RecordPreparedKey(wk, WRITE)
 			s.kvStore[wk].PreparedTxnWrite[txnId] = true
 		} else {
+			log.Debugf("txn %v wait write key %v", txnId, wk)
 			notPreparedKey[wk] = true
 		}
 	}
 
 	if !op.IsPrepared() {
 		for key := range notPreparedKey {
-			log.Infof("txn %v waite on key %v", op.request.Txn.TxnId, key)
 			s.kvStore[key].WaitingOp.PushBack(op)
 		}
 		return

@@ -32,9 +32,6 @@ func (g *Graph) AddNode(txn string) {
 	if _, exist := g.adjList[txn]; !exist {
 		g.adjList[txn] = make(map[string]bool)
 	}
-	//if _, exist := g.revAdjList[txn]; !exist {
-	//	g.revAdjList[txn] = make(map[string]bool)
-	//}
 }
 
 // txn1 should commit before txn2 t1->t2
@@ -94,7 +91,7 @@ func (g *Graph) Remove(txnId string) {
 			continue
 		}
 		g.inDegree[child]--
-		logrus.Debugf("txn %v indegree-- %v", child, g.inDegree[child])
+		logrus.Debugf("txn %v inDegree-- %v", child, g.inDegree[child])
 		for parent := range g.revAdjList[txnId] {
 			if _, exist := g.inDegree[parent]; !exist {
 				delete(g.revAdjList[txnId], parent)
