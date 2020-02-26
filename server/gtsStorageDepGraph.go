@@ -3,7 +3,9 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	"container/list"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type GTSStorageDepGraph struct {
@@ -17,6 +19,8 @@ type GTSStorageDepGraph struct {
 	readyToCommitTxn map[string]bool
 	// txnId -> commitRequestOp
 	waitToCommitTxn map[string]*CommitRequestOp
+
+	committed int
 }
 
 func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
@@ -27,6 +31,7 @@ func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
 		graph:            NewDependencyGraph(),
 		readyToCommitTxn: make(map[string]bool),
 		waitToCommitTxn:  make(map[string]*CommitRequestOp),
+		committed:        0,
 	}
 
 	return s
@@ -84,14 +89,12 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		}
 		s.txnStore[txnId].status = COMMIT
 		s.txnStore[txnId].receiveFromCoordinator = true
-
+		s.txnStore[txnId].commitOrder = s.committed
+		s.committed++
 		s.getNextCommitListByCommitOrAbort(txnId)
 
 		delete(s.readyToCommitTxn, txnId)
 		op.wait <- true
-		for key, kv := range s.kvStore {
-			log.Debugf("After commit txn %v key %v: %v (%v)", txnId, key, kv.Value, kv.Version)
-		}
 	} else {
 		log.Debugf("WAIT COMMIT %v", txnId)
 		s.waitToCommitTxn[txnId] = op
@@ -344,6 +347,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 		readAndPrepareRequestOp: op,
 		status:                  INIT,
 		receiveFromCoordinator:  false,
+		commitOrder:             0,
 	}
 
 	notPreparedKey := make(map[string]bool)
@@ -420,4 +424,80 @@ func (s *GTSStorageDepGraph) LoadKeys(keys []string) {
 			PreparedTxnWrite: make(map[string]bool),
 		}
 	}
+}
+
+func (s *GTSStorageDepGraph) PrintCommitOrder() {
+	txnId := make([]string, len(s.txnStore))
+	for id, info := range s.txnStore {
+		txnId[info.commitOrder] = id
+	}
+
+	file, err := os.Create(s.server.serverId + "_commitOrder.log")
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+
+	for _, id := range txnId {
+		_, err = file.WriteString(id + "\n")
+		if err != nil {
+			log.Fatalf("Cannot write to file %v", err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
+	}
+}
+
+func (s *GTSStorageDepGraph) PrintModifiedData() {
+	file, err := os.Create(s.server.serverId + "_db.log")
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+
+	_, err = file.WriteString("#key, value, version\n")
+	if err != nil {
+		log.Fatalf("Cannot write to file, %v", err)
+		return
+	}
+
+	for key, kv := range s.kvStore {
+		if kv.Version == 0 {
+			continue
+		}
+
+		var k int
+		_, err := fmt.Sscan(key, &k)
+		if err != nil {
+			log.Fatalf("key %v is invalid", key)
+		}
+
+		var v int
+		_, err = fmt.Sscan(kv.Value, &v)
+		if err != nil {
+			log.Fatalf("value %v is invalid", kv.Value)
+		}
+
+		s := fmt.Sprintf("%v,%v,%v\n",
+			k,
+			v,
+			kv.Version)
+		_, err = file.WriteString(s)
+		if err != nil {
+			log.Fatalf("fail to write %v", err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
+	}
+}
+
+func (s *GTSStorageDepGraph) PrintStatus() {
+	s.PrintCommitOrder()
+	s.PrintModifiedData()
 }

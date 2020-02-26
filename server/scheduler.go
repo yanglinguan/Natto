@@ -63,7 +63,7 @@ func (ts *TimestampScheduler) resetTimer() {
 
 func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 	if op.request.Timestamp < time.Now().UnixNano() {
-		ts.server.executor.AbortTxn <- NewAbortRequestOp(nil, op)
+		ts.server.executor.AbortTxn <- NewAbortRequestOp(nil, op, false)
 		return
 	}
 

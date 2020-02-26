@@ -327,6 +327,11 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 }
 
 func (c *Client) PrintTxnStatisticData() {
+	for _, conn := range c.connections {
+		sender := NewPrintStatusRequestSender(conn)
+		sender.Send()
+	}
+
 	file, err := os.Create("statistic.log")
 	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
@@ -343,7 +348,7 @@ func (c *Client) PrintTxnStatisticData() {
 		key := make([]int, len(txn.txn.ReadKeyList))
 		for i, ks := range txn.txn.ReadKeyList {
 			var k int
-			fmt.Sscan(ks, &k)
+			_, err = fmt.Sscan(ks, &k)
 			key[i] = k
 		}
 		s := fmt.Sprintf("%v,%v,%v, %v, %v, %v\n",

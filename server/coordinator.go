@@ -190,7 +190,7 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 			IsCoordinator: true,
 		}
 		if coordinatorId == c.server.partitionId {
-			op := NewAbortRequestOp(request, nil)
+			op := NewAbortRequestOp(request, nil, true)
 			c.server.executor.AbortTxn <- op
 		} else {
 			for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {

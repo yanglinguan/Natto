@@ -2,7 +2,9 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type OccStorage struct {
@@ -13,6 +15,8 @@ type OccStorage struct {
 	preparedWriteKey map[string]int
 
 	server *Server
+
+	committed int
 }
 
 func NewOccStorage(server *Server) *OccStorage {
@@ -22,6 +26,7 @@ func NewOccStorage(server *Server) *OccStorage {
 		preparedReadKey:  make(map[string]int),
 		preparedWriteKey: make(map[string]int),
 		server:           server,
+		committed:        0,
 	}
 
 	return o
@@ -124,9 +129,10 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	s.txnStore[txnId] = &TxnInfo{
-		op,
-		INIT,
-		false,
+		readAndPrepareRequestOp: op,
+		status:                  0,
+		receiveFromCoordinator:  false,
+		commitOrder:             0,
 	}
 
 	canPrepare := true
@@ -158,7 +164,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 
 	s.txnStore[txnId].status = ABORT
 
-	abortOp := NewAbortRequestOp(nil, op)
+	abortOp := NewAbortRequestOp(nil, op, false)
 	s.server.executor.AbortTxn <- abortOp
 
 }
@@ -177,6 +183,8 @@ func (s *OccStorage) Commit(op *CommitRequestOp) {
 	}
 	s.txnStore[op.request.TxnId].status = COMMIT
 	s.txnStore[op.request.TxnId].receiveFromCoordinator = true
+	s.txnStore[op.request.TxnId].commitOrder = s.committed
+	s.committed++
 	op.wait <- true
 }
 
@@ -237,4 +245,80 @@ func (s *OccStorage) LoadKeys(keys []string) {
 			PreparedTxnWrite: nil,
 		}
 	}
+}
+
+func (s *OccStorage) PrintCommitOrder() {
+	txnId := make([]string, len(s.txnStore))
+	for id, info := range s.txnStore {
+		txnId[info.commitOrder] = id
+	}
+
+	file, err := os.Create(s.server.serverId + "_commitOrder.log")
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+
+	for _, id := range txnId {
+		_, err = file.WriteString(id + "\n")
+		if err != nil {
+			log.Fatalf("Cannot write to file %v", err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
+	}
+}
+
+func (s *OccStorage) PrintModifiedData() {
+	file, err := os.Create(s.server.serverId + "_db.log")
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+
+	_, err = file.WriteString("#key, value, version\n")
+	if err != nil {
+		log.Fatalf("Cannot write to file, %v", err)
+		return
+	}
+
+	for key, kv := range s.kvStore {
+		if kv.Version == 0 {
+			continue
+		}
+
+		var k int
+		_, err := fmt.Sscan(key, &k)
+		if err != nil {
+			log.Fatalf("key %v is invalid", key)
+		}
+
+		var v int
+		_, err = fmt.Sscan(kv.Value, &v)
+		if err != nil {
+			log.Fatalf("value %v is invalid", kv.Value)
+		}
+
+		s := fmt.Sprintf("%v,%v,%v\n",
+			k,
+			v,
+			kv.Version)
+		_, err = file.WriteString(s)
+		if err != nil {
+			log.Fatalf("fail to write %v", err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
+	}
+}
+
+func (s *OccStorage) PrintStatus() {
+	s.PrintCommitOrder()
+	s.PrintModifiedData()
 }

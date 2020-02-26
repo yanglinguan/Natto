@@ -112,11 +112,11 @@ type AbortRequestOp struct {
 	sendToCoordinator bool
 }
 
-func NewAbortRequestOp(abortRequest *rpc.AbortRequest, request *ReadAndPrepareOp) *AbortRequestOp {
+func NewAbortRequestOp(abortRequest *rpc.AbortRequest, request *ReadAndPrepareOp, fromCoordinator bool) *AbortRequestOp {
 	a := &AbortRequestOp{
 		abortRequest:      abortRequest,
 		request:           request,
-		isFromCoordinator: false,
+		isFromCoordinator: fromCoordinator,
 		sendToCoordinator: false,
 	}
 	return a

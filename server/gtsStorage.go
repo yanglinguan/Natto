@@ -3,20 +3,24 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	"container/list"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type GTSStorage struct {
-	kvStore  map[string]*ValueVersion
-	server   *Server
-	txnStore map[string]*TxnInfo
+	kvStore   map[string]*ValueVersion
+	server    *Server
+	txnStore  map[string]*TxnInfo
+	committed int
 }
 
 func NewGTSStorage(server *Server) *GTSStorage {
 	s := &GTSStorage{
-		kvStore:  make(map[string]*ValueVersion),
-		server:   server,
-		txnStore: make(map[string]*TxnInfo),
+		kvStore:   make(map[string]*ValueVersion),
+		server:    server,
+		txnStore:  make(map[string]*TxnInfo),
+		committed: 0,
 	}
 
 	return s
@@ -57,6 +61,8 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	}
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true
+	s.txnStore[txnId].commitOrder = s.committed
+	s.committed++
 	op.wait <- true
 }
 
@@ -366,4 +372,80 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	s.setPrepareResult(op, PREPARED)
+}
+
+func (s *GTSStorage) PrintCommitOrder() {
+	txnId := make([]string, len(s.txnStore))
+	for id, info := range s.txnStore {
+		txnId[info.commitOrder] = id
+	}
+
+	file, err := os.Create(s.server.serverId + "_commitOrder.log")
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+
+	for _, id := range txnId {
+		_, err = file.WriteString(id + "\n")
+		if err != nil {
+			log.Fatalf("Cannot write to file %v", err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
+	}
+}
+
+func (s *GTSStorage) PrintModifiedData() {
+	file, err := os.Create(s.server.serverId + "_db.log")
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+
+	_, err = file.WriteString("#key, value, version\n")
+	if err != nil {
+		log.Fatalf("Cannot write to file, %v", err)
+		return
+	}
+
+	for key, kv := range s.kvStore {
+		if kv.Version == 0 {
+			continue
+		}
+
+		var k int
+		_, err := fmt.Sscan(key, &k)
+		if err != nil {
+			log.Fatalf("key %v is invalid", key)
+		}
+
+		var v int
+		_, err = fmt.Sscan(kv.Value, &v)
+		if err != nil {
+			log.Fatalf("value %v is invalid", kv.Value)
+		}
+
+		s := fmt.Sprintf("%v,%v,%v\n",
+			k,
+			v,
+			kv.Version)
+		_, err = file.WriteString(s)
+		if err != nil {
+			log.Fatalf("fail to write %v", err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
+	}
+}
+
+func (s *GTSStorage) PrintStatus() {
+	s.PrintCommitOrder()
+	s.PrintModifiedData()
 }

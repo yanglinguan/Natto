@@ -29,12 +29,13 @@
     ["3"]
   ],
   "experiment": {
-    "mode": "gts_dep_graph",
+    "mode": "occ",
     "replication": false,
     "totalKey": 3,
     "delay": "200ms",
-    "RPCPoolSize": 200,
+    "RPCPoolSize": 0,
     "keySize": 1,
+    "txnSize": 3,
     "oneWayDelay" : {
       "D1": {"D2": "50ms", "D3": "100ms"},
       "D2": {"D1": "50ms", "D3": "80ms"},

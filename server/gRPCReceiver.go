@@ -41,7 +41,7 @@ func (s *Server) Commit(ctx context.Context,
 func (s *Server) Abort(ctx context.Context,
 	request *rpc.AbortRequest) (*rpc.AbortReply, error) {
 	logrus.Infof("RECEIVE Abort %v %v", request.TxnId, request.IsCoordinator)
-	op := NewAbortRequestOp(request, nil)
+	op := NewAbortRequestOp(request, nil, false)
 	if request.IsCoordinator {
 		op.isFromCoordinator = true
 		s.executor.AbortTxn <- op
@@ -62,4 +62,9 @@ func (s *Server) PrepareResult(ctx context.Context, request *rpc.PrepareResultRe
 	return &rpc.PrepareResultReply{
 		LeaderAddr: s.serverAddress,
 	}, nil
+}
+
+func (s *Server) PrintStatus(cts context.Context, request *rpc.Empty) (*rpc.Empty, error) {
+	s.storage.PrintStatus()
+	return &rpc.Empty{}, nil
 }

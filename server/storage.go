@@ -24,6 +24,7 @@ type TxnInfo struct {
 	readAndPrepareRequestOp *ReadAndPrepareOp
 	status                  TxnStatus
 	receiveFromCoordinator  bool
+	commitOrder             int
 }
 
 type ValueVersion struct {
@@ -39,4 +40,5 @@ type Storage interface {
 	Commit(op *CommitRequestOp)
 	Abort(op *AbortRequestOp)
 	LoadKeys(keys []string)
+	PrintStatus()
 }

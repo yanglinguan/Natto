@@ -9,6 +9,9 @@ service Carousel {
 
     // RPCs for transaction participants sending prepare result to transaction coordinators
     rpc PrepareResult(PrepareResultRequest) returns (PrepareResultReply) {}
+
+    // print final result
+    rpc PrintStatus(Empty) returns (Empty) {}
 }
 
 message Transaction {

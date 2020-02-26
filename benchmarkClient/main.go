@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"log"
-	"math/rand"
+	//	"math/rand"
 	"strconv"
 	"sync"
 )
@@ -66,12 +66,12 @@ func execTxn(client *client.Client) {
 
 func getTxn(totalKey int, txnSize int, keySize int) ([]string, []string) {
 	readKeyList := make([]string, txnSize)
-	//txnSize = totalKey
+	txnSize = totalKey
 	//readKeyList := make([]string, 0)
 	writeKeyList := make([]string, txnSize)
 	for i := 0; i < txnSize; i++ {
-		//key := i
-		key := rand.Intn(totalKey)
+		key := i
+		//key := rand.Intn(totalKey)
 		keyStr := convertToString(keySize, key)
 		readKeyList[i] = keyStr
 		writeKeyList[i] = keyStr

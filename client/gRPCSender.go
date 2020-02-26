@@ -79,3 +79,26 @@ func (c *CommitRequestSender) Send() {
 		logrus.Fatalf("rpc error %v", err)
 	}
 }
+
+type PrintStatusRequestSender struct {
+	connection connection.Connection
+}
+
+func NewPrintStatusRequestSender(connection connection.Connection) *PrintStatusRequestSender {
+	p := &PrintStatusRequestSender{connection: connection}
+	return p
+}
+
+func (p *PrintStatusRequestSender) Send() {
+	conn := p.connection.GetConn()
+	if p.connection.GetPoolSize() > 0 {
+		defer p.connection.Close(conn)
+	}
+
+	client := rpc.NewCarouselClient(conn)
+	logrus.Infof("SEND PrintStatus to %v ", p.connection.GetDstAddr())
+	_, err := client.PrintStatus(context.Background(), &rpc.Empty{})
+	if err != nil {
+		logrus.Fatalf("rpc error %v", err)
+	}
+}
