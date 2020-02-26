@@ -36,6 +36,7 @@ type Configuration interface {
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
 	GetKeySize() int
+	GetTxnSize() int
 }
 
 type FileConfiguration struct {
@@ -64,6 +65,7 @@ type FileConfiguration struct {
 	delay    time.Duration
 	poolSize int
 	keySize  int
+	txnSize  int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -180,6 +182,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.poolSize = int(v.(float64))
 		} else if key == "keySize" {
 			f.keySize = int(v.(float64))
+		} else if key == "txnSize" {
+			f.txnSize = int(v.(float64))
 		}
 	}
 }
@@ -320,4 +324,8 @@ func (f *FileConfiguration) GetConnectionPoolSize() int {
 
 func (f *FileConfiguration) GetKeySize() int {
 	return f.keySize
+}
+
+func (f *FileConfiguration) GetTxnSize() int {
+	return f.txnSize
 }

@@ -333,19 +333,26 @@ func (c *Client) PrintTxnStatisticData() {
 		return
 	}
 
-	_, err = file.WriteString("#txnId, commit result, latency, start time, end time\n")
+	_, err = file.WriteString("#txnId, commit result, latency, start time, end time, keys\n")
 	if err != nil {
 		logrus.Fatalf("Cannot write to file, %v", err)
 		return
 	}
 
 	for _, txn := range c.txnStore {
-		s := fmt.Sprintf("%v,%v,%v, %v, %v\n",
+		key := make([]int, len(txn.txn.ReadKeyList))
+		for i, ks := range txn.txn.ReadKeyList {
+			var k int
+			fmt.Sscan(ks, &k)
+			key[i] = k
+		}
+		s := fmt.Sprintf("%v,%v,%v, %v, %v, %v\n",
 			txn.txn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
-			txn.endTime.UnixNano())
+			txn.endTime.UnixNano(),
+			key)
 		_, err = file.WriteString(s)
 		if err != nil {
 			logrus.Fatalf("Cannot write to file %v", err)
@@ -364,4 +371,8 @@ func (c *Client) GetKeyNum() int {
 
 func (c *Client) GetKeySize() int {
 	return c.config.GetKeySize()
+}
+
+func (c *Client) GetTxnSize() int {
+	return c.config.GetTxnSize()
 }

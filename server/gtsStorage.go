@@ -58,9 +58,6 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true
 	op.wait <- true
-	for key, kv := range s.kvStore {
-		log.Debugf("After commit txn %v key %v: %v (%v)", txnId, key, kv.Value, kv.Version)
-	}
 }
 
 func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
