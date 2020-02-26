@@ -14,7 +14,6 @@ import (
 )
 
 const RPCTimeOut = 10
-const PoolSize = 10
 const QueueLen = 1024
 
 type Transaction struct {
@@ -80,7 +79,7 @@ func NewClient(clientId string, configFile string) *Client {
 
 	c.clientDataCenterId = c.config.GetClientDataCenterIdByClientId(clientId)
 	for sId, addr := range c.config.GetServerAddressMap() {
-		c.connections[sId] = connection.NewConnection(addr, PoolSize)
+		c.connections[sId] = connection.NewConnection(addr, c.config.GetConnectionPoolSize())
 	}
 
 	go c.sendReadAndPrepareRequest()
@@ -111,6 +110,7 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string) (ma
 	sendOp := &SendOp{
 		readKeyList:  readKeyList,
 		writeKeyList: writeKeyList,
+		readResult:   make(map[string]string),
 		wait:         make(chan bool, 1),
 	}
 
@@ -126,9 +126,11 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 	for {
 		readAndPrepareRequest := <-ongoingTxn.readAndPrepareReply
 		for _, kv := range readAndPrepareRequest.KeyValVerList {
+			//	logrus.Infof("%v: %v", kv.Key, kv.Value)
 			ongoingTxn.readKeyValueVersion = append(ongoingTxn.readKeyValueVersion, kv)
 		}
 
+		//	logrus.Infof("received: %v, required: %v", len(ongoingTxn.readKeyValueVersion), len(ongoingTxn.txn.ReadKeyList))
 		if len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.txn.ReadKeyList) {
 			break
 		}
@@ -137,6 +139,7 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 	for _, kv := range ongoingTxn.readKeyValueVersion {
 		op.readResult[kv.Key] = kv.Value
 	}
+	op.wait <- true
 }
 
 func (c *Client) addTxn(txn *Transaction) {
@@ -214,6 +217,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	c.addTxn(ongoingTxn)
 
 	maxDelay := c.config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
+	maxDelay += c.config.GetDelay().Nanoseconds()
 	maxDelay += time.Now().UnixNano()
 
 	// send read and prepare request to each partition
@@ -288,7 +292,9 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 			Key:   k,
 			Value: v,
 		}
+		i++
 	}
+	//logrus.Infof("%v, %v", writeKeyValueList, len(writeKeyValue))
 
 	ongoingTxn := c.getTxn(txnId)
 
@@ -299,6 +305,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 			Key:     kv.Key,
 			Version: kv.Version,
 		}
+		i++
 	}
 
 	request := &rpc.CommitRequest{
@@ -329,7 +336,7 @@ func (c *Client) PrintTxnStatisticData() {
 		logrus.Fatal("Fails to create log file: statistic.log")
 	}
 
-	file.WriteString("txnId, commit result, latency")
+	file.WriteString("#txnId, commit result, latency\n")
 
 	for _, txn := range c.txnStore {
 		s := fmt.Sprintf("%v,%v,%v\n",

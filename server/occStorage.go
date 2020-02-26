@@ -169,6 +169,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 }
 
 func (s *OccStorage) Commit(op *CommitRequestOp) {
+	log.Infof("commit txn %v", op.request.TxnId)
 	for _, kv := range op.request.WriteKeyValList {
 		s.kvStore[kv.Key].Value = kv.Value
 		s.kvStore[kv.Key].Version++

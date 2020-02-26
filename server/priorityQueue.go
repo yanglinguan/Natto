@@ -1,6 +1,8 @@
 package server
 
-import "container/heap"
+import (
+	"container/heap"
+)
 
 type PriorityQueue struct {
 	minHeap MinHeap
@@ -19,11 +21,15 @@ func (q *PriorityQueue) Pop() *ReadAndPrepareOp {
 }
 
 func (q *PriorityQueue) Peek() *ReadAndPrepareOp {
-	if len(q.minHeap) == 0 {
+	if q.minHeap.Len() == 0 {
 		return nil
 	}
 
 	return q.minHeap[0]
+}
+
+func (q *PriorityQueue) Len() int {
+	return q.minHeap.Len()
 }
 
 func (q *PriorityQueue) Push(op *ReadAndPrepareOp) {

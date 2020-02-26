@@ -48,7 +48,8 @@ func (ts *TimestampScheduler) run() {
 }
 
 func (ts *TimestampScheduler) resetTimer() {
-	for nextOp := ts.priorityQueue.Peek(); nextOp != nil; {
+	nextOp := ts.priorityQueue.Peek()
+	for nextOp != nil {
 		nextTime := nextOp.request.Timestamp
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
@@ -57,6 +58,7 @@ func (ts *TimestampScheduler) resetTimer() {
 			ts.timer.Reset(time.Duration(diff))
 			break
 		}
+		nextOp = ts.priorityQueue.Peek()
 	}
 }
 
@@ -73,7 +75,7 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 
 	ts.priorityQueue.Push(op)
 	if op.index == 0 {
-		if !ts.timer.Stop() {
+		if !ts.timer.Stop() && len(ts.timer.C) > 0 {
 			<-ts.timer.C
 		}
 		ts.resetTimer()

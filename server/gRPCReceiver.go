@@ -2,11 +2,13 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
 func (s *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
+	logrus.Infof("receive read and prepare for txn %v", request.Txn.TxnId)
 	requestOp := &ReadAndPrepareOp{
 		request:             request,
 		wait:                make(chan bool, 1),
@@ -28,11 +30,14 @@ func (s *Server) ReadAndPrepare(ctx context.Context,
 
 	requestOp.BlockOwner()
 
+	logrus.Infof("send read result back to client")
+
 	return requestOp.GetReply(), nil
 }
 
 func (s *Server) Commit(ctx context.Context,
 	request *rpc.CommitRequest) (*rpc.CommitReply, error) {
+	logrus.Infof("receive commit for txn %v", request.TxnId)
 	op := &CommitRequestOp{
 		request:   request,
 		canCommit: false,

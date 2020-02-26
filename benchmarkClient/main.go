@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"log"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -17,13 +18,15 @@ var configFile string = ""
 
 var wg sync.WaitGroup
 
+const keySize = 10
+
 func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
 
 	c := client.NewClient(clientId, configFile)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go execTxn(c)
 	}
@@ -44,12 +47,19 @@ func execTxn(client *client.Client) {
 	for _, wk := range writeKeyList {
 		if value, exist := readResult[wk]; exist {
 			var i int
-			vInt, _ := fmt.Sscan(value, i)
-			vInt++
-			writeKeyValue[wk] = convertToString(64, vInt)
+			_, err := fmt.Sscan(value, &i)
+			if err != nil {
+				log.Fatalf("key %v invalid ", value)
+			}
+			i++
+			writeKeyValue[wk] = convertToString(keySize, i)
 		} else {
 			writeKeyValue[wk] = wk
 		}
+	}
+
+	for k, v := range writeKeyValue {
+		logrus.Infof("write key %v: %v", k, v)
 	}
 
 	client.Commit(writeKeyValue, txnId)
@@ -57,12 +67,13 @@ func execTxn(client *client.Client) {
 }
 
 func getTxn(totalKey int, txnSize int) ([]string, []string) {
-	readKeyList := make([]string, txnSize)
+	//readKeyList := make([]string, txnSize)
+	readKeyList := make([]string, 0)
 	writeKeyList := make([]string, txnSize)
 	for i := 0; i < txnSize; i++ {
 		key := rand.Intn(totalKey)
-		keyStr := convertToString(64, key)
-		readKeyList[i] = keyStr
+		keyStr := convertToString(keySize, key)
+		//readKeyList[i] = keyStr
 		writeKeyList[i] = keyStr
 	}
 	return readKeyList, writeKeyList

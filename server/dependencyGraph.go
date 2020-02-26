@@ -2,6 +2,7 @@ package server
 
 import (
 	"container/list"
+	"github.com/sirupsen/logrus"
 )
 
 type Graph struct {
@@ -31,10 +32,14 @@ func (g *Graph) AddNode(txn string) {
 	if _, exist := g.adjList[txn]; !exist {
 		g.adjList[txn] = make(map[string]bool)
 	}
+	//if _, exist := g.revAdjList[txn]; !exist {
+	//	g.revAdjList[txn] = make(map[string]bool)
+	//}
 }
 
 // txn1 should commit before txn2 t1->t2
 func (g *Graph) AddEdge(txn1 string, txn2 string) {
+	logrus.Debugf("add edge %v -> %v", txn1, txn2)
 	if _, exist := g.adjList[txn1]; !exist {
 		g.adjList[txn1] = make(map[string]bool)
 	}
@@ -73,8 +78,10 @@ func (g *Graph) GetNext() []string {
 	i := 0
 	for g.queue.Len() != 0 {
 		e := g.queue.Front()
+		logrus.Debugf("txn %v can commit", e.Value.(string))
 		result[i] = e.Value.(string)
 		g.queue.Remove(e)
+		i++
 	}
 
 	return result
@@ -82,16 +89,28 @@ func (g *Graph) GetNext() []string {
 
 func (g *Graph) Remove(txnId string) {
 	for child := range g.adjList[txnId] {
+		if _, exist := g.inDegree[child]; !exist {
+			delete(g.adjList[txnId], child)
+			continue
+		}
 		g.inDegree[child]--
+		logrus.Debugf("txn %v indegree-- %v", child, g.inDegree[child])
 		for parent := range g.revAdjList[txnId] {
+			if _, exist := g.inDegree[parent]; !exist {
+				delete(g.revAdjList[txnId], parent)
+				continue
+			}
 			g.adjList[parent][child] = true
 			g.inDegree[child]++
 		}
 		if g.inDegree[child] == 0 {
+			logrus.Debugf("txn %v can commit add to queue", child)
 			g.queue.PushBack(child)
 			delete(g.inDegree, child)
 		}
 	}
 
+	delete(g.adjList, txnId)
+	delete(g.revAdjList, txnId)
 	delete(g.inDegree, txnId)
 }

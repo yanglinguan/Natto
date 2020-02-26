@@ -16,8 +16,8 @@ type ReadAndPrepareSender struct {
 }
 
 func (s *ReadAndPrepareSender) Send() {
-	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	//defer cancel()
 
 	conn, err := s.connection.ConnectionPool.Get(context.Background())
 
@@ -25,11 +25,15 @@ func (s *ReadAndPrepareSender) Send() {
 	if err != nil {
 		logrus.Fatalf("cannot get connection from the pool client send txn %v", s.connection.DstServerAddr)
 	}
-
+	logrus.Infof("Send txn %v", s.request.Txn.TxnId)
 	client := rpc.NewCarouselClient(conn.ClientConn)
-	reply, err := client.ReadAndPrepare(ctx, s.request)
+	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err == nil {
+		logrus.Infof("Get Read result for txn %v", s.request.Txn.TxnId)
 		s.txn.readAndPrepareReply <- reply
+		logrus.Infof("log here")
+	} else {
+		logrus.Fatalf("rpc error %v", err)
 	}
 }
 
@@ -41,8 +45,8 @@ type CommitRequestSender struct {
 }
 
 func (c *CommitRequestSender) Send() {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	//defer cancel()
 
 	conn, err := c.connection.ConnectionPool.Get(context.Background())
 
@@ -50,10 +54,13 @@ func (c *CommitRequestSender) Send() {
 	if err != nil {
 		logrus.Fatalf("cannot get connection from the pool client send txn %v", c.connection.DstServerAddr)
 	}
-
+	logrus.Infof("send commit txn %v", c.request.TxnId)
 	client := rpc.NewCarouselClient(conn.ClientConn)
-	reply, err := client.Commit(ctx, c.request)
+	reply, err := client.Commit(context.Background(), c.request)
 	if err == nil {
+		logrus.Infof("get commit request %v", c.request.TxnId)
 		c.txn.commitReply <- reply
+	} else {
+		logrus.Fatalf("rpc error %v", err)
 	}
 }

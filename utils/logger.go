@@ -6,7 +6,7 @@ import (
 )
 
 func ConfigLogger(isDebug bool) {
-	log.SetFormatter(&log.TextFormatter{})
+	log.SetFormatter(&log.JSONFormatter{})
 
 	log.SetReportCaller(true)
 	log.SetOutput(os.Stdout)

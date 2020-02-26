@@ -141,6 +141,7 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
 		if info.readAndPrepareOp != nil && info.commitRequest != nil {
+			log.Infof("txn %v is aborted", info.txnId)
 			c.sendToParticipantsAndClient(info)
 		}
 	} else {
@@ -156,8 +157,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 		} else {
 			log.WithFields(log.Fields{
 				"txnId":              info.txnId,
-				"request Partition":  info.readAndPrepareOp.numPartitions,
-				"received Partition": info.preparedPartition,
+				"received Partition": len(info.preparedPartition),
 			}).Debugln("cannot commit yet")
 		}
 	}
@@ -213,6 +213,8 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 			op := &CommitRequestOp{
 				request:   request,
 				canCommit: false,
+				wait:      make(chan bool, 1),
+				result:    false,
 			}
 
 			c.server.executor.CommitTxn <- op

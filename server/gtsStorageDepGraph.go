@@ -35,6 +35,7 @@ func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
 func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
 	s.graph.Remove(txnId)
 	for _, txn := range s.graph.GetNext() {
+		log.Debugf("txn %v can commit now", txn)
 		s.readyToCommitTxn[txn] = true
 		if _, exist := s.waitToCommitTxn[txn]; exist {
 			s.waitToCommitTxn[txn].canCommit = true
@@ -47,6 +48,7 @@ func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
 func (s *GTSStorageDepGraph) checkCommit(txnId string) bool {
 	if len(s.readyToCommitTxn) == 0 {
 		for _, txn := range s.graph.GetNext() {
+			log.Debugf("txn %v can commit now", txn)
 			s.readyToCommitTxn[txn] = true
 		}
 	}
@@ -59,8 +61,8 @@ func (s *GTSStorageDepGraph) checkCommit(txnId string) bool {
 }
 
 func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
-
 	txnId := op.request.TxnId
+
 	if txnInfo, exist := s.txnStore[txnId]; !exist || txnInfo.status != PREPARED {
 		log.WithFields(log.Fields{
 			"txnId":  txnId,
@@ -69,6 +71,7 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 	}
 
 	if op.canCommit || s.checkCommit(txnId) {
+		log.Infof("txn %v committed", txnId)
 		for _, rk := range op.request.ReadKeyVerList {
 			delete(s.kvStore[rk.Key].PreparedTxnRead, txnId)
 		}
@@ -82,11 +85,14 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		s.txnStore[txnId].status = COMMIT
 		s.txnStore[txnId].receiveFromCoordinator = true
 
+		log.Debugf("@@@@@@@@@@@@@")
+
 		s.getNextCommitListByCommitOrAbort(txnId)
 
 		delete(s.readyToCommitTxn, txnId)
 		op.wait <- true
 	} else {
+		log.Debugf("txn %v wait to commit", txnId)
 		s.waitToCommitTxn[txnId] = op
 	}
 }
@@ -110,6 +116,9 @@ func (s *GTSStorageDepGraph) selfAbort(op *ReadAndPrepareOp) {
 			break
 		}
 	} else {
+		if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
+			s.server.coordinator.Wait2PCResultTxn <- op
+		}
 		log.WithFields(log.Fields{
 			"txnId": txnId,
 		}).Debugln("receive readAndPrepareRequest, abort txn, create txnInfo")
@@ -177,11 +186,28 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 	}
 }
 
+func (s *GTSStorageDepGraph) setReadResult(op *ReadAndPrepareOp) {
+	op.reply = &rpc.ReadAndPrepareReply{
+		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
+	}
+	for _, rk := range op.request.Txn.ReadKeyList {
+		keyValueVersion := &rpc.KeyValueVersion{
+			Key:     rk,
+			Value:   s.kvStore[rk].Value,
+			Version: s.kvStore[rk].Version,
+		}
+		op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
+	}
+
+	op.wait <- true
+}
+
 func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
 	} else {
 		s.selfAbort(op.request)
+		s.setReadResult(op.request)
 		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
 		if op.sendToCoordinator {
 			s.setPrepareResult(op.request, ABORT)
@@ -203,10 +229,11 @@ func (s *GTSStorageDepGraph) checkPrepare(key string) {
 
 		canPrepareThisKey := true
 		if isPrepared, exist := op.readKeyMap[key]; exist && !isPrepared {
-			if len(s.kvStore[key].PreparedTxnWrite) == 0 {
+			if len(s.kvStore[key].PreparedTxnWrite) == 0 || s.kvStore[key].PreparedTxnWrite[txnId] {
 				op.RecordPreparedKey(key, READ)
 				s.kvStore[key].PreparedTxnRead[txnId] = true
 			} else {
+				log.Debugf("txn %v cannot read prepare key %v", txnId, key)
 				canPrepareThisKey = false
 			}
 		}
@@ -223,7 +250,7 @@ func (s *GTSStorageDepGraph) checkPrepare(key string) {
 		s.kvStore[key].WaitingOp.Remove(e)
 
 		if op.IsPrepared() {
-			s.addToGraph(op)
+			s.addToGraph(op, false)
 			s.setPrepareResult(op, PREPARED)
 		}
 
@@ -246,17 +273,7 @@ func (s *GTSStorageDepGraph) prepareResult(op *ReadAndPrepareOp) {
 		}).Fatalln("txnInfo should be created, and INIT status")
 	}
 
-	op.reply = &rpc.ReadAndPrepareReply{
-		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
-	}
-	for _, rk := range op.request.Txn.ReadKeyList {
-		keyValueVersion := &rpc.KeyValueVersion{
-			Key:     rk,
-			Value:   s.kvStore[rk].Value,
-			Version: s.kvStore[rk].Version,
-		}
-		op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
-	}
+	s.setReadResult(op)
 
 	op.prepareResult = &rpc.PrepareResultRequest{
 		TxnId:           txnId,
@@ -295,12 +312,13 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 
 	switch status {
 	case PREPARED:
+		log.Infof("txn %v prepared", op.request.Txn.TxnId)
 		s.prepareResult(op)
 	case ABORT:
 		op.prepareResult = &rpc.PrepareResultRequest{
 			TxnId:           op.request.Txn.TxnId,
-			ReadKeyVerList:  nil,
-			WriteKeyVerList: nil,
+			ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
+			WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 			PartitionId:     int32(s.server.partitionId),
 			PrepareStatus:   ABORT,
 		}
@@ -313,8 +331,10 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 }
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
+	log.Infof("process txn %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId
 	if s.isAborted(txnId) {
+		log.Infof("txn %v is already aborted", op.request.Txn.TxnId)
 		return
 	}
 
@@ -333,35 +353,40 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	notPreparedKey := make(map[string]bool)
-	for _, rk := range op.request.Txn.ReadKeyList {
+	for rk := range op.readKeyMap {
+		//	log.Debugf("txn %v key %v", txnId, rk)
 		if len(s.kvStore[rk].PreparedTxnWrite) == 0 && s.kvStore[rk].WaitingOp.Len() == 0 {
 			op.RecordPreparedKey(rk, READ)
 			s.kvStore[rk].PreparedTxnRead[txnId] = true
 		} else {
+			log.Infof("txn %v read on key %v", op.request.Txn.TxnId, rk)
 			notPreparedKey[rk] = true
 		}
 	}
 
-	for _, wk := range op.request.Txn.WriteKeyList {
+	for wk := range op.writeKeyMap {
+		log.Debugf("txn %v key %v", txnId, wk)
 		if s.kvStore[wk].WaitingOp.Len() == 0 {
 			op.RecordPreparedKey(wk, WRITE)
 			s.kvStore[wk].PreparedTxnWrite[txnId] = true
 		} else {
+			log.Infof("txn %v waite on key %v", op.request.Txn.TxnId, wk)
 			notPreparedKey[wk] = true
 		}
 	}
 
 	if !op.IsPrepared() {
 		for key := range notPreparedKey {
+
 			s.kvStore[key].WaitingOp.PushBack(op)
 		}
 		return
 	}
-	s.addToGraph(op)
+	s.addToGraph(op, true)
 	s.setPrepareResult(op, PREPARED)
 }
 
-func (s *GTSStorageDepGraph) addToGraph(op *ReadAndPrepareOp) {
+func (s *GTSStorageDepGraph) addToGraph(op *ReadAndPrepareOp, addWrite bool) {
 	txnId := op.request.Txn.TxnId
 	// only add to dependent graph when txn can be prepared
 	if !op.IsPrepared() {
@@ -373,16 +398,19 @@ func (s *GTSStorageDepGraph) addToGraph(op *ReadAndPrepareOp) {
 
 	s.graph.AddNode(txnId)
 
-	for _, wk := range op.request.Txn.WriteKeyList {
+	for wk := range op.writeKeyMap {
+
 		for txn := range s.kvStore[wk].PreparedTxnRead {
 			if txn != txnId {
 				s.graph.AddEdge(txn, txnId)
 			}
 		}
 
-		for txn := range s.kvStore[wk].PreparedTxnWrite {
-			if txn != txnId {
-				s.graph.AddEdge(txn, txnId)
+		if addWrite {
+			for txn := range s.kvStore[wk].PreparedTxnWrite {
+				if txn != txnId {
+					s.graph.AddEdge(txn, txnId)
+				}
 			}
 		}
 	}

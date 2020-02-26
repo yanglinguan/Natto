@@ -37,6 +37,7 @@ func (s *GTSStorage) LoadKeys(keys []string) {
 func (s *GTSStorage) Commit(op *CommitRequestOp) {
 
 	txnId := op.request.TxnId
+	log.Infof("txn %v committed", txnId)
 	if txnInfo, exist := s.txnStore[txnId]; !exist || txnInfo.status != PREPARED {
 		log.WithFields(log.Fields{
 			"txnId":  txnId,
@@ -78,6 +79,9 @@ func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
 			break
 		}
 	} else {
+		if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
+			s.server.coordinator.Wait2PCResultTxn <- op
+		}
 		log.WithFields(log.Fields{
 			"txnId": txnId,
 		}).Debugln("receive readAndPrepareRequest, abort txn, create txnInfo")
@@ -92,6 +96,7 @@ func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
 }
 
 func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
+
 	txnId := request.TxnId
 
 	if txnInfo, exist := s.txnStore[txnId]; exist {
@@ -148,6 +153,7 @@ func (s *GTSStorage) Abort(op *AbortRequestOp) {
 		s.coordinatorAbort(op.abortRequest)
 	} else {
 		s.selfAbort(op.request)
+		s.setReadResult(op.request)
 		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
 		if op.sendToCoordinator {
 			s.setPrepareResult(op.request, ABORT)
@@ -168,19 +174,21 @@ func (s *GTSStorage) checkPrepare(key string) {
 
 		canPrepareThisKey := true
 		if isPrepared, exist := op.readKeyMap[key]; exist && !isPrepared {
-			if s.hasConflict(key, txnId, READ) {
+			if !s.hasConflict(key, txnId, READ, true) {
 				op.RecordPreparedKey(key, READ)
 				s.kvStore[key].PreparedTxnRead[txnId] = true
 			} else {
+				log.Debugf("txn %v cannot read prepare key %v", txnId, key)
 				canPrepareThisKey = false
 			}
 		}
 
 		if isPrepared, exist := op.writeKeyMap[key]; exist && !isPrepared {
-			if s.hasConflict(key, txnId, WRITE) {
+			if !s.hasConflict(key, txnId, WRITE, true) {
 				op.RecordPreparedKey(key, WRITE)
 				s.kvStore[key].PreparedTxnWrite[txnId] = true
 			} else {
+				log.Debugf("txn %v cannot write prepare key %v", txnId, key)
 				canPrepareThisKey = false
 			}
 		}
@@ -205,15 +213,7 @@ func (s *GTSStorage) isAborted(txnId string) bool {
 	return false
 }
 
-func (s *GTSStorage) prepareResult(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; !exist {
-		log.WithFields(log.Fields{
-			"txnId":   txnId,
-			"txnInfo": txnInfo != nil,
-		}).Fatalln("txnInfo should be created, and INIT status")
-	}
-
+func (s *GTSStorage) setReadResult(op *ReadAndPrepareOp) {
 	op.reply = &rpc.ReadAndPrepareReply{
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 	}
@@ -225,6 +225,20 @@ func (s *GTSStorage) prepareResult(op *ReadAndPrepareOp) {
 		}
 		op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 	}
+
+	op.wait <- true
+}
+
+func (s *GTSStorage) prepareResult(op *ReadAndPrepareOp) {
+	txnId := op.request.Txn.TxnId
+	if txnInfo, exist := s.txnStore[txnId]; !exist {
+		log.WithFields(log.Fields{
+			"txnId":   txnId,
+			"txnInfo": txnInfo != nil,
+		}).Fatalln("txnInfo should be created, and INIT status")
+	}
+
+	s.setReadResult(op)
 
 	op.prepareResult = &rpc.PrepareResultRequest{
 		TxnId:           txnId,
@@ -251,7 +265,7 @@ func (s *GTSStorage) prepareResult(op *ReadAndPrepareOp) {
 	op.sendToCoordinator = true
 
 	// unblock to send the result back to client
-	op.wait <- true
+
 	// ready to send the coordinator
 	s.server.executor.PrepareResult <- &PrepareResultOp{
 		Request:          op.prepareResult,
@@ -263,12 +277,13 @@ func (s *GTSStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
 
 	switch status {
 	case PREPARED:
+		log.Infof("txn %v prepared", op.request.Txn.TxnId)
 		s.prepareResult(op)
 	case ABORT:
 		op.prepareResult = &rpc.PrepareResultRequest{
 			TxnId:           op.request.Txn.TxnId,
-			ReadKeyVerList:  nil,
-			WriteKeyVerList: nil,
+			ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
+			WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 			PartitionId:     int32(s.server.partitionId),
 			PrepareStatus:   ABORT,
 		}
@@ -281,18 +296,22 @@ func (s *GTSStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
 }
 
 // return true if has Conflict
-func (s *GTSStorage) hasConflict(key string, txnId string, keyType KeyType) bool {
+func (s *GTSStorage) hasConflict(key string, txnId string, keyType KeyType, isTop bool) bool {
 	switch keyType {
 	case READ:
-		return len(s.kvStore[key].PreparedTxnWrite) > 0 || s.kvStore[key].WaitingOp.Len() > 0
+		return len(s.kvStore[key].PreparedTxnWrite) > 0 || (!isTop && s.kvStore[key].WaitingOp.Len() > 0)
 	case WRITE:
-		if s.kvStore[key].WaitingOp.Len() > 0 || len(s.kvStore[key].PreparedTxnWrite) > 0 {
+		if !isTop && s.kvStore[key].WaitingOp.Len() > 0 {
 			return true
-		}
-		if len(s.kvStore[key].PreparedTxnRead) == 1 && s.kvStore[key].PreparedTxnRead[txnId] {
+		} else {
+			if len(s.kvStore[key].PreparedTxnWrite) > 0 || len(s.kvStore[key].PreparedTxnRead) > 1 {
+				return true
+			}
+			if len(s.kvStore[key].PreparedTxnRead) == 1 && !s.kvStore[key].PreparedTxnRead[txnId] {
+				return true
+			}
 			return false
 		}
-		return true
 	default:
 		log.Fatalln("the key only has type READ or Write")
 		return true
@@ -300,8 +319,10 @@ func (s *GTSStorage) hasConflict(key string, txnId string, keyType KeyType) bool
 }
 
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
+	log.Infof("process txn %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId
 	if s.isAborted(txnId) {
+		log.Infof("txn %v is already aborted", op.request.Txn.TxnId)
 		return
 	}
 
@@ -320,8 +341,9 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	notPreparedKey := make(map[string]bool)
-	for _, rk := range op.request.Txn.ReadKeyList {
-		if !s.hasConflict(rk, txnId, READ) {
+	for rk := range op.readKeyMap {
+		log.Debugf("txn %v key %v", txnId, rk)
+		if !s.hasConflict(rk, txnId, READ, false) {
 			op.RecordPreparedKey(rk, READ)
 			s.kvStore[rk].PreparedTxnRead[txnId] = true
 		} else {
@@ -329,8 +351,8 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		}
 	}
 
-	for _, wk := range op.request.Txn.WriteKeyList {
-		if !s.hasConflict(wk, txnId, WRITE) {
+	for wk := range op.writeKeyMap {
+		if !s.hasConflict(wk, txnId, WRITE, false) {
 			op.RecordPreparedKey(wk, WRITE)
 			s.kvStore[wk].PreparedTxnWrite[txnId] = true
 		} else {
@@ -340,9 +362,11 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 
 	if !op.IsPrepared() {
 		for key := range notPreparedKey {
+			log.Infof("txn %v waite on key %v", op.request.Txn.TxnId, key)
 			s.kvStore[key].WaitingOp.PushBack(op)
 		}
 		return
 	}
+
 	s.setPrepareResult(op, PREPARED)
 }

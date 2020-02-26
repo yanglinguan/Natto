@@ -17,7 +17,7 @@ const (
 	GTS_DEP_GRAPH
 )
 
-const KeySize = 64
+const KeySize = 10
 
 type Configuration interface {
 	GetServerAddressByServerId(serverId string) string
@@ -35,6 +35,8 @@ type Configuration interface {
 	GetServerListByDataCenterId(dataCenterId string) []string
 	GetClientDataCenterIdByClientId(clientId string) string
 	GetKeyNum() int
+	GetDelay() time.Duration
+	GetConnectionPoolSize() int
 }
 
 type FileConfiguration struct {
@@ -59,6 +61,9 @@ type FileConfiguration struct {
 
 	// clientId -> dataCenterId
 	clientToDataCenterId map[string]string
+
+	delay    time.Duration
+	poolSize int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -150,6 +155,7 @@ func (f *FileConfiguration) loadDataCenterDistance(config map[string]interface{}
 }
 
 func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
+	var err error
 	for key, v := range config {
 		if key == "mode" {
 			mode := v.(string)
@@ -165,6 +171,13 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.keyNum = int(keyNum)
 		} else if key == "oneWayDelay" {
 			f.loadDataCenterDistance(v.(map[string]interface{}))
+		} else if key == "delay" {
+			f.delay, err = time.ParseDuration(v.(string))
+			if err != nil {
+				log.Fatalf("delay %v is invalid", v)
+			}
+		} else if key == "RPCPoolSize" {
+			f.poolSize = int(v.(float64))
 		}
 	}
 }
@@ -293,4 +306,12 @@ func (f *FileConfiguration) GetClientDataCenterIdByClientId(clientId string) str
 
 func (f *FileConfiguration) GetKeyNum() int {
 	return f.keyNum
+}
+
+func (f *FileConfiguration) GetDelay() time.Duration {
+	return f.delay
+}
+
+func (f *FileConfiguration) GetConnectionPoolSize() int {
+	return f.poolSize
 }

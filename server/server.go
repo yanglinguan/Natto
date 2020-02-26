@@ -12,7 +12,6 @@ import (
 )
 
 const QueueLen = 1024
-const PoolSize = 10
 
 type Server struct {
 	gRPCServer  *grpc.Server
@@ -64,7 +63,7 @@ func NewServer(serverId string, configFile string) *Server {
 	server.storage.LoadKeys(server.config.GetKeyList(server.partitionId))
 
 	for sId, addr := range server.config.GetServerAddressMap() {
-		server.connections[sId] = connection.NewConnection(addr, PoolSize)
+		server.connections[sId] = connection.NewConnection(addr, server.config.GetConnectionPoolSize())
 	}
 
 	rpc.RegisterCarouselServer(server.gRPCServer, server)
