@@ -1,11 +1,10 @@
 package configuration
 
 import (
+	"Carousel-GTS/utils"
 	"encoding/json"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"strconv"
 	"time"
 )
 
@@ -17,6 +16,13 @@ const (
 	GtsDepGraph
 )
 
+type WorkLoad int
+
+const (
+	YCSBT = iota
+	ONETXN
+)
+
 type Configuration interface {
 	GetServerAddressByServerId(serverId string) string
 	GetServerIdByPartitionId(partitionId int) string
@@ -25,18 +31,24 @@ type Configuration interface {
 	GetPartitionIdByServerId(serverId string) int
 
 	GetServerMode() ServerMode
-	GetKeyList(partitionId int) []string
+	GetKeyListByPartitionId(partitionId int) []string
 	GetPartitionIdByKey(key string) int
 	GetDataCenterIdByServerId(serverId string) string
 	GetDataCenterIdByClientId(clientId string) string
 	GetMaxDelay(clientDCId string, dcIds []string) time.Duration
 	GetServerListByDataCenterId(dataCenterId string) []string
 	GetClientDataCenterIdByClientId(clientId string) string
-	GetKeyNum() int
+	GetKeyNum() int64
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
 	GetKeySize() int
 	GetTxnSize() int
+	GetTxnRate() int
+	GetExpDuration() time.Duration
+	GetOpenLoop() bool
+	GetZipfAlpha() float64
+	GetWorkLoad() WorkLoad
+	GetTotalTxn() int
 }
 
 type FileConfiguration struct {
@@ -50,7 +62,7 @@ type FileConfiguration struct {
 	serverMode ServerMode
 
 	keys   [][]string
-	keyNum int
+	keyNum int64
 
 	// dataCenterId -> (dataCenterId -> distance)
 	dataCenterDistance map[string]map[string]time.Duration
@@ -62,10 +74,16 @@ type FileConfiguration struct {
 	// clientId -> dataCenterId
 	clientToDataCenterId map[string]string
 
-	delay    time.Duration
-	poolSize int
-	keySize  int
-	txnSize  int
+	delay     time.Duration
+	poolSize  int
+	keySize   int
+	txnSize   int
+	totalTxn  int
+	openLoop  bool
+	duration  time.Duration
+	txnRate   int
+	zipfAlpha float64
+	workload  WorkLoad
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -170,7 +188,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
-			f.keyNum = int(keyNum)
+			f.keyNum = int64(keyNum)
 		} else if key == "oneWayDelay" {
 			f.loadDataCenterDistance(v.(map[string]interface{}))
 		} else if key == "delay" {
@@ -184,21 +202,34 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.keySize = int(v.(float64))
 		} else if key == "txnSize" {
 			f.txnSize = int(v.(float64))
+		} else if key == "openLoop" {
+			f.openLoop = v.(bool)
+		} else if key == "txnRate" {
+			f.txnRate = int(v.(float64))
+		} else if key == "totalTxn" {
+			f.totalTxn = int(v.(float64))
+		} else if key == "duration" {
+			f.duration = time.Duration(int64(v.(float64)) * int64(time.Second))
+		} else if key == "zipfAlpha" {
+			f.zipfAlpha = v.(float64)
+		} else if key == "workload" {
+			workload := v.(string)
+			if workload == "ycsbt" {
+				f.workload = YCSBT
+			} else if workload == "oneTxn" {
+				f.workload = ONETXN
+			}
 		}
 	}
-}
-
-func convertToString(size int, key int) string {
-	format := "%" + strconv.Itoa(size) + "d"
-	return fmt.Sprintf(format, key)
 }
 
 func (f *FileConfiguration) loadKey() {
 	totalPartition := len(f.partitions)
 	f.keys = make([][]string, totalPartition)
-	for key := 0; key < f.keyNum; key++ {
-		partitionId := key % totalPartition
-		f.keys[partitionId] = append(f.keys[partitionId], convertToString(f.keySize, key))
+	var key int64 = 0
+	for ; key < f.keyNum; key++ {
+		partitionId := key % int64(totalPartition)
+		f.keys[partitionId] = append(f.keys[partitionId], utils.ConvertToString(f.keySize, key))
 	}
 }
 
@@ -236,7 +267,7 @@ func (f *FileConfiguration) GetServerMode() ServerMode {
 	return f.serverMode
 }
 
-func (f *FileConfiguration) GetKeyList(partitionId int) []string {
+func (f *FileConfiguration) GetKeyListByPartitionId(partitionId int) []string {
 	if partitionId >= len(f.keys) {
 		log.Fatalf("partitionId %v does not exist", partitionId)
 		return make([]string, 0)
@@ -247,13 +278,8 @@ func (f *FileConfiguration) GetKeyList(partitionId int) []string {
 
 func (f *FileConfiguration) GetPartitionIdByKey(key string) int {
 	totalPartition := len(f.partitions)
-	var i int
-	_, err := fmt.Sscan(key, &i)
-	if err != nil {
-		log.Fatalf("key %v invalid ", key)
-	}
-
-	return i % totalPartition
+	i := utils.ConvertToInt(key)
+	return int(i) % totalPartition
 }
 
 func (f *FileConfiguration) GetDataCenterIdByServerId(serverId string) string {
@@ -310,7 +336,7 @@ func (f *FileConfiguration) GetClientDataCenterIdByClientId(clientId string) str
 	return f.clientToDataCenterId[clientId]
 }
 
-func (f *FileConfiguration) GetKeyNum() int {
+func (f *FileConfiguration) GetKeyNum() int64 {
 	return f.keyNum
 }
 
@@ -328,4 +354,28 @@ func (f *FileConfiguration) GetKeySize() int {
 
 func (f *FileConfiguration) GetTxnSize() int {
 	return f.txnSize
+}
+
+func (f *FileConfiguration) GetTxnRate() int {
+	return f.txnRate
+}
+
+func (f *FileConfiguration) GetExpDuration() time.Duration {
+	return f.duration
+}
+
+func (f *FileConfiguration) GetOpenLoop() bool {
+	return f.openLoop
+}
+
+func (f *FileConfiguration) GetZipfAlpha() float64 {
+	return f.zipfAlpha
+}
+
+func (f *FileConfiguration) GetWorkLoad() WorkLoad {
+	return f.workload
+}
+
+func (f *FileConfiguration) GetTotalTxn() int {
+	return f.totalTxn
 }

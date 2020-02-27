@@ -36,6 +36,12 @@
     "RPCPoolSize": 0,
     "keySize": 1,
     "txnSize": 3,
+    "openLoop": true,
+    "txnRate": 1,
+    "duration": 30,
+    "totalTxn": 1000,
+    "zipfAlpha": 0.75,
+    "workload": "ycsbt",
     "oneWayDelay" : {
       "D1": {"D2": "50ms", "D3": "100ms"},
       "D2": {"D1": "50ms", "D3": "80ms"},

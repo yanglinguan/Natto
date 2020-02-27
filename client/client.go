@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -50,14 +49,13 @@ func (o *CommitOp) BlockOwner() bool {
 
 type Client struct {
 	clientId           string
-	config             configuration.Configuration
+	Config             configuration.Configuration
 	clientDataCenterId string
 
 	connections map[string]connection.Connection
 
 	sendTxnRequest   chan *SendOp
 	commitTxnRequest chan *CommitOp
-	count            int
 
 	txnStore map[string]*Transaction
 	lock     sync.Mutex
@@ -66,24 +64,23 @@ type Client struct {
 func NewClient(clientId string, configFile string) *Client {
 	c := &Client{
 		clientId:           clientId,
-		config:             configuration.NewFileConfiguration(configFile),
+		Config:             configuration.NewFileConfiguration(configFile),
 		clientDataCenterId: "",
 		connections:        make(map[string]connection.Connection),
 		sendTxnRequest:     make(chan *SendOp, QueueLen),
 		commitTxnRequest:   make(chan *CommitOp, QueueLen),
-		count:              0,
 		txnStore:           make(map[string]*Transaction),
 		lock:               sync.Mutex{},
 	}
 
-	c.clientDataCenterId = c.config.GetClientDataCenterIdByClientId(clientId)
-	if c.config.GetConnectionPoolSize() == 0 {
-		for sId, addr := range c.config.GetServerAddressMap() {
+	c.clientDataCenterId = c.Config.GetClientDataCenterIdByClientId(clientId)
+	if c.Config.GetConnectionPoolSize() == 0 {
+		for sId, addr := range c.Config.GetServerAddressMap() {
 			c.connections[sId] = connection.NewSingleConnect(addr)
 		}
 	} else {
-		for sId, addr := range c.config.GetServerAddressMap() {
-			c.connections[sId] = connection.NewPoolConnection(addr, c.config.GetConnectionPoolSize())
+		for sId, addr := range c.Config.GetServerAddressMap() {
+			c.connections[sId] = connection.NewPoolConnection(addr, c.Config.GetConnectionPoolSize())
 		}
 	}
 
@@ -106,12 +103,9 @@ func (c *Client) sendCommitRequest() {
 	}
 }
 
-func (c *Client) getTxnId() string {
-	return c.clientId + "-" + strconv.Itoa(c.count)
-}
-
-func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string) (map[string]string, string) {
+func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) map[string]string {
 	sendOp := &SendOp{
+		txnId:        txnId,
 		readKeyList:  readKeyList,
 		writeKeyList: writeKeyList,
 		readResult:   make(map[string]string),
@@ -122,7 +116,7 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string) (ma
 
 	sendOp.BlockOwner()
 
-	return sendOp.readResult, sendOp.txnId
+	return sendOp.readResult
 }
 
 func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) {
@@ -159,15 +153,12 @@ func (c *Client) getTxn(txnId string) *Transaction {
 func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	readKeyList := op.readKeyList
 	writeKeyList := op.writeKeyList
-	c.count++
-	txnId := c.getTxnId()
-	op.txnId = txnId
 
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
 	for _, key := range readKeyList {
-		pId := c.config.GetPartitionIdByKey(key)
+		pId := c.Config.GetPartitionIdByKey(key)
 		logrus.Debugf("key %v, pId %v", key, pId)
 		if _, exist := partitionSet[pId]; !exist {
 			partitionSet[pId] = make([][]string, 2)
@@ -177,7 +168,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	}
 
 	for _, key := range writeKeyList {
-		pId := c.config.GetPartitionIdByKey(key)
+		pId := c.Config.GetPartitionIdByKey(key)
 		logrus.Debugf("key %v, pId %v", key, pId)
 		if _, exist := partitionSet[pId]; !exist {
 			partitionSet[pId] = make([][]string, 2)
@@ -191,20 +182,20 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	i := 0
 	for pId := range partitionSet {
 		participatedPartitions[i] = int32(pId)
-		sId := c.config.GetServerIdByPartitionId(pId)
-		serverDcIds[i] = c.config.GetDataCenterIdByServerId(sId)
+		sId := c.Config.GetServerIdByPartitionId(pId)
+		serverDcIds[i] = c.Config.GetDataCenterIdByServerId(sId)
 		i++
 	}
 
-	serverList := c.config.GetServerListByDataCenterId(c.clientDataCenterId)
+	serverList := c.Config.GetServerListByDataCenterId(c.clientDataCenterId)
 
-	coordinatorPartitionId := c.config.GetPartitionIdByServerId(serverList[rand.Intn(len(serverList))])
+	coordinatorPartitionId := c.Config.GetPartitionIdByServerId(serverList[rand.Intn(len(serverList))])
 	if _, exist := partitionSet[coordinatorPartitionId]; !exist {
 		partitionSet[coordinatorPartitionId] = make([][]string, 2)
 	}
 
 	t := &rpc.Transaction{
-		TxnId:                    txnId,
+		TxnId:                    op.txnId,
 		ReadKeyList:              readKeyList,
 		WriteKeyList:             writeKeyList,
 		ParticipatedPartitionIds: participatedPartitions,
@@ -223,14 +214,14 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	c.addTxn(ongoingTxn)
 
-	maxDelay := c.config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
-	maxDelay += c.config.GetDelay().Nanoseconds()
+	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
+	maxDelay += c.Config.GetDelay().Nanoseconds()
 	maxDelay += time.Now().UnixNano()
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range partitionSet {
 		txn := &rpc.Transaction{
-			TxnId:                    txnId,
+			TxnId:                    op.txnId,
 			ReadKeyList:              keyLists[0],
 			WriteKeyList:             keyLists[1],
 			ParticipatedPartitionIds: participatedPartitions,
@@ -245,11 +236,11 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			ClientId:         c.clientId,
 		}
 
-		if c.config.GetServerMode() != configuration.OCC {
+		if c.Config.GetServerMode() != configuration.OCC {
 			request.Timestamp = maxDelay
 		}
 
-		sId := c.config.GetServerIdByPartitionId(pId)
+		sId := c.Config.GetServerIdByPartitionId(pId)
 		sender := NewReadAndPrepareSender(request, ongoingTxn, c.connections[sId])
 
 		go sender.Send()
@@ -317,7 +308,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		IsReadAnyReplica: false,
 	}
 
-	coordinatorId := c.config.GetServerIdByPartitionId(int(ongoingTxn.txn.CoordPartitionId))
+	coordinatorId := c.Config.GetServerIdByPartitionId(int(ongoingTxn.txn.CoordPartitionId))
 	sender := NewCommitRequestSender(request, ongoingTxn, c.connections[coordinatorId])
 
 	go sender.Send()
@@ -368,16 +359,4 @@ func (c *Client) PrintTxnStatisticData() {
 	if err != nil {
 		logrus.Fatalf("cannot close file %v", err)
 	}
-}
-
-func (c *Client) GetKeyNum() int {
-	return c.config.GetKeyNum()
-}
-
-func (c *Client) GetKeySize() int {
-	return c.config.GetKeySize()
-}
-
-func (c *Client) GetTxnSize() int {
-	return c.config.GetTxnSize()
 }
