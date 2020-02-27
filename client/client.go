@@ -59,6 +59,8 @@ type Client struct {
 
 	txnStore map[string]*Transaction
 	lock     sync.Mutex
+	// pId -> number of committed txn
+	commitTxn map[int]int
 }
 
 func NewClient(clientId string, configFile string) *Client {
@@ -272,6 +274,11 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	}
 	op.result = result.Result
 	op.wait <- true
+	if op.result {
+		for _, pId := range ongoingTxn.txn.ParticipatedPartitionIds {
+			c.commitTxn[int(pId)]++
+		}
+	}
 }
 
 func (c *Client) handleCommitRequest(op *CommitOp) {
@@ -317,13 +324,20 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 }
 
-func (c *Client) PrintTxnStatisticData() {
-	for _, conn := range c.connections {
-		sender := NewPrintStatusRequestSender(conn)
-		sender.Send()
+func (c *Client) PrintTxnStatisticData(isDebug bool) {
+	if isDebug {
+		for sId, conn := range c.connections {
+			pId := c.Config.GetPartitionIdByServerId(sId)
+			committed := c.commitTxn[pId]
+			request := &rpc.PrintStatusRequest{
+				CommittedTxn: int32(committed),
+			}
+			sender := NewPrintStatusRequestSender(request, conn)
+			sender.Send()
+		}
 	}
 
-	file, err := os.Create("statistic.log")
+	file, err := os.Create(c.clientId + "_statistic.log")
 	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
 		return

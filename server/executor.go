@@ -12,6 +12,8 @@ type Executor struct {
 	CommitTxn chan *CommitRequestOp
 
 	PrepareResult chan *PrepareResultOp
+
+	PrintStatus chan *PrintStatusRequestOp
 }
 
 func NewExecutor(server *Server) *Executor {
@@ -21,6 +23,7 @@ func NewExecutor(server *Server) *Executor {
 		AbortTxn:      make(chan *AbortRequestOp, QueueLen),
 		CommitTxn:     make(chan *CommitRequestOp, QueueLen),
 		PrepareResult: make(chan *PrepareResultOp, QueueLen),
+		PrintStatus:   make(chan *PrintStatusRequestOp, 1),
 	}
 
 	go e.run()
@@ -37,6 +40,8 @@ func (e *Executor) run() {
 			e.server.storage.Abort(op)
 		case op := <-e.CommitTxn:
 			e.server.storage.Commit(op)
+		case op := <-e.PrintStatus:
+			e.server.storage.PrintStatus(op)
 		}
 	}
 }

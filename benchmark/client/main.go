@@ -41,7 +41,7 @@ func main() {
 
 	exp.Execute()
 
-	c.PrintTxnStatisticData()
+	c.PrintTxnStatisticData(isDebug)
 }
 
 func parseArgs() {

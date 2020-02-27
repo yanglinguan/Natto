@@ -64,7 +64,9 @@ func (s *Server) PrepareResult(ctx context.Context, request *rpc.PrepareResultRe
 	}, nil
 }
 
-func (s *Server) PrintStatus(cts context.Context, request *rpc.Empty) (*rpc.Empty, error) {
-	s.storage.PrintStatus()
+func (s *Server) PrintStatus(cts context.Context, request *rpc.PrintStatusRequest) (*rpc.Empty, error) {
+	op := NewPrintStatusRequestOp(int(request.CommittedTxn))
+	s.executor.PrintStatus <- op
+	op.BlockOwner()
 	return &rpc.Empty{}, nil
 }

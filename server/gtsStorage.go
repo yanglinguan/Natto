@@ -9,10 +9,11 @@ import (
 )
 
 type GTSStorage struct {
-	kvStore   map[string]*ValueVersion
-	server    *Server
-	txnStore  map[string]*TxnInfo
-	committed int
+	kvStore                map[string]*ValueVersion
+	server                 *Server
+	txnStore               map[string]*TxnInfo
+	committed              int
+	waitPrintStatusRequest *PrintStatusRequestOp
 }
 
 func NewGTSStorage(server *Server) *GTSStorage {
@@ -64,6 +65,11 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
 	op.wait <- true
+	if s.waitPrintStatusRequest != nil && s.waitPrintStatusRequest.committedTxn == s.committed {
+		s.PrintCommitOrder()
+		s.PrintModifiedData()
+		s.waitPrintStatusRequest.wait <- true
+	}
 }
 
 func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
@@ -445,7 +451,12 @@ func (s *GTSStorage) PrintModifiedData() {
 	}
 }
 
-func (s *GTSStorage) PrintStatus() {
+func (s *GTSStorage) PrintStatus(op *PrintStatusRequestOp) {
+	if s.committed < op.committedTxn {
+		s.waitPrintStatusRequest = op
+		return
+	}
 	s.PrintCommitOrder()
 	s.PrintModifiedData()
+	op.wait <- true
 }

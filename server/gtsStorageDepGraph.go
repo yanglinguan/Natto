@@ -21,6 +21,8 @@ type GTSStorageDepGraph struct {
 	waitToCommitTxn map[string]*CommitRequestOp
 
 	committed int
+
+	waitPrintStatusRequest *PrintStatusRequestOp
 }
 
 func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
@@ -95,6 +97,11 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 
 		delete(s.readyToCommitTxn, txnId)
 		op.wait <- true
+		if s.waitPrintStatusRequest != nil && s.waitPrintStatusRequest.committedTxn == s.committed {
+			s.PrintCommitOrder()
+			s.PrintModifiedData()
+			s.waitPrintStatusRequest.wait <- true
+		}
 	} else {
 		log.Debugf("WAIT COMMIT %v", txnId)
 		s.waitToCommitTxn[txnId] = op
@@ -497,7 +504,12 @@ func (s *GTSStorageDepGraph) PrintModifiedData() {
 	}
 }
 
-func (s *GTSStorageDepGraph) PrintStatus() {
+func (s *GTSStorageDepGraph) PrintStatus(op *PrintStatusRequestOp) {
+	if s.committed < op.committedTxn {
+		s.waitPrintStatusRequest = op
+		return
+	}
 	s.PrintCommitOrder()
 	s.PrintModifiedData()
+	op.wait <- true
 }

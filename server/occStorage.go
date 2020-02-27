@@ -17,6 +17,8 @@ type OccStorage struct {
 	server *Server
 
 	committed int
+
+	waitPrintStatusRequest *PrintStatusRequestOp
 }
 
 func NewOccStorage(server *Server) *OccStorage {
@@ -186,6 +188,11 @@ func (s *OccStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[op.request.TxnId].commitOrder = s.committed
 	s.committed++
 	op.wait <- true
+	if s.waitPrintStatusRequest != nil && s.waitPrintStatusRequest.committedTxn == s.committed {
+		s.PrintCommitOrder()
+		s.PrintModifiedData()
+		s.waitPrintStatusRequest.wait <- true
+	}
 }
 
 func (s *OccStorage) coordinatorAbort(request *rpc.AbortRequest) {
@@ -318,7 +325,12 @@ func (s *OccStorage) PrintModifiedData() {
 	}
 }
 
-func (s *OccStorage) PrintStatus() {
+func (s *OccStorage) PrintStatus(op *PrintStatusRequestOp) {
+	if s.committed < op.committedTxn {
+		s.waitPrintStatusRequest = op
+		return
+	}
 	s.PrintCommitOrder()
 	s.PrintModifiedData()
+	op.wait <- true
 }

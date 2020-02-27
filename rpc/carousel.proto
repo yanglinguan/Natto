@@ -11,7 +11,7 @@ service Carousel {
     rpc PrepareResult(PrepareResultRequest) returns (PrepareResultReply) {}
 
     // print final result
-    rpc PrintStatus(Empty) returns (Empty) {}
+    rpc PrintStatus(PrintStatusRequest) returns (Empty) {}
 }
 
 message Transaction {
@@ -84,6 +84,10 @@ message AbortRequest {
 
 message AbortReply {
     string leaderAddr = 1;
+}
+
+message PrintStatusRequest {
+    int32 committedTxn = 1;
 }
 
 message Empty {

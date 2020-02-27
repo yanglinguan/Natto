@@ -81,11 +81,15 @@ func (c *CommitRequestSender) Send() {
 }
 
 type PrintStatusRequestSender struct {
+	request    *rpc.PrintStatusRequest
 	connection connection.Connection
 }
 
-func NewPrintStatusRequestSender(connection connection.Connection) *PrintStatusRequestSender {
-	p := &PrintStatusRequestSender{connection: connection}
+func NewPrintStatusRequestSender(request *rpc.PrintStatusRequest, connection connection.Connection) *PrintStatusRequestSender {
+	p := &PrintStatusRequestSender{
+		request:    request,
+		connection: connection,
+	}
 	return p
 }
 
@@ -97,7 +101,7 @@ func (p *PrintStatusRequestSender) Send() {
 
 	client := rpc.NewCarouselClient(conn)
 	logrus.Infof("SEND PrintStatus to %v ", p.connection.GetDstAddr())
-	_, err := client.PrintStatus(context.Background(), &rpc.Empty{})
+	_, err := client.PrintStatus(context.Background(), p.request)
 	if err != nil {
 		logrus.Fatalf("rpc error %v", err)
 	}

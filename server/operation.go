@@ -146,3 +146,21 @@ func NewPrepareRequestOp(request *rpc.PrepareResultRequest, coordinatorPartition
 
 	return p
 }
+
+type PrintStatusRequestOp struct {
+	committedTxn int
+	wait         chan bool
+}
+
+func NewPrintStatusRequestOp(committedTxn int) *PrintStatusRequestOp {
+	p := &PrintStatusRequestOp{
+		committedTxn: committedTxn,
+		wait:         make(chan bool, 1),
+	}
+
+	return p
+}
+
+func (o *PrintStatusRequestOp) BlockOwner() bool {
+	return <-o.wait
+}

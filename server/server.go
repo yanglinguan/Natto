@@ -60,7 +60,7 @@ func NewServer(serverId string, configFile string) *Server {
 		log.Fatal("OCC, GTS, GTS_DEP_GRAPH")
 	}
 
-	server.storage.LoadKeys(server.config.GetKeyList(server.partitionId))
+	server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
 	poolSize := server.config.GetConnectionPoolSize()
 	if poolSize == 0 {
 		for sId, addr := range server.config.GetServerAddressMap() {

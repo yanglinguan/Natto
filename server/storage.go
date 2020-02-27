@@ -40,5 +40,5 @@ type Storage interface {
 	Commit(op *CommitRequestOp)
 	Abort(op *AbortRequestOp)
 	LoadKeys(keys []string)
-	PrintStatus()
+	PrintStatus(op *PrintStatusRequestOp)
 }
