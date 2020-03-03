@@ -2,9 +2,7 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
-	"fmt"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 type OccStorage struct {
@@ -190,13 +188,7 @@ func (s *OccStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[op.request.TxnId].commitOrder = s.committed
 	s.committed++
 	op.wait <- true
-	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
-		s.PrintCommitOrder()
-		s.PrintModifiedData()
-		for _, printOp := range s.waitPrintStatusRequest {
-			printOp.wait <- true
-		}
-	}
+	s.print()
 }
 
 func (s *OccStorage) coordinatorAbort(request *rpc.AbortRequest) {
@@ -255,85 +247,16 @@ func (s *OccStorage) LoadKeys(keys []string) {
 	}
 }
 
-func (s *OccStorage) PrintCommitOrder() {
-	txnId := make([]string, s.committed)
-	for id, info := range s.txnStore {
-		if info.status == COMMIT {
-			txnId[info.commitOrder] = id
-		}
-	}
-
-	file, err := os.Create(s.server.serverId + "_commitOrder.log")
-	if err != nil || file == nil {
-		log.Fatal("Fails to create log file: statistic.log")
-		return
-	}
-
-	for _, id := range txnId {
-		_, err = file.WriteString(id + "\n")
-		if err != nil {
-			log.Fatalf("Cannot write to file %v", err)
-		}
-	}
-
-	err = file.Close()
-	if err != nil {
-		log.Fatalf("cannot close file %v", err)
-	}
-}
-
-func (s *OccStorage) PrintModifiedData() {
-	file, err := os.Create(s.server.serverId + "_db.log")
-	if err != nil || file == nil {
-		log.Fatal("Fails to create log file: statistic.log")
-		return
-	}
-
-	_, err = file.WriteString("#key, value, version\n")
-	if err != nil {
-		log.Fatalf("Cannot write to file, %v", err)
-		return
-	}
-
-	for key, kv := range s.kvStore {
-		if kv.Version == 0 {
-			continue
-		}
-
-		var k int
-		_, err := fmt.Sscan(key, &k)
-		if err != nil {
-			log.Fatalf("key %v is invalid", key)
-		}
-
-		var v int
-		_, err = fmt.Sscan(kv.Value, &v)
-		if err != nil {
-			log.Fatalf("value %v is invalid", kv.Value)
-		}
-
-		s := fmt.Sprintf("%v,%v,%v\n",
-			k,
-			v,
-			kv.Version)
-		_, err = file.WriteString(s)
-		if err != nil {
-			log.Fatalf("fail to write %v", err)
-		}
-	}
-
-	err = file.Close()
-	if err != nil {
-		log.Fatalf("cannot close file %v", err)
-	}
-}
-
 func (s *OccStorage) PrintStatus(op *PrintStatusRequestOp) {
 	s.waitPrintStatusRequest = append(s.waitPrintStatusRequest, op)
 	s.totalCommit += op.committedTxn
+	s.print()
+}
+
+func (s *OccStorage) print() {
 	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
-		s.PrintCommitOrder()
-		s.PrintModifiedData()
+		printCommitOrder(s.txnStore, s.committed, s.server.serverId)
+		printModifiedData(s.kvStore, s.server.serverId)
 		for _, printOp := range s.waitPrintStatusRequest {
 			printOp.wait <- true
 		}

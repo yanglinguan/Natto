@@ -3,9 +3,7 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	"container/list"
-	"fmt"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 type GTSStorage struct {
@@ -68,13 +66,7 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
 	op.wait <- true
-	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
-		s.PrintCommitOrder()
-		s.PrintModifiedData()
-		for _, printOp := range s.waitPrintStatusRequest {
-			printOp.wait <- true
-		}
-	}
+	s.print()
 }
 
 func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
@@ -142,15 +134,22 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			for wk, isPrepared := range txnInfo.readAndPrepareRequestOp.writeKeyMap {
 				if isPrepared {
 					delete(s.kvStore[wk].PreparedTxnWrite, txnId)
-					s.checkPrepare(wk)
 				}
 			}
 
 			for key := range txnInfo.readAndPrepareRequestOp.keyMap {
 				if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
+					// if in the queue, then remove from the queue
 					s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 					delete(s.kvStore[key].WaitingItem, txnId)
+				} else {
+					// otherwise, check if the top of the queue can prepare
+					s.checkPrepare(key)
 				}
+			}
+
+			if s.txnStore[txnId].readAndPrepareRequestOp != nil {
+				s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
 			}
 
 			break
@@ -171,9 +170,6 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 func (s *GTSStorage) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
-		if s.txnStore[op.abortRequest.TxnId].readAndPrepareRequestOp != nil {
-			s.setReadResult(s.txnStore[op.abortRequest.TxnId].readAndPrepareRequestOp)
-		}
 	} else {
 		s.selfAbort(op.request)
 		s.setReadResult(op.request)
@@ -397,88 +393,18 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	s.setPrepareResult(op, PREPARED)
 }
 
-func (s *GTSStorage) PrintCommitOrder() {
-	txnId := make([]string, s.committed)
-	for id, info := range s.txnStore {
-		if info.status == COMMIT {
-			txnId[info.commitOrder] = id
-		}
-	}
-
-	file, err := os.Create(s.server.serverId + "_commitOrder.log")
-	if err != nil || file == nil {
-		log.Fatal("Fails to create log file: statistic.log")
-		return
-	}
-
-	for _, id := range txnId {
-		_, err = file.WriteString(id + "\n")
-		if err != nil {
-			log.Fatalf("Cannot write to file %v", err)
-		}
-	}
-
-	err = file.Close()
-	if err != nil {
-		log.Fatalf("cannot close file %v", err)
-	}
-}
-
-func (s *GTSStorage) PrintModifiedData() {
-	file, err := os.Create(s.server.serverId + "_db.log")
-	if err != nil || file == nil {
-		log.Fatal("Fails to create log file: statistic.log")
-		return
-	}
-
-	_, err = file.WriteString("#key, value, version\n")
-	if err != nil {
-		log.Fatalf("Cannot write to file, %v", err)
-		return
-	}
-
-	for key, kv := range s.kvStore {
-		if kv.Version == 0 {
-			continue
-		}
-
-		var k int
-		_, err := fmt.Sscan(key, &k)
-		if err != nil {
-			log.Fatalf("key %v is invalid", key)
-		}
-
-		var v int
-		_, err = fmt.Sscan(kv.Value, &v)
-		if err != nil {
-			log.Fatalf("value %v is invalid", kv.Value)
-		}
-
-		s := fmt.Sprintf("%v,%v,%v\n",
-			k,
-			v,
-			kv.Version)
-		_, err = file.WriteString(s)
-		if err != nil {
-			log.Fatalf("fail to write %v", err)
-		}
-	}
-
-	err = file.Close()
-	if err != nil {
-		log.Fatalf("cannot close file %v", err)
-	}
-}
-
 func (s *GTSStorage) PrintStatus(op *PrintStatusRequestOp) {
 	s.waitPrintStatusRequest = append(s.waitPrintStatusRequest, op)
 	s.totalCommit += op.committedTxn
+	s.print()
+}
+
+func (s *GTSStorage) print() {
 	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
-		s.PrintCommitOrder()
-		s.PrintModifiedData()
+		printCommitOrder(s.txnStore, s.committed, s.server.serverId)
+		printModifiedData(s.kvStore, s.server.serverId)
 		for _, printOp := range s.waitPrintStatusRequest {
 			printOp.wait <- true
-
 		}
 	}
 }
