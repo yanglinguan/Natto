@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"math/rand"
 	"time"
 )
 
@@ -50,6 +51,7 @@ type Configuration interface {
 	GetWorkLoad() WorkLoad
 	GetTotalTxn() int
 	GetTotalClient() int
+	GetRandSeed() int64
 }
 
 type FileConfiguration struct {
@@ -85,6 +87,7 @@ type FileConfiguration struct {
 	txnRate   int
 	zipfAlpha float64
 	workload  WorkLoad
+	seed      int64
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -219,6 +222,13 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.workload = YCSBT
 			} else if workload == "oneTxn" {
 				f.workload = ONETXN
+			}
+		} else if key == "seed" {
+			f.seed = int64(v.(float64))
+			if f.seed == 0 {
+				rand.Seed(int64(time.Now().Nanosecond()))
+			} else {
+				rand.Seed(f.seed)
 			}
 		}
 	}
@@ -383,4 +393,8 @@ func (f *FileConfiguration) GetTotalTxn() int {
 
 func (f *FileConfiguration) GetTotalClient() int {
 	return len(f.clients)
+}
+
+func (f *FileConfiguration) GetRandSeed() int64 {
+	return f.seed
 }
