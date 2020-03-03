@@ -145,6 +145,13 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 				}
 			}
 
+			for key := range txnInfo.readAndPrepareRequestOp.keyMap {
+				if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
+					s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
+					delete(s.kvStore[key].WaitingItem, txnId)
+				}
+			}
+
 			break
 		}
 	} else {
@@ -380,7 +387,8 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 
 	if !op.IsPrepared() {
 		for key := range notPreparedKey {
-			s.kvStore[key].WaitingOp.PushBack(op)
+			item := s.kvStore[key].WaitingOp.PushBack(op)
+			s.kvStore[key].WaitingItem[txnId] = item
 		}
 		return
 	}

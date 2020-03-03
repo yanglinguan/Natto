@@ -20,16 +20,18 @@ config_file = open(args.config, "r")
 config = json.load(config_file)
 config_file.close()
 
-path="/home/l69yang/Projects/go/src/Carousel-GTS/exp"
-binPath="$HOME/Projects/go/bin/"
-#binPath = "./"
+path = "/home/l69yang/Projects/go/src/Carousel-GTS/exp"
+binPath = "$HOME/Projects/go/bin/"
+
+
+# binPath = "./"
 
 
 def ssh_exec_thread(ssh_client, command):
     stdin, stdout, stderr = ssh_client.exec_command(command)
     print(stdout.read())
     print(stderr.read())
-    
+
 
 def start_servers():
     for serverId, info in config["servers"].items():
@@ -38,12 +40,14 @@ def start_servers():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + binPath + "carousel-server -d -i " + serverId + " -c configTest.json" +" > " + serverId +".log &"
-        #cmd = "cd " + path + ";" + binPath + "carousel-server"
+        cmd = "cd " + path + ";" + binPath + "carousel-server -d -i " + \
+              serverId + " -c configTest.json" + " > " + serverId + ".log &"
+        # cmd = "cd " + path + ";" + binPath + "carousel-server"
         print(cmd)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
         print(stderr.read())
+
 
 def start_clients():
     threads = list()
@@ -52,7 +56,8 @@ def start_clients():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + binPath + "client -d -i " + clientId + " -c configTest.json" +" > " + clientId +".log"
+        cmd = "cd " + path + ";" + binPath + "client -d -i " + clientId + \
+              " -c configTest.json" + " > " + clientId + ".log"
         print(cmd)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
         threads.append(thread)
@@ -62,10 +67,11 @@ def start_clients():
     for thread in threads:
         timeout = absolute_time - time.time()
         if timeout < 0:
-            break;
+            break
         thread.join(timeout)
         if thread.isAlive():
             print("Error: timeout")
+
 
 def stop_servers():
     for serverId, info in config["servers"].items():
@@ -78,6 +84,7 @@ def stop_servers():
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
         print(stderr.read())
+
 
 def stop_clients():
     for clientId, info in config["clients"].items():
@@ -98,6 +105,7 @@ def remove_log():
         if f.endswith(".log"):
             os.remove(os.path.join(path, f))
 
+
 def main():
     remove_log()
     start_servers()
@@ -105,6 +113,7 @@ def main():
     start_clients()
     stop_clients()
     stop_servers()
+
 
 if __name__ == "__main__":
     main()

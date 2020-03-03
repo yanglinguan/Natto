@@ -31,6 +31,7 @@ type ValueVersion struct {
 	Value            string
 	Version          uint64
 	WaitingOp        *list.List
+	WaitingItem      map[string]*list.Element
 	PreparedTxnRead  map[string]bool
 	PreparedTxnWrite map[string]bool
 }

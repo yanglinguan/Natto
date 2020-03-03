@@ -181,6 +181,14 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 					s.checkPrepare(wk)
 				}
 			}
+
+			for key := range txnInfo.readAndPrepareRequestOp.keyMap {
+				if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
+					s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
+					delete(s.kvStore[key].WaitingItem, txnId)
+				}
+			}
+
 			break
 		}
 	} else {
@@ -213,6 +221,9 @@ func (s *GTSStorageDepGraph) setReadResult(op *ReadAndPrepareOp) {
 func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
+		if s.txnStore[op.abortRequest.TxnId].readAndPrepareRequestOp != nil {
+			s.setReadResult(s.txnStore[op.abortRequest.TxnId].readAndPrepareRequestOp)
+		}
 	} else {
 		s.selfAbort(op.request)
 		s.setReadResult(op.request)
