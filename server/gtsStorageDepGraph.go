@@ -167,7 +167,7 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 		default:
 			log.Infof("ABORT %v (coordinator) INIT", txnId)
 			s.getNextCommitListByCommitOrAbort(txnId)
-			s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+			s.setReadResult(txnInfo.readAndPrepareRequestOp)
 			s.release(txnId)
 			break
 		}

@@ -132,7 +132,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 
 	s.txnStore[txnId] = &TxnInfo{
 		readAndPrepareRequestOp: op,
-		status:                  0,
+		status:                  INIT,
 		receiveFromCoordinator:  false,
 		commitOrder:             0,
 	}

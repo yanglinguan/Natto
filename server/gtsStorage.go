@@ -132,7 +132,7 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			break
 		default:
 			log.Infof("ABORT: %v (coordinator) INIT", txnId)
-			s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+			s.setReadResult(txnInfo.readAndPrepareRequestOp)
 			s.release(txnId)
 			break
 		}
