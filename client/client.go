@@ -325,17 +325,15 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 }
 
-func (c *Client) PrintTxnStatisticData(isDebug bool) {
-	if isDebug {
-		for sId, conn := range c.connections {
-			pId := c.Config.GetPartitionIdByServerId(sId)
-			committed := c.commitTxn[pId]
-			request := &rpc.PrintStatusRequest{
-				CommittedTxn: int32(committed),
-			}
-			sender := NewPrintStatusRequestSender(request, conn)
-			go sender.Send()
+func (c *Client) PrintTxnStatisticData() {
+	for sId, conn := range c.connections {
+		pId := c.Config.GetPartitionIdByServerId(sId)
+		committed := c.commitTxn[pId]
+		request := &rpc.PrintStatusRequest{
+			CommittedTxn: int32(committed),
 		}
+		sender := NewPrintStatusRequestSender(request, conn)
+		go sender.Send()
 	}
 
 	file, err := os.Create(c.clientId + "_statistic.log")
