@@ -13,6 +13,7 @@ arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
 
 args = arg_parser.parse_args()
 
+
 def run_exp(i):
     if args.config is not None:
         run(i, args.config)
@@ -22,8 +23,9 @@ def run_exp(i):
             if f.endswith(".json"):
                 run(i, f)
 
+
 def run(i, f):
-    #print("run " + f + " " + str(i))
+    # print("run " + f + " " + str(i))
     subprocess.call(["../sbin/run.py", "-c", f])
     dir_name = f.split('.')[0] + "-" + str(i)
     move_log(dir_name)
@@ -34,6 +36,7 @@ def remove_log(dir_path):
     for f in lists:
         if f.endswith(".log"):
             os.remove(os.path.join(dir_path, f))
+
 
 def move_log(dir_name):
     lists = os.listdir(path)

@@ -59,8 +59,6 @@ type Client struct {
 
 	txnStore map[string]*Transaction
 	lock     sync.Mutex
-	// pId -> number of committed txn
-	commitTxn map[int]int
 }
 
 func NewClient(clientId string, configFile string) *Client {
@@ -72,7 +70,6 @@ func NewClient(clientId string, configFile string) *Client {
 		sendTxnRequest:     make(chan *SendOp, QueueLen),
 		commitTxnRequest:   make(chan *CommitOp, QueueLen),
 		txnStore:           make(map[string]*Transaction),
-		commitTxn:          make(map[int]int),
 		lock:               sync.Mutex{},
 	}
 
@@ -275,11 +272,6 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	}
 	op.result = result.Result
 	op.wait <- true
-	if op.result {
-		for _, pId := range ongoingTxn.txn.ParticipatedPartitionIds {
-			c.commitTxn[int(pId)]++
-		}
-	}
 }
 
 func (c *Client) handleCommitRequest(op *CommitOp) {
@@ -322,13 +314,25 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	go sender.Send()
 
 	go c.waitCommitReply(op, ongoingTxn)
+}
 
+func (c *Client) getCommitTxn() map[int]int {
+	commitTxn := make(map[int]int)
+	for _, txn := range c.txnStore {
+		if txn.commitResult == 1 {
+			for _, pId := range txn.txn.ParticipatedPartitionIds {
+				commitTxn[int(pId)]++
+			}
+		}
+	}
+	return commitTxn
 }
 
 func (c *Client) PrintTxnStatisticData() {
+	commitTxn := c.getCommitTxn()
 	for sId, conn := range c.connections {
 		pId := c.Config.GetPartitionIdByServerId(sId)
-		committed := c.commitTxn[pId]
+		committed := commitTxn[pId]
 		request := &rpc.PrintStatusRequest{
 			CommittedTxn: int32(committed),
 		}
