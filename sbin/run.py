@@ -12,6 +12,8 @@ arg_parser = argparse.ArgumentParser(description="run exp.")
 # Cluster configuration file
 arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
                         help='configuration file', required=True)
+arg_parser.add_argument('-d', '--debug', help="turn on debug",
+                        action='store_true')
 
 args = arg_parser.parse_args()
 
@@ -22,6 +24,12 @@ config_file.close()
 
 path = "/home/l69yang/Projects/go/src/Carousel-GTS/exp"
 binPath = "$HOME/Projects/go/bin/"
+
+server_cmd = binPath + "/carousel-server "
+client_cmd = binPath + "/client "
+if args.debug:
+    server_cmd = server_cmd + "-d "
+    client_cmd = client_cmd + "-d "
 
 
 # binPath = "./"
@@ -40,9 +48,8 @@ def start_servers():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + binPath + "carousel-server -d -i " + \
+        cmd = "cd " + path + ";" + server_cmd + "-i " + \
               serverId + " -c configTest.json" + " > " + serverId + ".log &"
-        # cmd = "cd " + path + ";" + binPath + "carousel-server"
         print(cmd)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
@@ -56,21 +63,22 @@ def start_clients():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + binPath + "client -d -i " + clientId + \
+        cmd = "cd " + path + ";" + client_cmd + "-i " + clientId + \
               " -c configTest.json" + " > " + clientId + ".log"
         print(cmd)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
         threads.append(thread)
         thread.start()
 
-    absolute_time = time.time() + config["experiment"]["duration"] + 10
+    # absolute_time = time.time() + config["experiment"]["duration"] + 10
     for thread in threads:
-        timeout = absolute_time - time.time()
-        if timeout < 0:
-            break
-        thread.join(timeout)
-        if thread.isAlive():
-            print("Error: timeout")
+        # timeout = absolute_time - time.time()
+        # if timeout < 0:
+        #    break
+        # thread.join(timeout)
+        # if thread.isAlive():
+        #    print("Error: timeout")
+        thread.join()
 
 
 def stop_servers():
