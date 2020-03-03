@@ -210,8 +210,19 @@ func (s *OccStorage) coordinatorAbort(request *rpc.AbortRequest) {
 				"status": txnInfo.status,
 			}).Fatalln("txn is already committed")
 			break
+		case PREPARED:
+			log.Infof("ABORT %v (coordinator) PREPARED", txnId)
+			for rk := range txnInfo.readAndPrepareRequestOp.readKeyMap {
+				s.preparedReadKey[rk]--
+			}
+			for wk := range txnInfo.readAndPrepareRequestOp.writeKeyMap {
+				s.preparedWriteKey[wk]--
+			}
+			txnInfo.receiveFromCoordinator = true
+			txnInfo.status = ABORT
+			break
 		default:
-			log.Infof("ABORT %v (coordinator)", txnId)
+			log.Infof("ABORT %v (coordinator) INIT", txnId)
 			txnInfo.receiveFromCoordinator = true
 			txnInfo.status = ABORT
 			break

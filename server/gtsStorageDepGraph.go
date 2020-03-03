@@ -118,7 +118,6 @@ func (s *GTSStorageDepGraph) selfAbort(op *ReadAndPrepareOp) {
 				"txnId":  txnId,
 				"status": txnInfo.status,
 			}).Debugln("txn is already abort by coordinator")
-
 			break
 		default:
 			log.WithFields(log.Fields{
@@ -164,6 +163,7 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 			log.Infof("ABORT %v (coordinator) PREPARED", txnId)
 			s.getNextCommitListByCommitOrAbort(txnId)
 			s.release(txnId)
+			break
 		default:
 			log.Infof("ABORT %v (coordinator) INIT", txnId)
 			s.getNextCommitListByCommitOrAbort(txnId)
@@ -337,6 +337,7 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 	case PREPARED:
 		log.Infof("PREPARED %v", op.request.Txn.TxnId)
 		s.prepareResult(op)
+		break
 	case ABORT:
 		log.Infof("ABORT %v", op.request.Txn.TxnId)
 		op.prepareResult = &rpc.PrepareResultRequest{
@@ -350,6 +351,7 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 			Request:          op.prepareResult,
 			CoordPartitionId: int(op.request.Txn.CoordPartitionId),
 		}
+		break
 	}
 
 }

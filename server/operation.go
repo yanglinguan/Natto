@@ -65,9 +65,11 @@ func (o *ReadAndPrepareOp) RecordPreparedKey(key string, keyType KeyType) {
 	case READ:
 		o.readKeyMap[key] = true
 		o.preparedReadKeyNum++
+		break
 	case WRITE:
 		o.writeKeyMap[key] = true
 		o.preparedWriteKeyNum++
+		break
 	}
 }
 

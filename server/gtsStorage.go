@@ -83,7 +83,6 @@ func (s *GTSStorage) selfAbort(op *ReadAndPrepareOp) {
 				"txnId":  txnId,
 				"status": txnInfo.status,
 			}).Debugln("txn is already abort by coordinator")
-
 			break
 		default:
 			log.WithFields(log.Fields{
@@ -305,6 +304,7 @@ func (s *GTSStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
 	case PREPARED:
 		log.Infof("PREPARED %v", op.request.Txn.TxnId)
 		s.prepareResult(op)
+		break
 	case ABORT:
 		log.Infof("ABORT %v", op.request.Txn.TxnId)
 		op.prepareResult = &rpc.PrepareResultRequest{
@@ -318,6 +318,7 @@ func (s *GTSStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
 			Request:          op.prepareResult,
 			CoordPartitionId: int(op.request.Txn.CoordPartitionId),
 		}
+		break
 	}
 
 }

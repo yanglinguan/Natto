@@ -24,8 +24,10 @@ func main() {
 	switch c.Config.GetWorkLoad() {
 	case configuration.YCSBT:
 		expWorkload = workload.NewYCSBTWorkload(baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+		break
 	case configuration.ONETXN:
 		expWorkload = workload.NewOneTxnWorkload(baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+		break
 	}
 
 	if c.Config.GetOpenLoop() {

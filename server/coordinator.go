@@ -212,6 +212,7 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 				go sender.Send()
 			}
 		}
+		break
 	case COMMIT:
 		// unblock the client
 		info.commitRequest.result = true
@@ -252,5 +253,6 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 				go sender.Send()
 			}
 		}
+		break
 	}
 }

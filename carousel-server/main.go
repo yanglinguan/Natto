@@ -7,9 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var isDebug bool = false
-var serverId string = ""
-var configFile string = ""
+var isDebug = false
+var serverId = ""
+var configFile = ""
 
 func main() {
 	parseArgs()
