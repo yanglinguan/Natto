@@ -186,7 +186,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 
 func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 	if info.resultSent {
-		log.Debugf("txn %v result is already sent")
+		log.Debugf("txn %v result is already sent", info.txnId)
 		return
 	}
 	info.resultSent = true

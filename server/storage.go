@@ -3,7 +3,7 @@ package server
 import (
 	"container/list"
 	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 )
 

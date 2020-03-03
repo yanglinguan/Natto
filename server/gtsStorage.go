@@ -51,6 +51,8 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 		}).Fatal("txn should be prepared before commit")
 	}
 
+	op.wait <- true
+
 	for _, rk := range op.request.ReadKeyVerList {
 		delete(s.kvStore[rk.Key].PreparedTxnRead, txnId)
 	}
@@ -59,13 +61,16 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 		delete(s.kvStore[kv.Key].PreparedTxnWrite, txnId)
 		s.kvStore[kv.Key].Value = kv.Value
 		s.kvStore[kv.Key].Version++
-		s.checkPrepare(kv.Key)
 	}
+
+	for key := range s.txnStore[txnId].readAndPrepareRequestOp.keyMap {
+		s.checkPrepare(key)
+	}
+
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
-	op.wait <- true
 	s.print()
 }
 
@@ -219,6 +224,7 @@ func (s *GTSStorage) checkPrepare(key string) {
 		}
 
 		s.kvStore[key].WaitingOp.Remove(e)
+		delete(s.kvStore[key].WaitingItem, txnId)
 
 		if op.IsPrepared() {
 			s.setPrepareResult(op, PREPARED)
@@ -407,6 +413,27 @@ func (s *GTSStorage) print() {
 		printModifiedData(s.kvStore, s.server.serverId)
 		for _, printOp := range s.waitPrintStatusRequest {
 			printOp.wait <- true
+		}
+		s.checkWaiting()
+	}
+}
+
+func (s *GTSStorage) checkWaiting() {
+	for key, kv := range s.kvStore {
+		if len(kv.PreparedTxnRead) != 0 ||
+			len(kv.PreparedTxnWrite) != 0 ||
+			kv.WaitingOp.Len() != 0 ||
+			len(kv.WaitingItem) != 0 {
+			for rt := range kv.PreparedTxnRead {
+				log.Errorf("txn %v prepared for read key %v", rt, key)
+			}
+			for wt := range kv.PreparedTxnWrite {
+				log.Errorf("txn %v prepared for write key %v", wt, key)
+			}
+			for txn := range kv.WaitingItem {
+				log.Errorf("txn %v is wait for key %v", txn, key)
+			}
+			log.Fatalf("key %v should have waiting txn", key)
 		}
 	}
 }

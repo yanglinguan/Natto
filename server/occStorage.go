@@ -260,5 +260,20 @@ func (s *OccStorage) print() {
 		for _, printOp := range s.waitPrintStatusRequest {
 			printOp.wait <- true
 		}
+		s.checkWaiting()
+	}
+}
+
+func (s *OccStorage) checkWaiting() {
+	for key, n := range s.preparedReadKey {
+		if n != 0 {
+			log.Fatalf("key %v should have %v txn read prepared", key, n)
+		}
+	}
+
+	for key, n := range s.preparedWriteKey {
+		if n != 0 {
+			log.Fatalf("key %v should have %v txn write prepared", key, n)
+		}
 	}
 }
