@@ -49,7 +49,7 @@ def start_servers():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         cmd = "cd " + path + ";" + server_cmd + "-i " + \
-              serverId + " -c configTest.json" + " > " + serverId + ".log &"
+              serverId + " -c " + args.config + " > " + serverId + ".log &"
         print(cmd)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
@@ -64,7 +64,7 @@ def start_clients():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         cmd = "cd " + path + ";" + client_cmd + "-i " + clientId + \
-              " -c configTest.json" + " > " + clientId + ".log"
+              " -c " + args.config + " > " + clientId + ".log"
         print(cmd)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
         threads.append(thread)
@@ -107,15 +107,15 @@ def stop_clients():
         print(stderr.read())
 
 
-def remove_log():
-    lists = os.listdir(path)
+def remove_log(dir_path):
+    lists = os.listdir(dir_path)
     for f in lists:
         if f.endswith(".log"):
-            os.remove(os.path.join(path, f))
+            os.remove(os.path.join(dir_path, f))
 
 
 def main():
-    remove_log()
+    remove_log(path)
     start_servers()
     time.sleep(2)
     start_clients()

@@ -40,6 +40,13 @@ for sId in config["servers"]:
         dc_ip_map[dcId] = []
     dc_ip_map[dcId].append(ip)
 
+for cId in config["clients"]:
+    ip = config["clients"][cId]["ip"]
+    dcId = config["clients"][cId]["dataCenterId"]
+    if dcId not in dc_ip_map:
+        dc_ip_map[dcId] = []
+    dc_ip_map[dcId].append(ip)
+
 dc_delay_map = config["experiment"]["oneWayDelay"]
 
 # cmd prefix
