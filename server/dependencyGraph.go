@@ -26,6 +26,7 @@ func NewDependencyGraph() *Graph {
 }
 
 func (g *Graph) AddNode(txn string) {
+	logrus.Debugf("add node %v", txn)
 	if _, exist := g.inDegree[txn]; !exist {
 		g.inDegree[txn] = 0
 	}

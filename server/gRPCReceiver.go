@@ -65,6 +65,7 @@ func (s *Server) PrepareResult(ctx context.Context, request *rpc.PrepareResultRe
 }
 
 func (s *Server) PrintStatus(cts context.Context, request *rpc.PrintStatusRequest) (*rpc.Empty, error) {
+	logrus.Infof("RECEIVE PrintStatus %v", request.CommittedTxn)
 	op := NewPrintStatusRequestOp(int(request.CommittedTxn))
 	s.executor.PrintStatus <- op
 	op.BlockOwner()

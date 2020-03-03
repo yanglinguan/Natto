@@ -49,6 +49,7 @@ type Configuration interface {
 	GetZipfAlpha() float64
 	GetWorkLoad() WorkLoad
 	GetTotalTxn() int
+	GetTotalClient() int
 }
 
 type FileConfiguration struct {
@@ -378,4 +379,8 @@ func (f *FileConfiguration) GetWorkLoad() WorkLoad {
 
 func (f *FileConfiguration) GetTotalTxn() int {
 	return f.totalTxn
+}
+
+func (f *FileConfiguration) GetTotalClient() int {
+	return len(f.clients)
 }

@@ -34,10 +34,11 @@ config_file.close()
 
 dc_ip_map = {}
 for sId in config["servers"]:
+    ip = config["servers"][sId]["ip"]
     dcId = config["servers"][sId]["dataCenterId"]
     if dcId not in dc_ip_map:
         dc_ip_map[dcId] = []
-    dc_ip_map[dcId].append(sId)
+    dc_ip_map[dcId].append(ip)
 
 dc_delay_map = config["experiment"]["oneWayDelay"]
 

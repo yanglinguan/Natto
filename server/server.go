@@ -4,9 +4,9 @@ import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/connection"
 	"Carousel-GTS/rpc"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"log"
 	"net"
 	"strings"
 )
@@ -79,7 +79,7 @@ func NewServer(serverId string, configFile string) *Server {
 }
 
 func (s *Server) Start() {
-	log.Printf("Starting Server %v", s.serverId)
+	log.Infof("Starting Server %v", s.serverId)
 
 	// Starts RPC service
 	rpcListener, err := net.Listen("tcp", ":"+s.port)

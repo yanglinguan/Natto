@@ -61,6 +61,7 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 			txnId:             txnId,
 			status:            INIT,
 			preparedPartition: make(map[int]*PrepareResultOp),
+			resultSent:        false,
 		}
 	}
 	return c.txnStore[txnId]
@@ -83,6 +84,12 @@ func (c *Coordinator) handleCommitRequest(op *CommitRequestOp) {
 	twoPCInfo := c.initTwoPCInfoIfNotExist(txnId)
 
 	twoPCInfo.commitRequest = op
+
+	if twoPCInfo.status == ABORT {
+		op.result = false
+		op.wait <- true
+		return
+	}
 
 	c.checkResult(twoPCInfo)
 }
@@ -145,7 +152,8 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 
 func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
-		if info.readAndPrepareOp != nil && info.commitRequest != nil {
+		//if info.readAndPrepareOp != nil && info.commitRequest != nil {
+		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
 			c.sendToParticipantsAndClient(info)
 		}
@@ -177,23 +185,26 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 
 func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 	if info.resultSent {
+		log.Debugf("txn %v result is already sent")
 		return
 	}
 	info.resultSent = true
-	coordinatorId := int(info.readAndPrepareOp.request.Txn.CoordPartitionId)
 	switch info.status {
 	case ABORT:
-		info.commitRequest.result = false
-		info.commitRequest.wait <- true
+		if info.commitRequest != nil {
+			info.commitRequest.result = false
+			info.commitRequest.wait <- true
+		}
 		request := &rpc.AbortRequest{
 			TxnId:         info.txnId,
 			IsCoordinator: true,
 		}
-		if coordinatorId == c.server.partitionId {
-			op := NewAbortRequestOp(request, nil, true)
-			c.server.executor.AbortTxn <- op
-		} else {
-			for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
+
+		for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
+			if int(pId) == c.server.partitionId {
+				op := NewAbortRequestOp(request, nil, true)
+				c.server.executor.AbortTxn <- op
+			} else {
 				serverId := c.server.config.GetServerIdByPartitionId(int(pId))
 				connection := c.server.connections[serverId]
 				sender := NewAbortRequestSender(request, connection)
@@ -232,13 +243,13 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 			if int(pId) == c.server.partitionId {
 				op := NewCommitRequestOp(request)
 				c.server.executor.CommitTxn <- op
-				continue
+			} else {
+				log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
+				serverId := c.server.config.GetServerIdByPartitionId(int(pId))
+				connection := c.server.connections[serverId]
+				sender := NewCommitRequestSender(request, connection)
+				go sender.Send()
 			}
-			log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
-			serverId := c.server.config.GetServerIdByPartitionId(int(pId))
-			connection := c.server.connections[serverId]
-			sender := NewCommitRequestSender(request, connection)
-			go sender.Send()
 		}
 	}
 }

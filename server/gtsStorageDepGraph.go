@@ -22,25 +22,29 @@ type GTSStorageDepGraph struct {
 
 	committed int
 
-	waitPrintStatusRequest *PrintStatusRequestOp
+	waitPrintStatusRequest []*PrintStatusRequestOp
+	totalCommit            int
 }
 
 func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
 	s := &GTSStorageDepGraph{
-		kvStore:          make(map[string]*ValueVersion),
-		server:           server,
-		txnStore:         make(map[string]*TxnInfo),
-		graph:            NewDependencyGraph(),
-		readyToCommitTxn: make(map[string]bool),
-		waitToCommitTxn:  make(map[string]*CommitRequestOp),
-		committed:        0,
+		kvStore:                make(map[string]*ValueVersion),
+		server:                 server,
+		txnStore:               make(map[string]*TxnInfo),
+		graph:                  NewDependencyGraph(),
+		readyToCommitTxn:       make(map[string]bool),
+		waitToCommitTxn:        make(map[string]*CommitRequestOp),
+		waitPrintStatusRequest: make([]*PrintStatusRequestOp, 0),
+		committed:              0,
 	}
 
 	return s
 }
 
 func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
+	log.Debugf("REMOVE %v", txnId)
 	s.graph.Remove(txnId)
+	delete(s.readyToCommitTxn, txnId)
 	for _, txn := range s.graph.GetNext() {
 		log.Debugf("txn %v can commit now", txn)
 		s.readyToCommitTxn[txn] = true
@@ -95,12 +99,13 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		s.committed++
 		s.getNextCommitListByCommitOrAbort(txnId)
 
-		delete(s.readyToCommitTxn, txnId)
 		op.wait <- true
-		if s.waitPrintStatusRequest != nil && s.waitPrintStatusRequest.committedTxn == s.committed {
+		if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
 			s.PrintCommitOrder()
 			s.PrintModifiedData()
-			s.waitPrintStatusRequest.wait <- true
+			for _, printOp := range s.waitPrintStatusRequest {
+				printOp.wait <- true
+			}
 		}
 	} else {
 		log.Debugf("WAIT COMMIT %v", txnId)
@@ -434,9 +439,12 @@ func (s *GTSStorageDepGraph) LoadKeys(keys []string) {
 }
 
 func (s *GTSStorageDepGraph) PrintCommitOrder() {
-	txnId := make([]string, len(s.txnStore))
+	log.Infof("PRINT commitOrder")
+	txnId := make([]string, s.committed)
 	for id, info := range s.txnStore {
-		txnId[info.commitOrder] = id
+		if info.status == COMMIT {
+			txnId[info.commitOrder] = id
+		}
 	}
 
 	file, err := os.Create(s.server.serverId + "_commitOrder.log")
@@ -459,6 +467,7 @@ func (s *GTSStorageDepGraph) PrintCommitOrder() {
 }
 
 func (s *GTSStorageDepGraph) PrintModifiedData() {
+	log.Infof("PRINT data")
 	file, err := os.Create(s.server.serverId + "_db.log")
 	if err != nil || file == nil {
 		log.Fatal("Fails to create log file: statistic.log")
@@ -505,11 +514,14 @@ func (s *GTSStorageDepGraph) PrintModifiedData() {
 }
 
 func (s *GTSStorageDepGraph) PrintStatus(op *PrintStatusRequestOp) {
-	if s.committed < op.committedTxn {
-		s.waitPrintStatusRequest = op
-		return
+	s.waitPrintStatusRequest = append(s.waitPrintStatusRequest, op)
+	s.totalCommit += op.committedTxn
+	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
+		s.PrintCommitOrder()
+		s.PrintModifiedData()
+		for _, printOp := range s.waitPrintStatusRequest {
+			printOp.wait <- true
+
+		}
 	}
-	s.PrintCommitOrder()
-	s.PrintModifiedData()
-	op.wait <- true
 }

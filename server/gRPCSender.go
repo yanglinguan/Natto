@@ -24,8 +24,8 @@ func NewPrepareResultSender(request *rpc.PrepareResultRequest, connection connec
 }
 
 func (p *PrepareResultSender) Send() {
-	logrus.Infof("SEND PrepareResult %v partition %v result %v",
-		p.request.TxnId, p.request.PartitionId, p.request.PrepareStatus)
+	logrus.Infof("SEND PrepareResult %v partition %v result %v to %v",
+		p.request.TxnId, p.request.PartitionId, p.request.PrepareStatus, p.connection.GetDstAddr())
 	conn := p.connection.GetConn()
 	if p.connection.GetPoolSize() > 0 {
 		defer p.connection.Close(conn)
@@ -35,7 +35,7 @@ func (p *PrepareResultSender) Send() {
 	_, err := client.PrepareResult(context.Background(), p.request)
 
 	if err != nil {
-		logrus.Errorf("fail to send prepare result")
+		logrus.Fatalf("fail to send prepare result: %v", err)
 	}
 }
 
@@ -55,7 +55,7 @@ func NewAbortRequestSender(request *rpc.AbortRequest, connection connection.Conn
 }
 
 func (a *AbortRequestSender) Send() {
-	logrus.Infof("SEND AbortRequest %v", a.request.TxnId)
+	logrus.Infof("SEND AbortRequest %v to %v", a.request.TxnId, a.connection.GetDstAddr())
 	conn := a.connection.GetConn()
 	if a.connection.GetPoolSize() > 0 {
 		defer a.connection.Close(conn)
@@ -64,7 +64,7 @@ func (a *AbortRequestSender) Send() {
 	client := rpc.NewCarouselClient(conn)
 	_, err := client.Abort(context.Background(), a.request)
 	if err != nil {
-		logrus.Errorf("cannot sent abort request")
+		logrus.Fatalf("cannot sent abort request: %v", err)
 	}
 }
 
@@ -84,7 +84,7 @@ func NewCommitRequestSender(request *rpc.CommitRequest, connection connection.Co
 }
 
 func (c *CommitRequestSender) Send() {
-	logrus.Infof("SEND Commit %v (coordinator)", c.request.TxnId)
+	logrus.Infof("SEND Commit %v (coordinator) to %v", c.request.TxnId, c.connection.GetDstAddr())
 	conn := c.connection.GetConn()
 	if c.connection.GetPoolSize() > 0 {
 		defer c.connection.Close(conn)
@@ -95,7 +95,7 @@ func (c *CommitRequestSender) Send() {
 	_, err := client.Commit(context.Background(), c.request)
 
 	if err != nil {
-		logrus.Errorf("cannot send commit request")
+		logrus.Fatalf("cannot send commit request: %v", err)
 	}
 
 }

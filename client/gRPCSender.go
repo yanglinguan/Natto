@@ -34,11 +34,11 @@ func (s *ReadAndPrepareSender) Send() {
 	}
 
 	client := rpc.NewCarouselClient(conn)
-	logrus.Infof("SEND ReadAndPrepare %v", s.request.Txn.TxnId)
+	logrus.Infof("SEND ReadAndPrepare %v to %v", s.request.Txn.TxnId, s.connection.GetDstAddr())
 
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err == nil {
-		logrus.Infof("RECEIVE ReadResult %v", s.request.Txn.TxnId)
+		logrus.Infof("RECEIVE ReadResult %v from %v", s.request.Txn.TxnId, s.connection.GetDstAddr())
 		s.txn.readAndPrepareReply <- reply
 	} else {
 		logrus.Fatalf("rpc error %v", err)
@@ -70,10 +70,10 @@ func (c *CommitRequestSender) Send() {
 	}
 
 	client := rpc.NewCarouselClient(conn)
-	logrus.Infof("SEND Commit %v", c.request.TxnId)
+	logrus.Infof("SEND Commit %v to %v", c.request.TxnId, c.connection.GetDstAddr())
 	reply, err := client.Commit(context.Background(), c.request)
 	if err == nil {
-		logrus.Infof("RECEIVE CommitResult %v", c.request.TxnId)
+		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, c.connection.GetDstAddr())
 		c.txn.commitReply <- reply
 	} else {
 		logrus.Fatalf("rpc error %v", err)

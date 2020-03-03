@@ -13,15 +13,17 @@ type GTSStorage struct {
 	server                 *Server
 	txnStore               map[string]*TxnInfo
 	committed              int
-	waitPrintStatusRequest *PrintStatusRequestOp
+	waitPrintStatusRequest []*PrintStatusRequestOp
+	totalCommit            int
 }
 
 func NewGTSStorage(server *Server) *GTSStorage {
 	s := &GTSStorage{
-		kvStore:   make(map[string]*ValueVersion),
-		server:    server,
-		txnStore:  make(map[string]*TxnInfo),
-		committed: 0,
+		kvStore:                make(map[string]*ValueVersion),
+		server:                 server,
+		txnStore:               make(map[string]*TxnInfo),
+		waitPrintStatusRequest: make([]*PrintStatusRequestOp, 0),
+		committed:              0,
 	}
 
 	return s
@@ -65,10 +67,12 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
 	op.wait <- true
-	if s.waitPrintStatusRequest != nil && s.waitPrintStatusRequest.committedTxn == s.committed {
+	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
 		s.PrintCommitOrder()
 		s.PrintModifiedData()
-		s.waitPrintStatusRequest.wait <- true
+		for _, printOp := range s.waitPrintStatusRequest {
+			printOp.wait <- true
+		}
 	}
 }
 
@@ -140,6 +144,7 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 					s.checkPrepare(wk)
 				}
 			}
+
 			break
 		}
 	} else {
@@ -158,6 +163,9 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 func (s *GTSStorage) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
+		if s.txnStore[op.abortRequest.TxnId].readAndPrepareRequestOp != nil {
+			s.setReadResult(s.txnStore[op.abortRequest.TxnId].readAndPrepareRequestOp)
+		}
 	} else {
 		s.selfAbort(op.request)
 		s.setReadResult(op.request)
@@ -381,9 +389,11 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 }
 
 func (s *GTSStorage) PrintCommitOrder() {
-	txnId := make([]string, len(s.txnStore))
+	txnId := make([]string, s.committed)
 	for id, info := range s.txnStore {
-		txnId[info.commitOrder] = id
+		if info.status == COMMIT {
+			txnId[info.commitOrder] = id
+		}
 	}
 
 	file, err := os.Create(s.server.serverId + "_commitOrder.log")
@@ -452,11 +462,14 @@ func (s *GTSStorage) PrintModifiedData() {
 }
 
 func (s *GTSStorage) PrintStatus(op *PrintStatusRequestOp) {
-	if s.committed < op.committedTxn {
-		s.waitPrintStatusRequest = op
-		return
+	s.waitPrintStatusRequest = append(s.waitPrintStatusRequest, op)
+	s.totalCommit += op.committedTxn
+	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
+		s.PrintCommitOrder()
+		s.PrintModifiedData()
+		for _, printOp := range s.waitPrintStatusRequest {
+			printOp.wait <- true
+
+		}
 	}
-	s.PrintCommitOrder()
-	s.PrintModifiedData()
-	op.wait <- true
 }

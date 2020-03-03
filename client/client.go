@@ -72,6 +72,7 @@ func NewClient(clientId string, configFile string) *Client {
 		sendTxnRequest:     make(chan *SendOp, QueueLen),
 		commitTxnRequest:   make(chan *CommitOp, QueueLen),
 		txnStore:           make(map[string]*Transaction),
+		commitTxn:          make(map[int]int),
 		lock:               sync.Mutex{},
 	}
 
@@ -107,7 +108,7 @@ func (c *Client) sendCommitRequest() {
 
 func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) map[string]string {
 	sendOp := &SendOp{
-		txnId:        txnId,
+		txnId:        c.clientId + "-" + txnId,
 		readKeyList:  readKeyList,
 		writeKeyList: writeKeyList,
 		readResult:   make(map[string]string),
@@ -253,7 +254,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) bool {
 	commitOp := &CommitOp{
-		txnId:         txnId,
+		txnId:         c.clientId + "-" + txnId,
 		writeKeyValue: writeKeyValue,
 		wait:          make(chan bool, 1),
 	}
@@ -333,7 +334,7 @@ func (c *Client) PrintTxnStatisticData(isDebug bool) {
 				CommittedTxn: int32(committed),
 			}
 			sender := NewPrintStatusRequestSender(request, conn)
-			sender.Send()
+			go sender.Send()
 		}
 	}
 
@@ -356,7 +357,7 @@ func (c *Client) PrintTxnStatisticData(isDebug bool) {
 			_, err = fmt.Sscan(ks, &k)
 			key[i] = k
 		}
-		s := fmt.Sprintf("%v,%v,%v, %v, %v, %v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v\n",
 			txn.txn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),

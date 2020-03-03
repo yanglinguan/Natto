@@ -1,6 +1,7 @@
 package server
 
 import (
+	log "github.com/sirupsen/logrus"
 	"time"
 )
 
@@ -63,6 +64,7 @@ func (ts *TimestampScheduler) resetTimer() {
 
 func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 	if op.request.Timestamp < time.Now().UnixNano() {
+		log.Infof("PASS Current time %v", op.request.Txn.TxnId)
 		ts.server.executor.AbortTxn <- NewAbortRequestOp(nil, op, false)
 		return
 	}
