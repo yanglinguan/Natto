@@ -86,6 +86,7 @@ func (c *Coordinator) handleCommitRequest(op *CommitRequestOp) {
 	twoPCInfo.commitRequest = op
 
 	if twoPCInfo.status == ABORT {
+		log.Infof("TXN %v already aborted", txnId)
 		op.result = false
 		op.wait <- true
 		return

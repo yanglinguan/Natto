@@ -156,38 +156,15 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 				"status": txnInfo.status,
 			}).Fatalln("txn is already committed")
 			break
-		default:
-			log.Infof("ABORT %v (coordinator)", txnId)
-
+		case PREPARED:
+			log.Infof("ABORT %v (coordinator) PREPARED", txnId)
 			s.getNextCommitListByCommitOrAbort(txnId)
-
-			for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
-				if isPrepared {
-					delete(s.kvStore[rk].PreparedTxnRead, txnId)
-				}
-			}
-
-			for wk, isPrepared := range txnInfo.readAndPrepareRequestOp.writeKeyMap {
-				if isPrepared {
-					delete(s.kvStore[wk].PreparedTxnWrite, txnId)
-				}
-			}
-
-			for key := range txnInfo.readAndPrepareRequestOp.keyMap {
-				if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
-					// if in the queue, then remove from the queue
-					s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
-					delete(s.kvStore[key].WaitingItem, txnId)
-				} else {
-					// otherwise, check if the top of the queue can prepare
-					s.checkPrepare(key)
-				}
-			}
-
-			if s.txnStore[txnId].readAndPrepareRequestOp != nil {
-				s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
-			}
-
+			s.release(txnId)
+		default:
+			log.Infof("ABORT %v (coordinator) INIT", txnId)
+			s.getNextCommitListByCommitOrAbort(txnId)
+			s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+			s.release(txnId)
 			break
 		}
 	} else {
@@ -197,6 +174,32 @@ func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
 			readAndPrepareRequestOp: nil,
 			status:                  ABORT,
 			receiveFromCoordinator:  true,
+		}
+	}
+}
+
+func (s *GTSStorageDepGraph) release(txnId string) {
+	txnInfo := s.txnStore[txnId]
+	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
+		if isPrepared {
+			delete(s.kvStore[rk].PreparedTxnRead, txnId)
+		}
+	}
+
+	for wk, isPrepared := range txnInfo.readAndPrepareRequestOp.writeKeyMap {
+		if isPrepared {
+			delete(s.kvStore[wk].PreparedTxnWrite, txnId)
+		}
+	}
+
+	for key := range txnInfo.readAndPrepareRequestOp.keyMap {
+		if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
+			// if in the queue, then remove from the queue
+			s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
+			delete(s.kvStore[key].WaitingItem, txnId)
+		} else {
+			// otherwise, check if the top of the queue can prepare
+			s.checkPrepare(key)
 		}
 	}
 }
