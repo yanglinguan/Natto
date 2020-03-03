@@ -249,11 +249,8 @@ func (s *OccStorage) Abort(op *AbortRequestOp) {
 func (s *OccStorage) LoadKeys(keys []string) {
 	for _, key := range keys {
 		s.kvStore[key] = &ValueVersion{
-			Value:            key,
-			Version:          0,
-			WaitingOp:        nil,
-			PreparedTxnRead:  nil,
-			PreparedTxnWrite: nil,
+			Value:   key,
+			Version: 0,
 		}
 	}
 }

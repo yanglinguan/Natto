@@ -443,6 +443,7 @@ func (s *GTSStorageDepGraph) LoadKeys(keys []string) {
 			Value:            key,
 			Version:          0,
 			WaitingOp:        list.New(),
+			WaitingItem:      make(map[string]*list.Element),
 			PreparedTxnRead:  make(map[string]bool),
 			PreparedTxnWrite: make(map[string]bool),
 		}
