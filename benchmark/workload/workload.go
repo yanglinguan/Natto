@@ -87,8 +87,17 @@ func (workload *AbstractWorkload) buildTxn(
 
 func (workload *AbstractWorkload) genKeyList(num int) []string {
 	kList := make([]string, num)
+	kMap := make(map[string]bool)
 	for i := 0; i < len(kList); i++ {
-		kList[i] = utils.ConvertToString(workload.keySize, workload.randKey())
+		for {
+			k := utils.ConvertToString(workload.keySize, workload.randKey())
+			if _, exist := kMap[k]; exist {
+				continue
+			}
+			kMap[k] = true
+			kList[i] = k
+			break
+		}
 	}
 	return kList
 }
