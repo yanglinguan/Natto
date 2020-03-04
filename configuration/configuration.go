@@ -52,6 +52,7 @@ type Configuration interface {
 	GetTotalTxn() int
 	GetTotalClient() int
 	GetRandSeed() int64
+	GetQueueLen() int
 }
 
 type FileConfiguration struct {
@@ -88,6 +89,7 @@ type FileConfiguration struct {
 	zipfAlpha float64
 	workload  WorkLoad
 	seed      int64
+	queueLen  int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -230,6 +232,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			} else {
 				rand.Seed(f.seed)
 			}
+		} else if key == "queueLen" {
+			f.queueLen = int(v.(float64))
 		}
 	}
 }
@@ -397,4 +401,8 @@ func (f *FileConfiguration) GetTotalClient() int {
 
 func (f *FileConfiguration) GetRandSeed() int64 {
 	return f.seed
+}
+
+func (f *FileConfiguration) GetQueueLen() int {
+	return f.queueLen
 }

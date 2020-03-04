@@ -26,13 +26,14 @@ type Coordinator struct {
 }
 
 func NewCoordinator(server *Server) *Coordinator {
+	queueLen := server.config.GetQueueLen()
 	c := &Coordinator{
 		txnStore:         make(map[string]*TwoPCInfo),
 		server:           server,
-		PrepareResult:    make(chan *PrepareResultOp, QueueLen),
-		Wait2PCResultTxn: make(chan *ReadAndPrepareOp, QueueLen),
-		CommitRequest:    make(chan *CommitRequestOp, QueueLen),
-		AbortRequest:     make(chan *AbortRequestOp, QueueLen),
+		PrepareResult:    make(chan *PrepareResultOp, queueLen),
+		Wait2PCResultTxn: make(chan *ReadAndPrepareOp, queueLen),
+		CommitRequest:    make(chan *CommitRequestOp, queueLen),
+		AbortRequest:     make(chan *AbortRequestOp, queueLen),
 	}
 
 	go c.run()

@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const QueueLen = 1024
+//const QueueLen = 1024
 
 type Transaction struct {
 	txn                 *rpc.Transaction
@@ -62,13 +62,15 @@ type Client struct {
 }
 
 func NewClient(clientId string, configFile string) *Client {
+	config := configuration.NewFileConfiguration(configFile)
+	queueLen := config.GetQueueLen()
 	c := &Client{
 		clientId:           clientId,
-		Config:             configuration.NewFileConfiguration(configFile),
+		Config:             config,
 		clientDataCenterId: "",
 		connections:        make(map[string]connection.Connection),
-		sendTxnRequest:     make(chan *SendOp, QueueLen),
-		commitTxnRequest:   make(chan *CommitOp, QueueLen),
+		sendTxnRequest:     make(chan *SendOp, queueLen),
+		commitTxnRequest:   make(chan *CommitOp, queueLen),
 		txnStore:           make(map[string]*Transaction),
 		lock:               sync.Mutex{},
 	}

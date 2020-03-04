@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const QueueLen = 1024
+//const QueueLen = 1024
 
 type Server struct {
 	gRPCServer  *grpc.Server

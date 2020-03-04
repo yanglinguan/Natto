@@ -28,7 +28,7 @@ func NewTimestampScheduler(server *Server) *TimestampScheduler {
 	ts := &TimestampScheduler{
 		server:        server,
 		priorityQueue: NewPriorityQueue(),
-		pendingOp:     make(chan *ReadAndPrepareOp, QueueLen),
+		pendingOp:     make(chan *ReadAndPrepareOp, server.config.GetQueueLen()),
 		timer:         time.NewTimer(0),
 	}
 

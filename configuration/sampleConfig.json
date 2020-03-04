@@ -43,6 +43,7 @@
     "zipfAlpha": 0.75,
     "workload": "ycsbt",
     "seed": 0,
+    "queueLen": 10240,
     "oneWayDelay" : {
       "D1": {"D2": "50ms", "D3": "100ms"},
       "D2": {"D1": "50ms", "D3": "80ms"},
