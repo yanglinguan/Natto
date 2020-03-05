@@ -95,8 +95,8 @@ def analyse_throughput(txn_map):
 
         if value["start"] > max_time:
             max_time = value["start"]
-
-        count += 1
+        if value["commit"]:
+            count += 1
 
     throughput = float(count * 1000000000) / (max_time - min_time)
     print("commit throughput (txn/s): " + str(throughput))
