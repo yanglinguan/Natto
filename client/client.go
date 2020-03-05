@@ -347,7 +347,7 @@ func (c *Client) PrintTxnStatisticData() {
 		go sender.Send()
 	}
 
-	file, err := os.Create(strconv.Itoa(c.clientId) + "_statistic.log")
+	file, err := os.Create("c" + strconv.Itoa(c.clientId) + "_statistic.log")
 	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
 		return
