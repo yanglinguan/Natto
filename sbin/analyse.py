@@ -112,7 +112,7 @@ def analyse_abort_rate(txn_map):
             abort += 1
 
     commit_rate = float(commit) / (abort + commit)
-    print("Abort rate: " + str(commit_rate))
+    print("Commit rate: " + str(commit_rate))
 
 
 def main():
