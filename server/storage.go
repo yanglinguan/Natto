@@ -28,6 +28,7 @@ type TxnInfo struct {
 	status                  TxnStatus
 	receiveFromCoordinator  bool
 	commitOrder             int
+	waittingTxn             int
 }
 
 type ValueVersion struct {
@@ -48,10 +49,10 @@ type Storage interface {
 }
 
 func printCommitOrder(txnStore map[string]*TxnInfo, committed int, serverId string) {
-	txnId := make([]string, committed)
-	for id, info := range txnStore {
+	txnId := make([]*TxnInfo, committed)
+	for _, info := range txnStore {
 		if info.status == COMMIT {
-			txnId[info.commitOrder] = id
+			txnId[info.commitOrder] = info
 		}
 	}
 
@@ -61,8 +62,9 @@ func printCommitOrder(txnStore map[string]*TxnInfo, committed int, serverId stri
 		return
 	}
 
-	for _, id := range txnId {
-		_, err = file.WriteString(id + "\n")
+	for _, info := range txnId {
+		s := fmt.Sprintf("%v %v\n", info.readAndPrepareRequestOp.request.Txn.TxnId, info.waittingTxn)
+		_, err = file.WriteString(s)
 		if err != nil {
 			log.Fatalf("Cannot write to file %v", err)
 		}
