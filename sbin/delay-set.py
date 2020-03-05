@@ -40,12 +40,10 @@ for sId in config["servers"]:
         dc_ip_map[dcId] = []
     dc_ip_map[dcId].append(ip)
 
-client_nums = int(config["clients"]["nums"])
 machines = config["clients"]["machines"]
-for cId in range(client_nums):
-    idx = cId % len(config["clients"]["machines"])
-    ip = machines[idx]["ip"]
-    dcId = machines[idx]["dataCenterId"]
+for m in machines:
+    ip = m["ip"]
+    dcId = m["dataCenterId"]
     if dcId not in dc_ip_map:
         dc_ip_map[dcId] = []
     dc_ip_map[dcId].append(ip)
