@@ -22,7 +22,8 @@ config_file = open(args.config, "r")
 config = json.load(config_file)
 config_file.close()
 
-path = "/home/l69yang/Projects/go/src/Carousel-GTS/exp"
+#path = "/home/l69yang/Projects/go/src/Carousel-GTS/exp"
+path = os.getcwd()
 binPath = "$HOME/Projects/go/bin/"
 
 server_cmd = binPath + "/carousel-server "

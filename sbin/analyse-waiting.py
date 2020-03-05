@@ -2,7 +2,7 @@
 import os
 import argparse
 
-arg_parser = argparse.ArgumentParser(description="stop exp.")
+arg_parser = argparse.ArgumentParser(description="analyse.")
 
 # Cluster configuration file
 arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
@@ -15,7 +15,7 @@ def analyse_waiting():
     lists = os.listdir(args.config)
     for f in lists:
         if f.endswith("_commitOrder.log"):
-            lines = open(f, "r").read()
+            lines = open(os.path.join(args.config, f), "r").readlines()
             for line in lines:
                 items = line.split(" ")
                 txn_id = items[0]

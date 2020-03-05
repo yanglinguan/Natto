@@ -3,7 +3,7 @@ import subprocess
 import os
 import argparse
 
-path = "/home/l69yang/Projects/go/src/Carousel-GTS/exp"
+path = os.getcwd()
 
 arg_parser = argparse.ArgumentParser(description="run exp.")
 
@@ -13,6 +13,7 @@ arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
 
 args = arg_parser.parse_args()
 
+bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
 def run_exp(i):
     if args.config is not None:
@@ -26,7 +27,7 @@ def run_exp(i):
 
 def run(i, f):
     # print("run " + f + " " + str(i))
-    subprocess.call(["../sbin/run.py", "-c", f])
+    subprocess.call([ bin_path + "run.py", "-c", f])
     dir_name = f.split('.')[0] + "-" + str(i)
     move_log(dir_name)
 
