@@ -10,10 +10,13 @@ arg_parser = argparse.ArgumentParser(description="run exp.")
 # Cluster configuration file
 arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
                         help='configuration file', required=False)
+arg_parser.add_argument('-d', '--debug', help="turn on debug",
+                        action='store_true')
 
 args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
+
 
 def run_exp(i):
     if args.config is not None:
@@ -27,7 +30,10 @@ def run_exp(i):
 
 def run(i, f):
     # print("run " + f + " " + str(i))
-    subprocess.call([ bin_path + "run.py", "-c", f])
+    if args.debug:
+        subprocess.call([bin_path + "run.py", "-d", "-c", f])
+    else:
+        subprocess.call([bin_path + "run.py", "-c", f])
     dir_name = f.split('.')[0] + "-" + str(i)
     move_log(dir_name)
 
