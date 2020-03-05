@@ -98,7 +98,7 @@ def analyse_throughput(txn_map):
 
         count += 1
 
-    throughput = (count * 1000000000) / (max_time - min_time)
+    throughput = float(count * 1000000000) / (max_time - min_time)
     print("commit throughput (txn/s): " + str(throughput))
 
 
@@ -111,7 +111,7 @@ def analyse_abort_rate(txn_map):
         else:
             abort += 1
 
-    abort_rate = abort / (abort + commit)
+    abort_rate = float(abort) / (abort + commit)
     print("Abort rate: " + str(abort_rate))
 
 
