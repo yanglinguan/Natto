@@ -35,10 +35,10 @@ type Configuration interface {
 	GetKeyListByPartitionId(partitionId int) []string
 	GetPartitionIdByKey(key string) int
 	GetDataCenterIdByServerId(serverId string) string
-	GetDataCenterIdByClientId(clientId string) string
+	GetDataCenterIdByClientId(clientId int) string
 	GetMaxDelay(clientDCId string, dcIds []string) time.Duration
 	GetServerListByDataCenterId(dataCenterId string) []string
-	GetClientDataCenterIdByClientId(clientId string) string
+	GetClientDataCenterIdByClientId(clientId int) string
 	GetKeyNum() int64
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
@@ -58,7 +58,7 @@ type Configuration interface {
 type FileConfiguration struct {
 	// serverId -> server Address (ip:port)
 	servers    map[string]string
-	clients    map[string]string
+	clients    int
 	partitions [][]string
 
 	serverToPartitionMap map[string]int
@@ -76,7 +76,7 @@ type FileConfiguration struct {
 	dataCenterIdToServerIdList map[string][]string
 
 	// clientId -> dataCenterId
-	clientToDataCenterId map[string]string
+	clientToDataCenterId map[int]string
 
 	delay     time.Duration
 	poolSize  int
@@ -95,7 +95,7 @@ type FileConfiguration struct {
 func NewFileConfiguration(filePath string) *FileConfiguration {
 	c := &FileConfiguration{
 		servers:                    make(map[string]string),
-		clients:                    make(map[string]string),
+		clients:                    0,
 		partitions:                 make([][]string, 0),
 		serverToPartitionMap:       make(map[string]int),
 		serverMode:                 0,
@@ -104,7 +104,7 @@ func NewFileConfiguration(filePath string) *FileConfiguration {
 		dataCenterDistance:         make(map[string]map[string]time.Duration),
 		serverToDataCenterId:       make(map[string]string),
 		dataCenterIdToServerIdList: make(map[string][]string),
-		clientToDataCenterId:       make(map[string]string),
+		clientToDataCenterId:       make(map[int]string),
 	}
 	c.loadFile(filePath)
 	return c
@@ -144,11 +144,13 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 }
 
 func (f *FileConfiguration) loadClients(config map[string]interface{}) {
-	for cId, kv := range config {
-		addr := kv.(map[string]interface{})
-		address := addr["ip"].(string) + ":" + addr["port"].(string)
-		f.clients[cId] = address
-		f.clientToDataCenterId[cId] = addr["dataCenterId"].(string)
+	f.clients = int(config["nums"].(float64))
+	machines := config["machines"].([]interface{})
+	totalMachines := len(machines)
+	for id := 0; id < f.clients; id++ {
+		idx := id % totalMachines
+		machine := machines[idx].(map[string]interface{})
+		f.clientToDataCenterId[id] = machine["dataCenterId"].(string)
 	}
 }
 
@@ -305,7 +307,7 @@ func (f *FileConfiguration) GetDataCenterIdByServerId(serverId string) string {
 	return f.serverToDataCenterId[serverId]
 }
 
-func (f *FileConfiguration) GetDataCenterIdByClientId(clientId string) string {
+func (f *FileConfiguration) GetDataCenterIdByClientId(clientId int) string {
 	if _, exist := f.clientToDataCenterId[clientId]; !exist {
 		log.Fatalf("client %v does not exist", clientId)
 		return ""
@@ -343,7 +345,7 @@ func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId string) []s
 	return f.dataCenterIdToServerIdList[dataCenterId]
 }
 
-func (f *FileConfiguration) GetClientDataCenterIdByClientId(clientId string) string {
+func (f *FileConfiguration) GetClientDataCenterIdByClientId(clientId int) string {
 	if _, exist := f.clientToDataCenterId[clientId]; !exist {
 		log.Fatalf("client id %v does not exist", clientId)
 		return ""
@@ -396,7 +398,7 @@ func (f *FileConfiguration) GetTotalTxn() int {
 }
 
 func (f *FileConfiguration) GetTotalClient() int {
-	return len(f.clients)
+	return f.clients
 }
 
 func (f *FileConfiguration) GetRandSeed() int64 {

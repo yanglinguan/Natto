@@ -10,12 +10,12 @@ import (
 )
 
 var isDebug = false
-var clientId = ""
+var clientId = -1
 var configFile = ""
 
 func main() {
 	parseArgs()
-	utils.ConfigLogger(isDebug, clientId)
+	utils.ConfigLogger(isDebug)
 
 	c := client.NewClient(clientId, configFile)
 	baseWorkload := workload.NewAbstractWorkload(c.Config.GetKeyNum(), c.Config.GetZipfAlpha(), c.Config.GetKeySize())
@@ -59,15 +59,15 @@ func parseArgs() {
 		"",
 		"client configuration file",
 	)
-	flag.StringVar(
+	flag.IntVar(
 		&clientId,
 		"i",
-		"",
+		-1,
 		"client id",
 	)
 
 	flag.Parse()
-	if clientId == "" {
+	if clientId == -1 {
 		flag.Usage()
 		logrus.Fatal("Invalid client id.")
 	}

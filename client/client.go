@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -48,7 +49,7 @@ func (o *CommitOp) BlockOwner() bool {
 }
 
 type Client struct {
-	clientId           string
+	clientId           int
 	Config             configuration.Configuration
 	clientDataCenterId string
 
@@ -61,7 +62,7 @@ type Client struct {
 	lock     sync.Mutex
 }
 
-func NewClient(clientId string, configFile string) *Client {
+func NewClient(clientId int, configFile string) *Client {
 	config := configuration.NewFileConfiguration(configFile)
 	queueLen := config.GetQueueLen()
 	c := &Client{
@@ -105,9 +106,13 @@ func (c *Client) sendCommitRequest() {
 	}
 }
 
+func (c *Client) getTxnId(txnId string) string {
+	return "c" + strconv.Itoa(c.clientId) + "-" + txnId
+}
+
 func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) map[string]string {
 	sendOp := &SendOp{
-		txnId:        c.clientId + "-" + txnId,
+		txnId:        c.getTxnId(txnId),
 		readKeyList:  readKeyList,
 		writeKeyList: writeKeyList,
 		readResult:   make(map[string]string),
@@ -235,7 +240,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			IsRead:           false,
 			IsNotParticipant: !participants[pId],
 			Timestamp:        0,
-			ClientId:         c.clientId,
+			ClientId:         "c" + strconv.Itoa(c.clientId),
 		}
 
 		if c.Config.GetServerMode() != configuration.OCC {
@@ -253,7 +258,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) bool {
 	commitOp := &CommitOp{
-		txnId:         c.clientId + "-" + txnId,
+		txnId:         c.getTxnId(txnId),
 		writeKeyValue: writeKeyValue,
 		wait:          make(chan bool, 1),
 	}
@@ -342,7 +347,7 @@ func (c *Client) PrintTxnStatisticData() {
 		go sender.Send()
 	}
 
-	file, err := os.Create(c.clientId + "_statistic.log")
+	file, err := os.Create(strconv.Itoa(c.clientId) + "_statistic.log")
 	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
 		return

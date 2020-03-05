@@ -17,11 +17,13 @@
     }
   },
   "clients": {
-    "1": {
-      "ip": "localhost",
-      "port": "10004",
-      "dataCenterId": "D1"
-    }
+    "nums": 16,
+    "machine": [
+      {
+        "ip": "localhost",
+        "dataCenterId": "D1"
+      }
+    ]
   },
   "partitions": [
     ["1"],

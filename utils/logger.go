@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func ConfigLogger(isDebug bool, id string) {
+func ConfigLogger(isDebug bool) {
 	formatter := new(log.TextFormatter)
 	formatter.TimestampFormat = "Jan _2 15:04:05.000000"
 	formatter.FullTimestamp = true

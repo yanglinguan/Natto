@@ -22,7 +22,6 @@ config_file = open(args.config, "r")
 config = json.load(config_file)
 config_file.close()
 
-#path = "/home/l69yang/Projects/go/src/Carousel-GTS/exp"
 path = os.getcwd()
 binPath = "$HOME/Projects/go/bin/"
 
@@ -31,9 +30,6 @@ client_cmd = binPath + "/client "
 if args.debug:
     server_cmd = server_cmd + "-d "
     client_cmd = client_cmd + "-d "
-
-
-# binPath = "./"
 
 
 def ssh_exec_thread(ssh_client, command):
@@ -59,14 +55,17 @@ def start_servers():
 
 def start_clients():
     threads = list()
-    for clientId, info in config["clients"].items():
-        ip = info["ip"]
+    client_nums = config["clients"]["nums"]
+    machines = config["clients"]["machines"]
+    for clientId in range(client_nums):
+        idx = clientId % len(machines)
+        ip = machines[idx]["ip"]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + client_cmd + "-i " + clientId + \
-              " -c " + args.config + " > " + clientId + ".log"
-        print(cmd)
+        cmd = "cd " + path + ";" + client_cmd + "-i " + str(clientId) + \
+              " -c " + args.config + " > " + str(clientId) + ".log"
+        print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
         threads.append(thread)
         thread.start()
