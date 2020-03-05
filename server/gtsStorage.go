@@ -366,6 +366,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		readAndPrepareRequestOp: op,
 		status:                  INIT,
 		receiveFromCoordinator:  false,
+		waittingTxn:             0,
 	}
 
 	notPreparedKey := make(map[string]bool)
@@ -393,6 +394,10 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 
 	if !op.IsPrepared() {
 		for key := range notPreparedKey {
+			queueLen := s.kvStore[key].WaitingOp.Len()
+			if queueLen > s.txnStore[txnId].waittingTxn {
+				s.txnStore[txnId].waittingTxn = queueLen
+			}
 			item := s.kvStore[key].WaitingOp.PushBack(op)
 			s.kvStore[key].WaitingItem[txnId] = item
 		}
