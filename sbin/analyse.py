@@ -103,6 +103,7 @@ def analyse_throughput(txn_map):
             count += 1
 
     throughput = float(count * 1000000000) / (max_time - min_time)
+    print("start time " + str(min_time) + "; end time" + str(max_time))
     print("commit throughput (txn/s): " + str(throughput))
 
 
