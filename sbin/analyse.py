@@ -59,8 +59,8 @@ def load_statistic():
                 txn_map[txn_id] = {"commit": commit, "latency": latency, "start": start, "end": end}
 
     for txn_id, value in txn_map.items():
-        value["start"] = value["start"] - min_start
-        if value["start"] < low or value["start"] > high:
+        value["end"] = value["end"] - min_start
+        if value["end"] < low or value["end"] > high:
             del txn_map[txn_id]
 
     return txn_map
@@ -78,11 +78,15 @@ def analyse_latency(txn_map):
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
+    result = {"median": median, "p95": p95, "p10": p10, "p99": p99, "avg": avg}
+
     print("10 per (ms): " + str(p10))
     print("median (ms): " + str(median))
     print("95 per (ms): " + str(p95))
     print("99 per (ms): " + str(p99))
     print("avg (ms): " + str(avg))
+
+    return result
 
 
 def analyse_throughput(txn_map):
