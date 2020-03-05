@@ -59,8 +59,8 @@ def load_statistic():
                 txn_map[txn_id] = {"commit": commit, "latency": latency, "start": start, "end": end}
 
     for txn_id, value in txn_map.items():
-        value["end"] = value["end"] - min_start
-        if value["end"] < low or value["end"] > high:
+        value["start"] = value["start"] - min_start
+        if value["start"] < low or value["start"] > high:
             del txn_map[txn_id]
 
     return txn_map
