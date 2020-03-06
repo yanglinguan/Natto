@@ -57,27 +57,27 @@ def start_clients():
     threads = list()
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
+    client_machine = [""] * len(machines)
     for clientId in range(client_nums):
         idx = clientId % len(machines)
-        ip = machines[idx]["ip"]
+        client_nums[idx] += str(clientId)
+        client_nums[idx] += " "
+    for mId in range(len(client_machine)):
+        m = machines[mId]
+        ip = m["ip"]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + client_cmd + "-i " + str(clientId) + \
-              " -c " + args.config + " > " + str(clientId) + ".log"
+        cmd = "cd " + path + ";"
+        exe = client_cmd + "-i $id" + " -c " + args.config + " > " + " $id.log &"
+        loop = "for id in " + client_machine[mId] + "; do " + exe + "; done; wait"
+        cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
         threads.append(thread)
         thread.start()
 
-    # absolute_time = time.time() + config["experiment"]["duration"] + 10
     for thread in threads:
-        # timeout = absolute_time - time.time()
-        # if timeout < 0:
-        #    break
-        # thread.join(timeout)
-        # if thread.isAlive():
-        #    print("Error: timeout")
         thread.join()
 
 
