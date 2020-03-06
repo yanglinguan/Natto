@@ -57,10 +57,10 @@ def start_clients():
     threads = list()
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
-    client_machine = [[]] * len(machines)
+    client_machine = [[] for i in range(len(machines))]
     for clientId in range(client_nums):
         idx = clientId % len(machines)
-        client_machine[idx].append(clientId)
+        client_machine[idx].append(str(clientId))
 
     for mId in range(len(client_machine)):
         m = machines[mId]
@@ -70,7 +70,7 @@ def start_clients():
         ssh.connect(ip)
         cmd = "cd " + path + ";"
         exe = client_cmd + "-i $id" + " -c " + args.config + " > " + " $id.log &"
-        loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + "; done; wait"
+        loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
