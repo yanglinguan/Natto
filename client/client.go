@@ -169,6 +169,7 @@ func (c *Client) checkExistAndAddExec(rpcTxn *rpc.Transaction) bool {
 	if _, exist := c.txnStore[rpcTxn.TxnId]; exist {
 		c.txnStore[rpcTxn.TxnId].txn = rpcTxn
 		c.txnStore[rpcTxn.TxnId].execCount++
+		logrus.Infof("RETRY txn %v: %v", rpcTxn.TxnId, c.txnStore[rpcTxn.TxnId].execCount)
 		return true
 	}
 	return false
@@ -407,13 +408,14 @@ func (c *Client) PrintTxnStatisticData() {
 			_, err = fmt.Sscan(ks, &k)
 			key[i] = k
 		}
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v\n",
 			txn.txn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
 			txn.endTime.UnixNano(),
-			key)
+			key,
+			txn.execCount)
 		_, err = file.WriteString(s)
 		if err != nil {
 			logrus.Fatalf("Cannot write to file %v", err)
