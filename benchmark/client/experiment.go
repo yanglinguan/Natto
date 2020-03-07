@@ -89,6 +89,7 @@ func (e *CloseLoopExperiment) Execute() {
 		commit, retry, waitTime := execTxn(e.client, txn)
 		d = time.Since(s)
 		if !commit && retry {
+			logrus.Infof("RETRY txn %v wait time %v", txn.TxnId, waitTime)
 			time.Sleep(waitTime)
 			continue
 		}
