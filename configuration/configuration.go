@@ -12,7 +12,7 @@ import (
 type ServerMode int
 
 const (
-	OCC = iota
+	OCC ServerMode = iota
 	GTS
 	GtsDepGraph
 )
@@ -20,8 +20,16 @@ const (
 type WorkLoad int
 
 const (
-	YCSBT = iota
+	YCSBT WorkLoad = iota
 	ONETXN
+)
+
+type RetryMode int
+
+const (
+	EXP RetryMode = iota
+	CONST
+	OFF
 )
 
 type Configuration interface {
@@ -53,6 +61,10 @@ type Configuration interface {
 	GetTotalClient() int
 	GetRandSeed() int64
 	GetQueueLen() int
+	GetRetryInterval() time.Duration
+	GetRetryMode() RetryMode
+	GetMaxRetry() int
+	GetRetryMaxSlot() int64
 }
 
 type FileConfiguration struct {
@@ -78,18 +90,22 @@ type FileConfiguration struct {
 	// clientId -> dataCenterId
 	clientToDataCenterId map[int]string
 
-	delay     time.Duration
-	poolSize  int
-	keySize   int
-	txnSize   int
-	totalTxn  int
-	openLoop  bool
-	duration  time.Duration
-	txnRate   int
-	zipfAlpha float64
-	workload  WorkLoad
-	seed      int64
-	queueLen  int
+	delay         time.Duration
+	poolSize      int
+	keySize       int
+	txnSize       int
+	totalTxn      int
+	openLoop      bool
+	duration      time.Duration // second
+	txnRate       int
+	zipfAlpha     float64
+	workload      WorkLoad
+	seed          int64
+	queueLen      int
+	retryInterval time.Duration // millisecond
+	retryMode     RetryMode
+	maxRetry      int
+	maxSlot       int64
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -236,6 +252,19 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			}
 		} else if key == "queueLen" {
 			f.queueLen = int(v.(float64))
+		} else if key == "retry" {
+			retryInfo := v.(map[string]interface{})
+			f.retryInterval = time.Duration(int64(retryInfo["interval"].(float64)) * int64(time.Millisecond))
+			f.maxRetry = int(retryInfo["maxRetry"].(float64))
+			f.maxSlot = int64(retryInfo["maxSlot"].(float64))
+			mode := retryInfo["mode"].(string)
+			if mode == "exp" {
+				f.retryMode = EXP
+			} else if mode == "const" {
+				f.retryMode = CONST
+			} else if mode == "off" {
+				f.retryMode = OFF
+			}
 		}
 	}
 }
@@ -407,4 +436,20 @@ func (f *FileConfiguration) GetRandSeed() int64 {
 
 func (f *FileConfiguration) GetQueueLen() int {
 	return f.queueLen
+}
+
+func (f *FileConfiguration) GetRetryInterval() time.Duration {
+	return f.retryInterval
+}
+
+func (f *FileConfiguration) GetRetryMode() RetryMode {
+	return f.retryMode
+}
+
+func (f *FileConfiguration) GetMaxRetry() int {
+	return f.maxRetry
+}
+
+func (f *FileConfiguration) GetRetryMaxSlot() int64 {
+	return f.maxSlot
 }

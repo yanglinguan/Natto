@@ -54,7 +54,7 @@ func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
 	o.wg.Done()
 }
 
-func execTxn(client *client.Client, txn *workload.Txn) {
+func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration) {
 	readResult := client.ReadAndPrepare(txn.ReadKeys, txn.ReadKeys, txn.TxnId)
 	txn.GenWriteData(readResult)
 
@@ -62,7 +62,7 @@ func execTxn(client *client.Client, txn *workload.Txn) {
 		logrus.Infof("write key %v: %v", k, v)
 	}
 
-	client.Commit(txn.WriteData, txn.TxnId)
+	return client.Commit(txn.WriteData, txn.TxnId)
 }
 
 type CloseLoopExperiment struct {
@@ -84,10 +84,15 @@ func (e *CloseLoopExperiment) Execute() {
 	s := time.Now()
 	d := time.Since(s)
 	c := 0
+	txn := e.workload.GenTxn()
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
-		txn := e.workload.GenTxn()
-		execTxn(e.client, txn)
+		commit, retry, waitTime := execTxn(e.client, txn)
 		d = time.Since(s)
+		if !commit && retry {
+			time.Sleep(waitTime)
+			continue
+		}
+		txn = e.workload.GenTxn()
 		c++
 	}
 }

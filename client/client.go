@@ -6,6 +6,7 @@ import (
 	"Carousel-GTS/rpc"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -23,6 +24,7 @@ type Transaction struct {
 	commitResult        int
 	startTime           time.Time
 	endTime             time.Time
+	execCount           int
 }
 
 type SendOp struct {
@@ -42,6 +44,8 @@ type CommitOp struct {
 	writeKeyValue map[string]string
 	wait          chan bool
 	result        bool
+	retry         bool
+	waitTime      time.Duration
 }
 
 func (o *CommitOp) BlockOwner() bool {
@@ -142,7 +146,9 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 	for _, kv := range ongoingTxn.readKeyValueVersion {
 		op.readResult[kv.Key] = kv.Value
 	}
+
 	op.wait <- true
+	ongoingTxn.readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
 }
 
 func (c *Client) addTxn(txn *Transaction) {
@@ -155,6 +161,17 @@ func (c *Client) getTxn(txnId string) *Transaction {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	return c.txnStore[txnId]
+}
+
+func (c *Client) checkExistAndAddExec(rpcTxn *rpc.Transaction) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if _, exist := c.txnStore[rpcTxn.TxnId]; exist {
+		c.txnStore[rpcTxn.TxnId].txn = rpcTxn
+		c.txnStore[rpcTxn.TxnId].execCount++
+		return true
+	}
+	return false
 }
 
 func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
@@ -209,17 +226,21 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		CoordPartitionId:         int32(coordinatorPartitionId),
 	}
 
-	ongoingTxn := &Transaction{
-		txn:                 t,
-		readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(partitionSet)),
-		commitReply:         make(chan *rpc.CommitReply, 1),
-		readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
-		commitResult:        0,
-		startTime:           time.Now(),
-		endTime:             time.Time{},
+	if !c.checkExistAndAddExec(t) {
+		txn := &Transaction{
+			txn:                 t,
+			readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(partitionSet)),
+			commitReply:         make(chan *rpc.CommitReply, 1),
+			readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
+			commitResult:        0,
+			startTime:           time.Now(),
+			endTime:             time.Time{},
+		}
+
+		c.addTxn(txn)
 	}
 
-	c.addTxn(ongoingTxn)
+	ongoingTxn := c.getTxn(op.txnId)
 
 	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
 	maxDelay += c.Config.GetDelay().Nanoseconds()
@@ -256,7 +277,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	go c.waitReadAndPrepareRequest(op, ongoingTxn)
 }
 
-func (c *Client) Commit(writeKeyValue map[string]string, txnId string) bool {
+func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration) {
 	commitOp := &CommitOp{
 		txnId:         c.getTxnId(txnId),
 		writeKeyValue: writeKeyValue,
@@ -265,7 +286,7 @@ func (c *Client) Commit(writeKeyValue map[string]string, txnId string) bool {
 
 	c.commitTxnRequest <- commitOp
 	commitOp.BlockOwner()
-	return commitOp.result
+	return commitOp.result, commitOp.retry, commitOp.waitTime
 }
 
 func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
@@ -278,7 +299,27 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 		ongoingTxn.commitResult = 0
 	}
 	op.result = result.Result
+	op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount)
 	op.wait <- true
+}
+
+func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
+	if c.Config.GetRetryMode() == configuration.OFF || execNum >= c.Config.GetMaxRetry() {
+		return false, 0
+	}
+
+	waitTime := c.Config.GetRetryInterval()
+
+	if c.Config.GetRetryMode() == configuration.EXP {
+		//exponential back-off
+		abortNum := execNum
+		randomFactor := rand.Int63n(int64(math.Exp2(float64(abortNum))))
+		if randomFactor > c.Config.GetRetryMaxSlot() {
+			randomFactor = c.Config.GetRetryMaxSlot()
+		}
+		waitTime = c.Config.GetRetryInterval() * time.Duration(randomFactor)
+	}
+	return true, waitTime
 }
 
 func (c *Client) handleCommitRequest(op *CommitOp) {
