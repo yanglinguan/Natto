@@ -17,7 +17,9 @@ import (
 //const QueueLen = 1024
 
 type Transaction struct {
-	txn                 *rpc.Transaction
+	// when retry, txnId is different from txn.TxnId
+	txnId               string
+	rpcTxn              *rpc.Transaction
 	readAndPrepareReply chan *rpc.ReadAndPrepareReply
 	commitReply         chan *rpc.CommitReply
 	readKeyValueVersion []*rpc.KeyValueVersion
@@ -64,6 +66,8 @@ type Client struct {
 
 	txnStore map[string]*Transaction
 	lock     sync.Mutex
+
+	count int
 }
 
 func NewClient(clientId int, configFile string) *Client {
@@ -78,6 +82,7 @@ func NewClient(clientId int, configFile string) *Client {
 		commitTxnRequest:   make(chan *CommitOp, queueLen),
 		txnStore:           make(map[string]*Transaction),
 		lock:               sync.Mutex{},
+		count:              0,
 	}
 
 	c.clientDataCenterId = c.Config.GetClientDataCenterIdByClientId(clientId)
@@ -114,6 +119,11 @@ func (c *Client) getTxnId(txnId string) string {
 	return "c" + strconv.Itoa(c.clientId) + "-" + txnId
 }
 
+func (c *Client) genTxnIdToServer() string {
+	c.count++
+	return "c" + strconv.Itoa(c.clientId) + "-" + strconv.Itoa(c.count)
+}
+
 func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) map[string]string {
 	sendOp := &SendOp{
 		txnId:        c.getTxnId(txnId),
@@ -138,7 +148,7 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 			ongoingTxn.readKeyValueVersion = append(ongoingTxn.readKeyValueVersion, kv)
 		}
 
-		if len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.txn.ReadKeyList) {
+		if len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.rpcTxn.ReadKeyList) {
 			break
 		}
 	}
@@ -153,7 +163,7 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 func (c *Client) addTxn(txn *Transaction) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.txnStore[txn.txn.TxnId] = txn
+	c.txnStore[txn.txnId] = txn
 }
 
 func (c *Client) getTxn(txnId string) *Transaction {
@@ -162,13 +172,14 @@ func (c *Client) getTxn(txnId string) *Transaction {
 	return c.txnStore[txnId]
 }
 
-func (c *Client) checkExistAndAddExec(rpcTxn *rpc.Transaction) bool {
+func (c *Client) checkExistAndAddExec(txnId string, rpcTxn *rpc.Transaction) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	if _, exist := c.txnStore[rpcTxn.TxnId]; exist {
-		c.txnStore[rpcTxn.TxnId].txn = rpcTxn
-		c.txnStore[rpcTxn.TxnId].execCount++
-		logrus.Infof("RETRY txn %v: %v", rpcTxn.TxnId, c.txnStore[rpcTxn.TxnId].execCount)
+	if _, exist := c.txnStore[txnId]; exist {
+		c.txnStore[txnId].readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
+		c.txnStore[txnId].rpcTxn = rpcTxn
+		c.txnStore[txnId].execCount++
+		logrus.Infof("RETRY txn %v: %v", txnId, c.txnStore[txnId].execCount)
 		return true
 	}
 	return false
@@ -219,22 +230,24 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	}
 
 	t := &rpc.Transaction{
-		TxnId:                    op.txnId,
+		TxnId:                    c.genTxnIdToServer(),
 		ReadKeyList:              readKeyList,
 		WriteKeyList:             writeKeyList,
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(coordinatorPartitionId),
 	}
 
-	if !c.checkExistAndAddExec(t) {
+	if !c.checkExistAndAddExec(op.txnId, t) {
 		txn := &Transaction{
-			txn:                 t,
+			txnId:               op.txnId,
+			rpcTxn:              t,
 			readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(partitionSet)),
 			commitReply:         make(chan *rpc.CommitReply, 1),
 			readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
 			commitResult:        0,
 			startTime:           time.Now(),
 			endTime:             time.Time{},
+			execCount:           0,
 		}
 
 		c.addTxn(txn)
@@ -249,7 +262,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	// send read and prepare request to each partition
 	for pId, keyLists := range partitionSet {
 		txn := &rpc.Transaction{
-			TxnId:                    op.txnId,
+			TxnId:                    ongoingTxn.rpcTxn.TxnId,
 			ReadKeyList:              keyLists[0],
 			WriteKeyList:             keyLists[1],
 			ParticipatedPartitionIds: participatedPartitions,
@@ -301,7 +314,6 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	op.result = result.Result
 	op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount)
 	op.wait <- true
-	ongoingTxn.readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
 }
 
 func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
@@ -325,7 +337,6 @@ func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
 
 func (c *Client) handleCommitRequest(op *CommitOp) {
 	writeKeyValue := op.writeKeyValue
-	txnId := op.txnId
 
 	writeKeyValueList := make([]*rpc.KeyValue, len(writeKeyValue))
 	i := 0
@@ -337,7 +348,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		i++
 	}
 
-	ongoingTxn := c.getTxn(txnId)
+	ongoingTxn := c.getTxn(op.txnId)
 
 	readKeyVerList := make([]*rpc.KeyVersion, len(ongoingTxn.readKeyValueVersion))
 	i = 0
@@ -350,14 +361,14 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	}
 
 	request := &rpc.CommitRequest{
-		TxnId:            txnId,
+		TxnId:            ongoingTxn.rpcTxn.TxnId,
 		WriteKeyValList:  writeKeyValueList,
 		IsCoordinator:    false,
 		ReadKeyVerList:   readKeyVerList,
 		IsReadAnyReplica: false,
 	}
 
-	coordinatorId := c.Config.GetServerIdByPartitionId(int(ongoingTxn.txn.CoordPartitionId))
+	coordinatorId := c.Config.GetServerIdByPartitionId(int(ongoingTxn.rpcTxn.CoordPartitionId))
 	sender := NewCommitRequestSender(request, ongoingTxn, c.connections[coordinatorId])
 
 	go sender.Send()
@@ -369,7 +380,7 @@ func (c *Client) getCommitTxn() map[int]int {
 	commitTxn := make(map[int]int)
 	for _, txn := range c.txnStore {
 		if txn.commitResult == 1 {
-			for _, pId := range txn.txn.ParticipatedPartitionIds {
+			for _, pId := range txn.rpcTxn.ParticipatedPartitionIds {
 				commitTxn[int(pId)]++
 			}
 		}
@@ -402,14 +413,14 @@ func (c *Client) PrintTxnStatisticData() {
 	}
 
 	for _, txn := range c.txnStore {
-		key := make([]int, len(txn.txn.ReadKeyList))
-		for i, ks := range txn.txn.ReadKeyList {
+		key := make([]int, len(txn.rpcTxn.ReadKeyList))
+		for i, ks := range txn.rpcTxn.ReadKeyList {
 			var k int
 			_, err = fmt.Sscan(ks, &k)
 			key[i] = k
 		}
 		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v\n",
-			txn.txn.TxnId,
+			txn.txnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),

@@ -359,8 +359,12 @@ func (s *GTSStorageDepGraph) setPrepareResult(op *ReadAndPrepareOp, status TxnSt
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	log.Infof("PROCESSING %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId
-	if s.isAborted(txnId) {
-		log.Infof("txn %v is already aborted", op.request.Txn.TxnId)
+	if info, exist := s.txnStore[txnId]; exist && info.status == ABORT {
+		if !info.receiveFromCoordinator {
+			log.Fatalf("txn %v is aborted. it must receive coordinator abort", op.request.Txn.TxnId)
+		}
+		log.Infof("txn %v is already aborted (coordinator abort)", op.request.Txn.TxnId)
+		s.setReadResult(op)
 		return
 	}
 
@@ -369,6 +373,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	if op.request.IsNotParticipant {
+		s.setReadResult(op)
 		return
 	}
 
