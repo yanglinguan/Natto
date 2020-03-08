@@ -317,7 +317,8 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 }
 
 func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
-	if c.Config.GetRetryMode() == configuration.OFF || execNum >= c.Config.GetMaxRetry() {
+	if c.Config.GetRetryMode() == configuration.OFF ||
+		(c.Config.GetMaxRetry() >= 0 && execNum >= c.Config.GetMaxRetry()) {
 		return false, 0
 	}
 

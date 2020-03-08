@@ -104,7 +104,7 @@ type FileConfiguration struct {
 	queueLen      int
 	retryInterval time.Duration // millisecond
 	retryMode     RetryMode
-	maxRetry      int
+	maxRetry      int // -1: retry until commit, otherwise only retry maxRetry time
 	maxSlot       int64
 }
 
