@@ -148,7 +148,6 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 	}
 
 	op.wait <- true
-	ongoingTxn.readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
 }
 
 func (c *Client) addTxn(txn *Transaction) {
@@ -302,6 +301,7 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	op.result = result.Result
 	op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount)
 	op.wait <- true
+	ongoingTxn.readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
 }
 
 func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
