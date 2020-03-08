@@ -87,12 +87,12 @@ func (e *CloseLoopExperiment) Execute() {
 	txn := e.workload.GenTxn()
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
 		commit, retry, waitTime := execTxn(e.client, txn)
-		d = time.Since(s)
 		if !commit && retry {
 			logrus.Infof("RETRY txn %v wait time %v", txn.TxnId, waitTime)
 			time.Sleep(waitTime)
 			continue
 		}
+		d = time.Since(s)
 		txn = e.workload.GenTxn()
 		c++
 	}
