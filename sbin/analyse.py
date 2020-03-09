@@ -138,7 +138,7 @@ def main():
     result["commit_rate"] = commit_rate
 
     file_name = os.path.basename(path)
-    with open(file_name, "w") as f:
+    with open(file_name + ".result", "w") as f:
         json.dump(result, f, indent=4)
 
 
