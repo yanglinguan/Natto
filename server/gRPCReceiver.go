@@ -11,6 +11,25 @@ func (s *Server) ReadAndPrepare(ctx context.Context,
 	logrus.Infof("RECEIVE ReadAndPrepare %v", request.Txn.TxnId)
 	requestOp := NewReadAndPrepareOp(request)
 
+	if int(request.Txn.CoordPartitionId) == s.partitionId {
+		s.coordinator.Wait2PCResultTxn <- requestOp
+	}
+
+	if request.IsNotParticipant {
+		if int(request.Txn.CoordPartitionId) != s.partitionId {
+			logrus.Fatalf("txn %v is not participant and not coordinator (server %v, pId %v)",
+				request.Txn.TxnId,
+				s.serverId,
+				s.partitionId)
+		}
+
+		reply := &rpc.ReadAndPrepareReply{
+			KeyValVerList: make([]*rpc.KeyValueVersion, 0),
+		}
+
+		return reply, nil
+	}
+
 	s.scheduler.Schedule(requestOp)
 
 	requestOp.BlockOwner()

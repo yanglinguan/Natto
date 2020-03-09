@@ -122,14 +122,6 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 		return
 	}
 
-	if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
-		s.server.coordinator.Wait2PCResultTxn <- op
-	}
-
-	if op.request.IsNotParticipant {
-		return
-	}
-
 	s.txnStore[txnId] = &TxnInfo{
 		readAndPrepareRequestOp: op,
 		status:                  INIT,

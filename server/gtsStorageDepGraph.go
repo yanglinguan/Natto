@@ -127,9 +127,6 @@ func (s *GTSStorageDepGraph) selfAbort(op *ReadAndPrepareOp) {
 			break
 		}
 	} else {
-		if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
-			s.server.coordinator.Wait2PCResultTxn <- op
-		}
 		log.Infof("ABORT %v (self abort)", op.request.Txn.TxnId)
 
 		s.txnStore[txnId] = &TxnInfo{
@@ -364,15 +361,6 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 			log.Fatalf("txn %v is aborted. it must receive coordinator abort", op.request.Txn.TxnId)
 		}
 		log.Infof("txn %v is already aborted (coordinator abort)", op.request.Txn.TxnId)
-		s.setReadResult(op)
-		return
-	}
-
-	if int(op.request.Txn.CoordPartitionId) == s.server.partitionId {
-		s.server.coordinator.Wait2PCResultTxn <- op
-	}
-
-	if op.request.IsNotParticipant {
 		s.setReadResult(op)
 		return
 	}
