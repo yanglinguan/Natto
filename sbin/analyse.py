@@ -15,8 +15,10 @@ path = os.getcwd()
 if args.config is not None:
     path = args.config
 
-low = 15 * 1000000000
-high = 75 * 1000000000
+low = 0 * 1000000000
+high = 90 * 1000000000
+#low = 15 * 1000000000
+#high = 75 * 1000000000
 
 
 def analyse_waiting():

@@ -26,7 +26,7 @@ type Transaction struct {
 	commitResult        int
 	startTime           time.Time
 	endTime             time.Time
-	execCount           int
+	execCount           int64
 }
 
 type SendOp struct {
@@ -312,13 +312,13 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 		ongoingTxn.commitResult = 0
 	}
 	op.result = result.Result
-	op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount)
+	op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
 	op.wait <- true
 }
 
-func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
+func (c *Client) isRetryTxn(execNum int64) (bool, time.Duration) {
 	if c.Config.GetRetryMode() == configuration.OFF ||
-		(c.Config.GetMaxRetry() >= 0 && execNum >= c.Config.GetMaxRetry()) {
+		(c.Config.GetMaxRetry() >= 0 && execNum > c.Config.GetMaxRetry()) {
 		return false, 0
 	}
 
@@ -327,7 +327,11 @@ func (c *Client) isRetryTxn(execNum int) (bool, time.Duration) {
 	if c.Config.GetRetryMode() == configuration.EXP {
 		//exponential back-off
 		abortNum := execNum
-		randomFactor := rand.Int63n(int64(math.Exp2(float64(abortNum))))
+		n := int64(math.Exp2(float64(abortNum)))
+		randomFactor := c.Config.GetRetryMaxSlot()
+		if n > 0 {
+			randomFactor = rand.Int63n(n)
+		}
 		if randomFactor > c.Config.GetRetryMaxSlot() {
 			randomFactor = c.Config.GetRetryMaxSlot()
 		}

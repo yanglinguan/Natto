@@ -63,7 +63,7 @@ type Configuration interface {
 	GetQueueLen() int
 	GetRetryInterval() time.Duration
 	GetRetryMode() RetryMode
-	GetMaxRetry() int
+	GetMaxRetry() int64
 	GetRetryMaxSlot() int64
 }
 
@@ -104,7 +104,7 @@ type FileConfiguration struct {
 	queueLen      int
 	retryInterval time.Duration // millisecond
 	retryMode     RetryMode
-	maxRetry      int // -1: retry until commit, otherwise only retry maxRetry time
+	maxRetry      int64 // -1: retry until commit, otherwise only retry maxRetry time
 	maxSlot       int64
 }
 
@@ -255,7 +255,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "retry" {
 			retryInfo := v.(map[string]interface{})
 			f.retryInterval = time.Duration(int64(retryInfo["interval"].(float64)) * int64(time.Millisecond))
-			f.maxRetry = int(retryInfo["maxRetry"].(float64))
+			f.maxRetry = int64(retryInfo["maxRetry"].(float64))
 			f.maxSlot = int64(retryInfo["maxSlot"].(float64))
 			mode := retryInfo["mode"].(string)
 			if mode == "exp" {
@@ -446,7 +446,7 @@ func (f *FileConfiguration) GetRetryMode() RetryMode {
 	return f.retryMode
 }
 
-func (f *FileConfiguration) GetMaxRetry() int {
+func (f *FileConfiguration) GetMaxRetry() int64 {
 	return f.maxRetry
 }
 
