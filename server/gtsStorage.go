@@ -152,6 +152,7 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 }
 
 func (s *GTSStorage) release(txnId string) {
+	s.graph.Remove(txnId)
 	txnInfo := s.txnStore[txnId]
 	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
 		if isPrepared {
