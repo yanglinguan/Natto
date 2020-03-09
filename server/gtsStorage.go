@@ -433,6 +433,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 
 		s.txnStore[txnId].waitingTxnKey = maxKey
 		s.txnStore[txnId].waitingTxnDep = maxDep
+		log.Debug("Txn %v not prepared", txnId)
 		return
 	}
 
