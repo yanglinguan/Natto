@@ -13,6 +13,8 @@ type GTSStorage struct {
 	committed              int
 	waitPrintStatusRequest []*PrintStatusRequestOp
 	totalCommit            int
+
+	graph *Graph
 }
 
 func NewGTSStorage(server *Server) *GTSStorage {
@@ -22,6 +24,7 @@ func NewGTSStorage(server *Server) *GTSStorage {
 		txnStore:               make(map[string]*TxnInfo),
 		waitPrintStatusRequest: make([]*PrintStatusRequestOp, 0),
 		committed:              0,
+		graph:                  NewDependencyGraph(),
 	}
 
 	return s
@@ -359,7 +362,8 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		readAndPrepareRequestOp: op,
 		status:                  INIT,
 		receiveFromCoordinator:  false,
-		waitingTxn:              0,
+		waitingTxnKey:           0,
+		waitingTxnDep:           0,
 	}
 
 	notPreparedKey := make(map[string]bool)
@@ -386,14 +390,49 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	if !op.IsPrepared() {
+		maxDep := 0
+		maxKey := 0
 		for key := range notPreparedKey {
-			queueLen := s.kvStore[key].WaitingOp.Len()
-			if queueLen > s.txnStore[txnId].waitingTxn {
-				s.txnStore[txnId].waitingTxn = queueLen
+			preparedTxnOnKey := make(map[string]bool)
+			for tId := range s.kvStore[key].PreparedTxnRead {
+				preparedTxnOnKey[tId] = true
 			}
+			for tId := range s.kvStore[key].PreparedTxnWrite {
+				preparedTxnOnKey[tId] = true
+			}
+			queueLen := s.kvStore[key].WaitingOp.Len() + len(preparedTxnOnKey)
+			if queueLen > maxKey {
+				maxKey = queueLen
+			}
+
+			for depTxnId := range preparedTxnOnKey {
+				txnBefore := s.graph.txnBefore(depTxnId)
+				if txnBefore > maxDep {
+					maxDep = txnBefore
+				}
+			}
+
+			for depTxnId := range s.kvStore[key].WaitingItem {
+				txnBefore := s.graph.txnBefore(depTxnId)
+				if txnBefore > maxDep {
+					maxDep = txnBefore
+				}
+			}
+
+			for depTxnId := range preparedTxnOnKey {
+				s.graph.AddEdge(depTxnId, txnId)
+			}
+
+			for depTxnId := range s.kvStore[key].WaitingItem {
+				s.graph.AddEdge(depTxnId, txnId)
+			}
+
 			item := s.kvStore[key].WaitingOp.PushBack(op)
 			s.kvStore[key].WaitingItem[txnId] = item
 		}
+
+		s.txnStore[txnId].waitingTxnKey = maxKey
+		s.txnStore[txnId].waitingTxnDep = maxDep
 		return
 	}
 

@@ -112,3 +112,37 @@ func (g *Graph) Remove(txnId string) {
 	delete(g.revAdjList, txnId)
 	delete(g.inDegree, txnId)
 }
+
+type wrapper struct {
+	txnId string
+	len   int
+}
+
+func (g *Graph) txnBefore(txnId string) int {
+	queue := list.New()
+
+	queue.PushBack(wrapper{
+		txnId: txnId,
+		len:   1,
+	})
+	max := 0
+	for queue.Len() > 0 {
+		e := queue.Front()
+		queue.Remove(e)
+		top := e.Value.(wrapper)
+		if len(g.revAdjList[top.txnId]) == 0 {
+			if top.len > max {
+				max = top.len
+			}
+		}
+
+		for c := range g.revAdjList[top.txnId] {
+			queue.PushBack(wrapper{
+				txnId: c,
+				len:   top.len + 1,
+			})
+		}
+	}
+
+	return max
+}
