@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import json
 import os
 import argparse
 import sys
@@ -17,8 +18,10 @@ if args.config is not None:
 
 low = 0 * 1000000000
 high = 90 * 1000000000
-#low = 15 * 1000000000
-#high = 75 * 1000000000
+
+
+# low = 15 * 1000000000
+# high = 75 * 1000000000
 
 
 def analyse_waiting():
@@ -107,6 +110,7 @@ def analyse_throughput(txn_map):
     throughput = float(count * 1000000000) / (max_time - min_time)
     print("start time " + str(min_time) + "; end time" + str(max_time))
     print("commit throughput (txn/s): " + str(throughput))
+    return throughput
 
 
 def analyse_abort_rate(txn_map):
@@ -120,14 +124,22 @@ def analyse_abort_rate(txn_map):
 
     commit_rate = float(commit) / (abort + commit)
     print("Commit rate: " + str(commit_rate))
+    return commit_rate
 
 
 def main():
     # analyse_waiting()
     txn_map = load_statistic()
-    analyse_latency(txn_map)
-    analyse_throughput(txn_map)
-    analyse_abort_rate(txn_map)
+    result = analyse_latency(txn_map)
+    throughput = analyse_throughput(txn_map)
+    commit_rate = analyse_abort_rate(txn_map)
+
+    result["throughput"] = throughput
+    result["commit_rate"] = commit_rate
+
+    file_name = os.path.basename(path)
+    with open(file_name, "w") as f:
+        json.dump(result, f, indent=4)
 
 
 if __name__ == "__main__":

@@ -46,7 +46,6 @@ type Configuration interface {
 	GetDataCenterIdByClientId(clientId int) string
 	GetMaxDelay(clientDCId string, dcIds []string) time.Duration
 	GetServerListByDataCenterId(dataCenterId string) []string
-	GetClientDataCenterIdByClientId(clientId int) string
 	GetKeyNum() int64
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
@@ -372,14 +371,6 @@ func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId string) []s
 	}
 
 	return f.dataCenterIdToServerIdList[dataCenterId]
-}
-
-func (f *FileConfiguration) GetClientDataCenterIdByClientId(clientId int) string {
-	if _, exist := f.clientToDataCenterId[clientId]; !exist {
-		log.Fatalf("client id %v does not exist", clientId)
-		return ""
-	}
-	return f.clientToDataCenterId[clientId]
 }
 
 func (f *FileConfiguration) GetKeyNum() int64 {

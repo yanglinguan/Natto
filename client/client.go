@@ -85,7 +85,7 @@ func NewClient(clientId int, configFile string) *Client {
 		count:              0,
 	}
 
-	c.clientDataCenterId = c.Config.GetClientDataCenterIdByClientId(clientId)
+	c.clientDataCenterId = c.Config.GetDataCenterIdByClientId(clientId)
 	if c.Config.GetConnectionPoolSize() == 0 {
 		for sId, addr := range c.Config.GetServerAddressMap() {
 			c.connections[sId] = connection.NewSingleConnect(addr)
