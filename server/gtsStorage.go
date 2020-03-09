@@ -74,6 +74,7 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].receiveFromCoordinator = true
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
+	s.graph.Remove(txnId)
 	s.print()
 }
 
