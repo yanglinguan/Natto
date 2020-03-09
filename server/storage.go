@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"time"
 )
 
 type KeyType int
@@ -30,6 +31,9 @@ type TxnInfo struct {
 	commitOrder             int
 	waitingTxnKey           int
 	waitingTxnDep           int
+	startTime               time.Time
+	preparedTime            time.Time
+	commitTime              time.Time
 }
 
 type ValueVersion struct {
@@ -64,7 +68,13 @@ func printCommitOrder(txnStore map[string]*TxnInfo, committed int, serverId stri
 	}
 
 	for _, info := range txnId {
-		s := fmt.Sprintf("%v %v %v\n", info.readAndPrepareRequestOp.request.Txn.TxnId, info.waitingTxnKey, info.waitingTxnDep)
+		s := fmt.Sprintf("%v %v %v %v %v %v\n",
+			info.readAndPrepareRequestOp.request.Txn.TxnId,
+			info.waitingTxnKey,
+			info.waitingTxnDep,
+			info.preparedTime.Sub(info.startTime).Nanoseconds(),
+			info.commitTime.Sub(info.preparedTime).Nanoseconds(),
+			info.commitTime.Sub(info.startTime).Nanoseconds())
 		_, err = file.WriteString(s)
 		if err != nil {
 			log.Fatalf("Cannot write to file %v", err)

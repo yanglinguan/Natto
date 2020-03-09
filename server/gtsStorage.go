@@ -4,6 +4,7 @@ import (
 	"Carousel-GTS/rpc"
 	"container/list"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type GTSStorage struct {
@@ -55,6 +56,8 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	}
 
 	op.wait <- true
+
+	s.txnStore[txnId].commitTime = time.Now()
 
 	for _, rk := range op.request.ReadKeyVerList {
 		delete(s.kvStore[rk.Key].PreparedTxnRead, txnId)
@@ -304,6 +307,7 @@ func (s *GTSStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
 	switch status {
 	case PREPARED:
 		log.Infof("PREPARED %v", op.request.Txn.TxnId)
+		s.txnStore[op.request.Txn.TxnId].preparedTime = time.Now()
 		s.prepareResult(op)
 		break
 	case ABORT:
@@ -365,6 +369,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		receiveFromCoordinator:  false,
 		waitingTxnKey:           0,
 		waitingTxnDep:           0,
+		startTime:               time.Now(),
 	}
 
 	notPreparedKey := make(map[string]bool)
