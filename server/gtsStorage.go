@@ -15,7 +15,7 @@ type GTSStorage struct {
 	waitPrintStatusRequest []*PrintStatusRequestOp
 	totalCommit            int
 
-	graph *Graph
+	//graph *Graph
 }
 
 func NewGTSStorage(server *Server) *GTSStorage {
@@ -25,7 +25,7 @@ func NewGTSStorage(server *Server) *GTSStorage {
 		txnStore:               make(map[string]*TxnInfo),
 		waitPrintStatusRequest: make([]*PrintStatusRequestOp, 0),
 		committed:              0,
-		graph:                  NewDependencyGraph(),
+		//graph:                  NewDependencyGraph(),
 	}
 
 	return s
@@ -77,7 +77,7 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].receiveFromCoordinator = true
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
-	s.graph.Remove(txnId)
+	//s.graph.Remove(txnId)
 	s.print()
 }
 
@@ -152,7 +152,7 @@ func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
 }
 
 func (s *GTSStorage) release(txnId string) {
-	s.graph.Remove(txnId)
+	//s.graph.Remove(txnId)
 	txnInfo := s.txnStore[txnId]
 	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
 		if isPrepared {
@@ -411,28 +411,28 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 			if queueLen > maxKey {
 				maxKey = queueLen
 			}
-
-			for depTxnId := range preparedTxnOnKey {
-				txnBefore := s.graph.txnBefore(depTxnId)
-				if txnBefore > maxDep {
-					maxDep = txnBefore
-				}
-			}
-
-			for depTxnId := range s.kvStore[key].WaitingItem {
-				txnBefore := s.graph.txnBefore(depTxnId)
-				if txnBefore > maxDep {
-					maxDep = txnBefore
-				}
-			}
-
-			for depTxnId := range preparedTxnOnKey {
-				s.graph.AddEdge(depTxnId, txnId)
-			}
-
-			for depTxnId := range s.kvStore[key].WaitingItem {
-				s.graph.AddEdge(depTxnId, txnId)
-			}
+			//
+			//for depTxnId := range preparedTxnOnKey {
+			//	txnBefore := s.graph.txnBefore(depTxnId)
+			//	if txnBefore > maxDep {
+			//		maxDep = txnBefore
+			//	}
+			//}
+			//
+			//for depTxnId := range s.kvStore[key].WaitingItem {
+			//	txnBefore := s.graph.txnBefore(depTxnId)
+			//	if txnBefore > maxDep {
+			//		maxDep = txnBefore
+			//	}
+			//}
+			//
+			//for depTxnId := range preparedTxnOnKey {
+			//	s.graph.AddEdge(depTxnId, txnId)
+			//}
+			//
+			//for depTxnId := range s.kvStore[key].WaitingItem {
+			//	s.graph.AddEdge(depTxnId, txnId)
+			//}
 
 			item := s.kvStore[key].WaitingOp.PushBack(op)
 			s.kvStore[key].WaitingItem[txnId] = item
