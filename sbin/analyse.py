@@ -34,13 +34,32 @@ def analyse_waiting():
                 items = line.split(" ")
                 txn_id = items[0]
                 wait_num = int(items[1])
+                wait_num_t = 0
+                x = 0
+                y = 0
+                z = 0
+                if len(items) == 6:
+                    wait_num_t = int(items[2])
+                    x = float(items[3])/1000000
+                    y = float(items[4])/1000000
+                    z = float(items[5])/1000000
                 if txn_id not in txn_map:
-                    txn_map[txn_id] = wait_num
-                txn_map[txn_id] = max(txn_map[txn_id], wait_num)
+                    txn_map[txn_id] = [wait_num, wait_num_t, x, y, z]
+                txn_map[txn_id][0] = max(txn_map[txn_id][0], wait_num)
+                txn_map[txn_id][1] = max(txn_map[txn_id][1], wait_num_t)
+                txn_map[txn_id][2] = max(txn_map[txn_id][2], x)
+                txn_map[txn_id][3] = max(txn_map[txn_id][3], y)
+                txn_map[txn_id][4] = max(txn_map[txn_id][4], x)
+
 
     f = open("waiting.analyse", "w")
     for key, value in txn_map.items():
-        f.write(key + " " + str(value) + "\n")
+        s = key 
+        for x in value:
+            s = s + " " + str(x) 
+        s += "\n"
+        f.write(s)
+    f.close()
 
 
 def load_statistic():
@@ -128,7 +147,7 @@ def analyse_abort_rate(txn_map):
 
 
 def main():
-    # analyse_waiting()
+    analyse_waiting()
     txn_map = load_statistic()
     result = analyse_latency(txn_map)
     throughput = analyse_throughput(txn_map)

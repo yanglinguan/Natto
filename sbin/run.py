@@ -45,7 +45,9 @@ def start_servers():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";" + server_cmd + "-i " + \
+        cmd = "ulimit -c unlimited;"
+        cmd += "ulimit -n 100000;"
+        cmd += "cd " + path + ";" + server_cmd + "-i " + \
               serverId + " -c " + args.config + " > " + serverId + ".log &"
         print(cmd)
         stdin, stdout, stderr = ssh.exec_command(cmd)
@@ -68,7 +70,9 @@ def start_clients():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "cd " + path + ";"
+        cmd = "ulimit -c unlimited;"
+        cmd += "ulimit -n 100000;"
+        cmd += "cd " + path + ";"
         exe = client_cmd + "-i $id" + " -c " + args.config + " > " + " $id.log &"
         loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop

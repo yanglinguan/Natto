@@ -87,18 +87,14 @@ func (g *Graph) GetNext() []string {
 
 func (g *Graph) Remove(txnId string) {
 	for child := range g.adjList[txnId] {
-		if _, exist := g.inDegree[child]; !exist {
-			delete(g.adjList[txnId], child)
-			continue
+		if g.inDegree[child] > 0 {
+			g.inDegree[child]--
+			logrus.Debugf("txn %v inDegree-- %v", child, g.inDegree[child])
 		}
-		g.inDegree[child]--
-		logrus.Debugf("txn %v inDegree-- %v", child, g.inDegree[child])
+		delete(g.revAdjList[child], txnId)
 		for parent := range g.revAdjList[txnId] {
-			if _, exist := g.inDegree[parent]; !exist {
-				delete(g.revAdjList[txnId], parent)
-				continue
-			}
 			g.adjList[parent][child] = true
+			g.revAdjList[child][parent] = true
 			g.inDegree[child]++
 		}
 		if g.inDegree[child] == 0 {
@@ -106,6 +102,10 @@ func (g *Graph) Remove(txnId string) {
 			g.queue.PushBack(child)
 			delete(g.inDegree, child)
 		}
+	}
+
+	for parent := range g.revAdjList[txnId] {
+		delete(g.adjList[parent], txnId)
 	}
 
 	delete(g.adjList, txnId)
