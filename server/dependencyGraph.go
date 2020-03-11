@@ -131,16 +131,16 @@ func (g *Graph) txnBefore(txnId string) int {
 		e := queue.Front()
 		queue.Remove(e)
 		top := e.Value.(wrapper)
-		if visited[top.txnId] {
-			logrus.Debugf("txn %v is visited when find txn before %v", top.txnId, txnId)
-			continue
-		}
-		visited[top.txnId] = true
 		if len(g.revAdjList[top.txnId]) == 0 {
 			if top.len > max {
 				max = top.len
 			}
 		}
+		if visited[top.txnId] {
+			logrus.Debugf("txn %v is visited when find txn before %v", top.txnId, txnId)
+			continue
+		}
+		visited[top.txnId] = true
 
 		for c := range g.revAdjList[top.txnId] {
 			queue.PushBack(wrapper{
