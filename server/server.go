@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-//const QueueLen = 1024
-
 type Server struct {
 	gRPCServer  *grpc.Server
 	config      configuration.Configuration
@@ -56,6 +54,9 @@ func NewServer(serverId string, configFile string) *Server {
 		server.scheduler = NewTimestampScheduler(server)
 		server.storage = NewGTSStorageDepGraph(server)
 		break
+	case configuration.GTSReorder:
+		server.scheduler = NewTimestampScheduler(server)
+		server.storage = NewGTSStorageWithReorder(server)
 	default:
 		log.Fatal("OCC, GTS, GTS_DEP_GRAPH")
 	}

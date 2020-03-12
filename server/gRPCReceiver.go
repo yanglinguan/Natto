@@ -9,7 +9,7 @@ import (
 func (s *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
 	logrus.Infof("RECEIVE ReadAndPrepare %v", request.Txn.TxnId)
-	requestOp := NewReadAndPrepareOp(request)
+	requestOp := NewReadAndPrepareOp(request, s)
 
 	if int(request.Txn.CoordPartitionId) == s.partitionId {
 		s.coordinator.Wait2PCResultTxn <- requestOp

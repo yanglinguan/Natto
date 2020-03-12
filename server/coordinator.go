@@ -127,7 +127,7 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 		return
 	}
 
-	if result.Request.PrepareStatus == ABORT {
+	if result.Request.PrepareStatus == int32(ABORT) {
 		twoPCInfo.status = ABORT
 	} else {
 		twoPCInfo.preparedPartition[(int)(result.Request.PartitionId)] = result

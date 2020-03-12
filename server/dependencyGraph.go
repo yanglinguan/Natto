@@ -1,7 +1,6 @@
 package server
 
 import (
-	"container/list"
 	"github.com/sirupsen/logrus"
 )
 
@@ -10,16 +9,17 @@ type Graph struct {
 	adjList map[string]map[string]bool
 	// t1 -> (t2, t3): t1 should complete after t2 and t3
 	revAdjList map[string]map[string]bool
-	queue      *list.List
 	inDegree   map[string]int
+
+	noDependency []string
 }
 
 func NewDependencyGraph() *Graph {
 	g := &Graph{
-		adjList:    make(map[string]map[string]bool),
-		revAdjList: make(map[string]map[string]bool),
-		queue:      list.New(),
-		inDegree:   make(map[string]int),
+		adjList:      make(map[string]map[string]bool),
+		revAdjList:   make(map[string]map[string]bool),
+		inDegree:     make(map[string]int),
+		noDependency: make([]string, 0),
 	}
 
 	return g
@@ -63,24 +63,21 @@ func (g *Graph) AddEdge(txn1 string, txn2 string) {
 }
 
 func (g *Graph) GetNext() []string {
-	if g.queue.Len() == 0 {
+	if len(g.noDependency) == 0 {
 		for txnId, inDegree := range g.inDegree {
 			if inDegree == 0 {
-				g.queue.PushBack(txnId)
+				g.noDependency = append(g.noDependency, txnId)
 				delete(g.inDegree, txnId)
 			}
 		}
 	}
 
-	result := make([]string, g.queue.Len())
-	i := 0
-	for g.queue.Len() != 0 {
-		e := g.queue.Front()
-		logrus.Debugf("txn %v can commit", e.Value.(string))
-		result[i] = e.Value.(string)
-		g.queue.Remove(e)
-		i++
+	result := make([]string, len(g.noDependency))
+	for i, txnId := range g.noDependency {
+		result[i] = txnId
 	}
+
+	g.noDependency = g.noDependency[:0]
 
 	return result
 }
@@ -93,13 +90,15 @@ func (g *Graph) Remove(txnId string) {
 		}
 		delete(g.revAdjList[child], txnId)
 		for parent := range g.revAdjList[txnId] {
+			if !g.adjList[parent][child] {
+				g.inDegree[child]++
+			}
 			g.adjList[parent][child] = true
 			g.revAdjList[child][parent] = true
-			g.inDegree[child]++
 		}
 		if g.inDegree[child] == 0 {
 			logrus.Debugf("txn %v can commit add to queue", child)
-			g.queue.PushBack(child)
+			g.noDependency = append(g.noDependency, child)
 			delete(g.inDegree, child)
 		}
 	}
@@ -113,42 +112,22 @@ func (g *Graph) Remove(txnId string) {
 	delete(g.inDegree, txnId)
 }
 
-type wrapper struct {
-	txnId string
-	len   int
+func (g *Graph) txnBefore(txnId string) []string {
+	path := make([]string, 0)
+
+	g.dfs(txnId, make(map[string]bool), &path)
+
+	return path
 }
 
-func (g *Graph) txnBefore(txnId string) int {
-	queue := list.New()
-
-	queue.PushBack(wrapper{
-		txnId: txnId,
-		len:   1,
-	})
-	max := 0
-	visited := make(map[string]bool)
-	for queue.Len() > 0 {
-		e := queue.Front()
-		queue.Remove(e)
-		top := e.Value.(wrapper)
-		if len(g.revAdjList[top.txnId]) == 0 {
-			if top.len > max {
-				max = top.len
-			}
-		}
-		if visited[top.txnId] {
-			logrus.Debugf("txn %v is visited when find txn before %v", top.txnId, txnId)
+func (g *Graph) dfs(cur string, visited map[string]bool, stack *[]string) {
+	for c := range g.revAdjList[cur] {
+		if visited[c] {
 			continue
 		}
-		visited[top.txnId] = true
-
-		for c := range g.revAdjList[top.txnId] {
-			queue.PushBack(wrapper{
-				txnId: c,
-				len:   top.len + 1,
-			})
-		}
+		visited[c] = true
+		g.dfs(c, visited, stack)
 	}
 
-	return max
+	*stack = append(*stack, cur)
 }

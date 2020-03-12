@@ -185,37 +185,63 @@ func (c *Client) checkExistAndAddExec(txnId string, rpcTxn *rpc.Transaction) boo
 	return false
 }
 
-func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
-	readKeyList := op.readKeyList
-	writeKeyList := op.writeKeyList
-
+func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool) {
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
-	for _, key := range readKeyList {
-		pId := c.Config.GetPartitionIdByKey(key)
-		logrus.Debugf("key %v, pId %v", key, pId)
-		if _, exist := partitionSet[pId]; !exist {
-			partitionSet[pId] = make([][]string, 2)
+	if c.Config.GetServerMode() == configuration.GTSReorder {
+		for _, key := range op.readKeyList {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("key %v, pId %v", key, pId)
+			participants[pId] = true
 		}
-		partitionSet[pId][0] = append(partitionSet[pId][0], key)
-		participants[pId] = true
+
+		for _, key := range op.writeKeyList {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("key %v, pId %v", key, pId)
+			participants[pId] = true
+		}
+
+		// if reorder enabled, send the all keys to partitions
+		for pId := range participants {
+			partitionSet[pId][0] = op.readKeyList
+			partitionSet[pId][1] = op.writeKeyList
+		}
+	} else {
+		for _, key := range op.readKeyList {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("key %v, pId %v", key, pId)
+			if _, exist := partitionSet[pId]; !exist {
+				partitionSet[pId] = make([][]string, 2)
+			}
+			partitionSet[pId][0] = append(partitionSet[pId][0], key)
+			participants[pId] = true
+		}
+
+		for _, key := range op.writeKeyList {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("key %v, pId %v", key, pId)
+			if _, exist := partitionSet[pId]; !exist {
+				partitionSet[pId] = make([][]string, 2)
+			}
+			partitionSet[pId][1] = append(partitionSet[pId][1], key)
+			participants[pId] = true
+		}
+
 	}
 
-	for _, key := range writeKeyList {
-		pId := c.Config.GetPartitionIdByKey(key)
-		logrus.Debugf("key %v, pId %v", key, pId)
-		if _, exist := partitionSet[pId]; !exist {
-			partitionSet[pId] = make([][]string, 2)
-		}
-		partitionSet[pId][1] = append(partitionSet[pId][1], key)
-		participants[pId] = true
-	}
+	return partitionSet, participants
+
+}
+
+func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
+	// separate key into partitions
+	partitionSet, participants := c.separatePartition(op)
 
 	participatedPartitions := make([]int32, len(partitionSet))
 	serverDcIds := make([]string, len(partitionSet))
 	i := 0
-	for pId := range partitionSet {
+	for pId := range participants {
 		participatedPartitions[i] = int32(pId)
 		sId := c.Config.GetServerIdByPartitionId(pId)
 		serverDcIds[i] = c.Config.GetDataCenterIdByServerId(sId)
@@ -231,8 +257,8 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	t := &rpc.Transaction{
 		TxnId:                    c.genTxnIdToServer(),
-		ReadKeyList:              readKeyList,
-		WriteKeyList:             writeKeyList,
+		ReadKeyList:              op.readKeyList,
+		WriteKeyList:             op.writeKeyList,
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(coordinatorPartitionId),
 	}
@@ -273,12 +299,8 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			Txn:              txn,
 			IsRead:           false,
 			IsNotParticipant: !participants[pId],
-			Timestamp:        0,
+			Timestamp:        maxDelay,
 			ClientId:         "c" + strconv.Itoa(c.clientId),
-		}
-
-		if c.Config.GetServerMode() != configuration.OCC {
-			request.Timestamp = maxDelay
 		}
 
 		sId := c.Config.GetServerIdByPartitionId(pId)

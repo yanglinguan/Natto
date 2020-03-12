@@ -21,6 +21,8 @@ type ReadAndPrepareOp struct {
 
 	keyMap map[string]bool
 
+	partitionKeys map[int]map[string]bool
+
 	// prepare result will send to coordinator
 	prepareResult *rpc.PrepareResultRequest
 
@@ -30,7 +32,7 @@ type ReadAndPrepareOp struct {
 	sendToCoordinator bool
 }
 
-func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareOp {
+func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPrepareOp {
 	r := &ReadAndPrepareOp{
 		request:             request,
 		wait:                make(chan bool, 1),
@@ -44,20 +46,35 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareOp {
 		prepareResult:       nil,
 		numPartitions:       0,
 		sendToCoordinator:   false,
+		partitionKeys:       make(map[int]map[string]bool),
 	}
 
-	for _, rk := range request.Txn.ReadKeyList {
-		r.readKeyMap[rk] = false
-		r.keyMap[rk] = true
-	}
-	for _, wk := range request.Txn.WriteKeyList {
-		r.writeKeyMap[wk] = false
-		r.keyMap[wk] = true
-	}
+	r.processKey(request.Txn.ReadKeyList, server, READ)
+	r.processKey(request.Txn.WriteKeyList, server, WRITE)
 
 	r.numPartitions = len(request.Txn.ParticipatedPartitionIds)
 
 	return r
+}
+
+func (o *ReadAndPrepareOp) processKey(keys []string, server *Server, keyType KeyType) {
+	for _, key := range keys {
+		pId := server.config.GetPartitionIdByKey(key)
+		if _, exist := o.partitionKeys[pId]; !exist {
+			o.partitionKeys[pId] = make(map[string]bool)
+		}
+		o.partitionKeys[pId][key] = true
+		if !server.storage.HasKey(key) {
+			continue
+		}
+		o.keyMap[key] = true
+
+		if keyType == WRITE {
+			o.writeKeyMap[key] = false
+		} else if keyType == READ {
+			o.readKeyMap[key] = false
+		}
+	}
 }
 
 func (o *ReadAndPrepareOp) RecordPreparedKey(key string, keyType KeyType) {
@@ -114,7 +131,8 @@ type AbortRequestOp struct {
 	sendToCoordinator bool
 }
 
-func NewAbortRequestOp(abortRequest *rpc.AbortRequest, request *ReadAndPrepareOp, fromCoordinator bool) *AbortRequestOp {
+func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
+	request *ReadAndPrepareOp, fromCoordinator bool) *AbortRequestOp {
 	a := &AbortRequestOp{
 		abortRequest:      abortRequest,
 		request:           request,

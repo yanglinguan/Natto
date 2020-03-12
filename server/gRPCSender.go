@@ -66,6 +66,8 @@ func (a *AbortRequestSender) Send() {
 	if err != nil {
 		logrus.Fatalf("cannot sent abort request: %v", err)
 	}
+
+	logrus.Infof("RECEIVE ACK Abort %v from server %v", a.request.TxnId, a.connection.GetDstAddr())
 }
 
 type CommitRequestSender struct {
@@ -98,4 +100,5 @@ func (c *CommitRequestSender) Send() {
 		logrus.Fatalf("cannot send commit request: %v", err)
 	}
 
+	logrus.Infof("RECEIVE ACK Commit %v from server %v", c.request.TxnId, c.connection.GetDstAddr())
 }
