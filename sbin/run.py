@@ -48,7 +48,7 @@ def start_servers():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         cmd += "cd " + path + ";" + server_cmd + "-i " + \
-              serverId + " -c " + args.config + " > " + serverId + ".log &"
+               serverId + " -c " + args.config + " > " + serverId + ".log &"
         print(cmd)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
@@ -65,6 +65,8 @@ def start_clients():
         client_machine[idx].append(str(clientId))
 
     for mId in range(len(client_machine)):
+        if len(client_machine[mId]) == 0:
+            continue
         m = machines[mId]
         ip = m["ip"]
         ssh = SSHClient()

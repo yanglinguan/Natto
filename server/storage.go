@@ -316,12 +316,14 @@ func (s *AbstractStorage) release(txnId string) {
 	// remove prepared read and write key
 	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
 		if isPrepared {
+			log.Debugf("txn %v release read key %v", txnId, rk)
 			delete(s.kvStore[rk].PreparedTxnRead, txnId)
 		}
 	}
 
 	for wk, isPrepared := range txnInfo.readAndPrepareRequestOp.writeKeyMap {
 		if isPrepared {
+			log.Debugf("txn %v release write key %v", txnId, wk)
 			delete(s.kvStore[wk].PreparedTxnWrite, txnId)
 		}
 	}
@@ -329,10 +331,12 @@ func (s *AbstractStorage) release(txnId string) {
 	for key := range txnInfo.readAndPrepareRequestOp.keyMap {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
 			// if in the queue, then remove from the queue
+			log.Debugf("remove txn %v from key %v queue", txnId, key)
 			s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 			delete(s.kvStore[key].WaitingItem, txnId)
 		} else {
 			// otherwise, check if the top of the queue can prepare
+			log.Debugf("txn %v release key %v check if txn can be prepared", key, txnId)
 			s.checkPrepare(key)
 		}
 	}
@@ -371,6 +375,18 @@ func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
 	return false
 }
 
+func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
+	txnId := op.request.Txn.TxnId
+	for rk := range op.readKeyMap {
+		op.RecordPreparedKey(rk, READ)
+		s.kvStore[rk].PreparedTxnRead[txnId] = true
+	}
+	for wk := range op.writeKeyMap {
+		op.RecordPreparedKey(wk, WRITE)
+		s.kvStore[wk].PreparedTxnWrite[txnId] = true
+	}
+}
+
 func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	// record the prepared keys
 	s.recordPrepared(op)
@@ -386,6 +402,7 @@ func (s *AbstractStorage) checkPrepare(key string) {
 		txnId := op.request.Txn.TxnId
 		// skip the aborted txn
 		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
+			log.Debugf("txn %v is already abort remove from the queue of key %v", txnId, key)
 			s.kvStore[key].WaitingOp.Remove(e)
 			continue
 		}
@@ -396,23 +413,11 @@ func (s *AbstractStorage) checkPrepare(key string) {
 			log.Infof("cannot prepare %v", op.request.Txn.TxnId)
 			break
 		}
-
+		log.Infof("can prepare %v", op.request.Txn.TxnId)
 		s.prepared(op)
 
 		s.kvStore[key].WaitingOp.Remove(e)
 		delete(s.kvStore[key].WaitingItem, txnId)
-	}
-}
-
-func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
-	for rk := range op.readKeyMap {
-		op.RecordPreparedKey(rk, READ)
-		s.kvStore[rk].PreparedTxnRead[txnId] = true
-	}
-	for wk := range op.writeKeyMap {
-		op.RecordPreparedKey(wk, WRITE)
-		s.kvStore[wk].PreparedTxnWrite[txnId] = true
 	}
 }
 
