@@ -228,8 +228,9 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 		}
 		op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 	}
-
+	log.Debugf("send read result back to client txn %v", op.request.Txn.TxnId)
 	op.wait <- true
+	log.Debugf("here4")
 }
 
 // set the prepared result that sent to coordinator
@@ -408,9 +409,9 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	// record the prepared keys
 	log.Debugf("here1")
 	s.recordPrepared(op)
-	log.Debugf("here1")
+	log.Debugf("here2")
 	s.setReadResult(op)
-	log.Debugf("here1")
+	log.Debugf("here3")
 	s.setPrepareResult(op, PREPARED)
 }
 
