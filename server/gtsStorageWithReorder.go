@@ -37,8 +37,7 @@ func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflic
 
 func (s GTSStorageWithReorder) hasConflictInQueue(txnId string, key string) bool {
 	log.Debugf("txnId %v check has conflict in queue key %v", txnId, key)
-	for e := s.kvStore[key].WaitingOp.Back(); e != nil; e.Prev() {
-		log.Debugf("heeeeeeee")
+	for e := s.kvStore[key].WaitingOp.Back(); e != nil; e = e.Prev() {
 		isConflict := s.hasConflictOnOtherPartition(txnId, e.Value.(*ReadAndPrepareOp).request.Txn.TxnId)
 		if isConflict {
 			return true
