@@ -67,7 +67,7 @@ func (s *Server) Abort(ctx context.Context,
 	} else {
 		s.coordinator.AbortRequest <- op
 	}
-
+	logrus.Infof("REPLY Abort %v %v", request.TxnId, request.IsCoordinator)
 	return &rpc.AbortReply{
 		LeaderAddr: s.serverAddress,
 	}, nil

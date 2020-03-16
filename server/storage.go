@@ -463,6 +463,7 @@ func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			log.Fatalf("Error: txn %v is already committed", txnId)
 			break
 		default:
+			log.Debugf("call abort processed txn %v", txnId)
 			s.abortProcessedTxn(txnId)
 			break
 		}
