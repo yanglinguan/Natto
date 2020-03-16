@@ -309,10 +309,6 @@ func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp)
 	}
 }
 
-func (s *AbstractStorage) removeFromQueue(keys map[string]bool, op *ReadAndPrepareOp) {
-
-}
-
 // release the keys that txn holds
 // check if there is txn can be prepared when keys are released
 func (s *AbstractStorage) release(txnId string) {
@@ -410,8 +406,11 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 		delete(s.kvStore[key].WaitingItem, txnId)
 	}
 	// record the prepared keys
+	log.Debugf("here1")
 	s.recordPrepared(op)
+	log.Debugf("here1")
 	s.setReadResult(op)
+	log.Debugf("here1")
 	s.setPrepareResult(op, PREPARED)
 }
 

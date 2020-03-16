@@ -129,7 +129,7 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 
 	available := s.checkKeysAvailable(op)
 	canReorder := s.reorder(op)
-	log.Debug("Txn % available %v canReorder %v", available, canReorder)
+	log.Debugf("Txn % available %v canReorder %v", available, canReorder)
 	if available && canReorder {
 		s.prepared(op)
 	} else {
