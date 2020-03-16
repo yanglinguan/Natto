@@ -35,6 +35,7 @@ type TxnInfo struct {
 	startTime               time.Time
 	preparedTime            time.Time
 	commitTime              time.Time
+	canReorder              int
 }
 
 type KeyInfo struct {
@@ -53,7 +54,6 @@ type Storage interface {
 	LoadKeys(keys []string)
 	PrintStatus(op *PrintStatusRequestOp)
 	HasKey(key string) bool
-	//abortProcessedTxn(txnId string)
 }
 
 type AbstractStorage struct {
@@ -150,13 +150,14 @@ func (s AbstractStorage) printCommitOrder() {
 	}
 
 	for _, info := range txnId {
-		s := fmt.Sprintf("%v %v %v %v %v %v\n",
+		s := fmt.Sprintf("%v %v %v %v %v %v %v\n",
 			info.readAndPrepareRequestOp.request.Txn.TxnId,
 			info.waitingTxnKey,
 			info.waitingTxnDep,
 			info.preparedTime.Sub(info.startTime).Nanoseconds(),
 			info.commitTime.Sub(info.preparedTime).Nanoseconds(),
-			info.commitTime.Sub(info.startTime).Nanoseconds())
+			info.commitTime.Sub(info.startTime).Nanoseconds(),
+			info.canReorder)
 		_, err = file.WriteString(s)
 		if err != nil {
 			log.Fatalf("Cannot write to file %v", err)
@@ -228,9 +229,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 		}
 		op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 	}
-	log.Debugf("send read result back to client txn %v", op.request.Txn.TxnId)
 	op.wait <- true
-	log.Debugf("here4")
 }
 
 // set the prepared result that sent to coordinator
@@ -407,11 +406,8 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 		delete(s.kvStore[key].WaitingItem, txnId)
 	}
 	// record the prepared keys
-	log.Debugf("here1")
 	s.recordPrepared(op)
-	log.Debugf("here2")
 	s.setReadResult(op)
-	log.Debugf("here3")
 	s.setPrepareResult(op, PREPARED)
 }
 
