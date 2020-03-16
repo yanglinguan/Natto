@@ -4,6 +4,7 @@ import json
 import time
 import threading
 import os
+import subprocess
 
 from paramiko import SSHClient, AutoAddPolicy
 
@@ -30,6 +31,10 @@ client_cmd = binPath + "/client "
 if args.debug:
     server_cmd = server_cmd + "-d "
     client_cmd = client_cmd + "-d "
+
+src_path = "$HOME/Projects/go/src/Carousel-GTS/"
+server_path = src_path + "carousel-server/"
+client_path = src_path + "benchmark/client/"
 
 
 def ssh_exec_thread(ssh_client, command):
@@ -120,8 +125,20 @@ def remove_log(dir_path):
             os.remove(os.path.join(dir_path, f))
 
 
+def build():
+    try:
+        subprocess.run(["cd", server_path])
+        cp = subprocess.run(["go", "install"], check=True)
+        subprocess.run(["cd", client_path])
+        subprocess.run(["go", "install"], check=True)
+        subprocess.run(["cd", path])
+    except subprocess.CalledProcessError:
+        print("build error")
+
+
 def main():
     remove_log(path)
+    build()
     start_servers()
     time.sleep(2)
     start_clients()
