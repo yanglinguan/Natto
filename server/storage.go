@@ -250,14 +250,14 @@ func (s *AbstractStorage) preparedResult(op *ReadAndPrepareOp) {
 		PartitionId:     int32(s.server.partitionId),
 		PrepareStatus:   int32(PREPARED),
 	}
-	for _, rk := range op.request.Txn.ReadKeyList {
+	for rk := range op.readKeyMap {
 		op.prepareResult.ReadKeyVerList = append(op.prepareResult.ReadKeyVerList, &rpc.KeyVersion{
 			Key:     rk,
 			Version: s.kvStore[rk].Version,
 		})
 	}
 
-	for _, wk := range op.request.Txn.WriteKeyList {
+	for wk := range op.writeKeyMap {
 		op.prepareResult.WriteKeyVerList = append(op.prepareResult.WriteKeyVerList, &rpc.KeyVersion{
 			Key:     wk,
 			Version: s.kvStore[wk].Version,
