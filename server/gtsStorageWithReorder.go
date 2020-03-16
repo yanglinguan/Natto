@@ -25,6 +25,8 @@ func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflic
 		}
 		for key := range keys {
 			if _, exist := y[pId][key]; exist {
+				log.Debugf("txn %v has conflict on key %v on partition %v with txn %v",
+					txnId, key, pId, conflictTxnId)
 				return true
 			}
 		}
@@ -34,7 +36,9 @@ func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflic
 }
 
 func (s GTSStorageWithReorder) hasConflictInQueue(txnId string, key string) bool {
+	log.Debugf("txnId %v check has conflict in queue key %v", txnId, key)
 	for e := s.kvStore[key].WaitingOp.Back(); e != nil; e.Prev() {
+		log.Debugf("heeeeeeee")
 		isConflict := s.hasConflictOnOtherPartition(txnId, e.Value.(*ReadAndPrepareOp).request.Txn.TxnId)
 		if isConflict {
 			return true
