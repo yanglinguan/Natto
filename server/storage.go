@@ -53,7 +53,7 @@ type Storage interface {
 	LoadKeys(keys []string)
 	PrintStatus(op *PrintStatusRequestOp)
 	HasKey(key string) bool
-	abortProcessedTxn(txnId string)
+	//abortProcessedTxn(txnId string)
 }
 
 type AbstractStorage struct {
@@ -449,6 +449,10 @@ func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
 			receiveFromCoordinator:  false,
 		}
 	}
+}
+
+func (s *AbstractStorage) abortProcessedTxn(txnId string) {
+	log.Fatalf("abstract storage does not implemented")
 }
 
 func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
