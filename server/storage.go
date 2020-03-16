@@ -309,6 +309,10 @@ func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp)
 	}
 }
 
+func (s *AbstractStorage) removeFromQueue(keys map[string]bool, op *ReadAndPrepareOp) {
+
+}
+
 // release the keys that txn holds
 // check if there is txn can be prepared when keys are released
 func (s *AbstractStorage) release(txnId string) {
@@ -368,7 +372,10 @@ func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
 	for key := range op.keyMap {
 		if s.kvStore[key].WaitingOp.Len() > 0 {
-			return true
+			top := s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp)
+			if top.request.Txn.TxnId != op.request.Txn.TxnId {
+				return true
+			}
 		}
 	}
 
@@ -388,6 +395,20 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 }
 
 func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
+	// remove from the top of the queue
+	txnId := op.request.Txn.TxnId
+	for key := range op.keyMap {
+		if _, exist := s.kvStore[key].WaitingItem[txnId]; !exist {
+			continue
+		}
+		if s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).request.Txn.TxnId != txnId {
+			log.Fatalf("txn %v is not front of queue key %v", txnId, key)
+			return
+		}
+
+		s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
+		delete(s.kvStore[key].WaitingItem, txnId)
+	}
 	// record the prepared keys
 	s.recordPrepared(op)
 	s.setReadResult(op)
@@ -409,10 +430,13 @@ func (s *AbstractStorage) checkPrepare(key string) {
 
 		// check if the txn can acquire all the keys
 		canPrepare := s.checkKeysAvailable(op)
-		if !canPrepare {
-			log.Infof("cannot prepare %v", op.request.Txn.TxnId)
+		hasWaiting := s.hasWaitingTxn(op)
+		if !canPrepare || hasWaiting {
+			log.Infof("cannot prepare %v had waiting %v, can prepare %v",
+				op.request.Txn.TxnId, hasWaiting, canPrepare)
 			break
 		}
+
 		log.Infof("can prepare %v", op.request.Txn.TxnId)
 		s.prepared(op)
 
