@@ -204,6 +204,9 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 
 		// if reorder enabled, send the all keys to partitions
 		for pId := range participants {
+			if _, exist := partitionSet[pId]; !exist {
+				partitionSet[pId] = make([][]string, 2)
+			}
 			partitionSet[pId][0] = op.readKeyList
 			partitionSet[pId][1] = op.writeKeyList
 		}
