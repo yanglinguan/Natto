@@ -127,8 +127,10 @@ def remove_log(dir_path):
 
 def build():
     try:
+        print("build server at " + server_path)
         subprocess.call(["cd", server_path])
         subprocess.call(["go", "install"])
+        print("build client at " + client_path)
         subprocess.call(["cd", client_path])
         subprocess.call(["go", "install"])
         subprocess.call(["cd", path])
