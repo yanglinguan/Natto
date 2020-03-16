@@ -59,6 +59,7 @@ func (s *OccStorage) Commit(op *CommitRequestOp) {
 }
 
 func (s *OccStorage) abortProcessedTxn(txnId string) {
+	log.Debugf("occ store abort processed txn %v, status %v", s.txnStore[txnId].status)
 	switch s.txnStore[txnId].status {
 	case PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
