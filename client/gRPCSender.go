@@ -41,7 +41,7 @@ func (s *ReadAndPrepareSender) Send() {
 		logrus.Infof("RECEIVE ReadResult %v from %v", s.request.Txn.TxnId, s.connection.GetDstAddr())
 		s.txn.readAndPrepareReply <- reply
 	} else {
-		logrus.Fatalf("rpc error %v", err)
+		logrus.Fatalf("cannot send txn %v readAndPrepare to server %v: %v", s.request.Txn.TxnId, s.connection.GetDstAddr(), err)
 	}
 }
 
@@ -76,7 +76,7 @@ func (c *CommitRequestSender) Send() {
 		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, c.connection.GetDstAddr())
 		c.txn.commitReply <- reply
 	} else {
-		logrus.Fatalf("rpc error %v", err)
+		logrus.Fatalf("cannot send txn %v commit request to server %v: %v", c.request.TxnId, c.connection.GetDstAddr(), err)
 	}
 }
 
@@ -103,6 +103,6 @@ func (p *PrintStatusRequestSender) Send() {
 	logrus.Infof("SEND PrintStatus to %v ", p.connection.GetDstAddr())
 	_, err := client.PrintStatus(context.Background(), p.request)
 	if err != nil {
-		logrus.Fatalf("rpc error %v", err)
+		logrus.Fatalf("cannot sent print status request to server %v: %v", p.connection.GetDstAddr(), err)
 	}
 }

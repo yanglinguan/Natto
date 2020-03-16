@@ -35,7 +35,7 @@ func (p *PrepareResultSender) Send() {
 	_, err := client.PrepareResult(context.Background(), p.request)
 
 	if err != nil {
-		logrus.Fatalf("fail to send prepare result: %v", err)
+		logrus.Fatalf("fail to send prepare result txn %v to server %v: %v", p.request.TxnId, p.connection.GetDstAddr(), err)
 	}
 }
 
@@ -64,7 +64,7 @@ func (a *AbortRequestSender) Send() {
 	client := rpc.NewCarouselClient(conn)
 	_, err := client.Abort(context.Background(), a.request)
 	if err != nil {
-		logrus.Fatalf("cannot sent abort request: %v", err)
+		logrus.Fatalf("cannot sent abort request txn %v to server %v: %v", a.request.TxnId, a.connection.GetDstAddr(), err)
 	}
 
 	logrus.Infof("RECEIVE ACK Abort %v from server %v", a.request.TxnId, a.connection.GetDstAddr())
@@ -97,7 +97,7 @@ func (c *CommitRequestSender) Send() {
 	_, err := client.Commit(context.Background(), c.request)
 
 	if err != nil {
-		logrus.Fatalf("cannot send commit request: %v", err)
+		logrus.Fatalf("cannot send commit request txn %v to server %v: %v", c.request.TxnId, c.connection.GetDstAddr(), err)
 	}
 
 	logrus.Infof("RECEIVE ACK Commit %v from server %v", c.request.TxnId, c.connection.GetDstAddr())
