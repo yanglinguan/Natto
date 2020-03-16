@@ -220,7 +220,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 	op.reply = &rpc.ReadAndPrepareReply{
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 	}
-	for _, rk := range op.request.Txn.ReadKeyList {
+	for rk := range op.readKeyMap {
 		keyValueVersion := &rpc.KeyValueVersion{
 			Key:     rk,
 			Value:   s.kvStore[rk].Value,
