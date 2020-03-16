@@ -128,12 +128,10 @@ def remove_log(dir_path):
 def build():
     try:
         print("build server at " + server_path)
-        subprocess.call(["cd", server_path])
-        subprocess.call(["go", "install"])
+        subprocess.call("cd " + server_path + "; go install", shell=True)
         print("build client at " + client_path)
-        subprocess.call(["cd", client_path])
-        subprocess.call(["go", "install"])
-        subprocess.call(["cd", path])
+        subprocess.call("cd " + client_path + "; go install", shell=True)
+        subprocess.call("cd " + path, shell=True)
     except subprocess.CalledProcessError:
         print("build error")
 
