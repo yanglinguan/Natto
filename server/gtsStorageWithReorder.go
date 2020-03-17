@@ -113,6 +113,9 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 		return
 	}
 
+	// add to the dependency graph
+	s.graph.AddNodeWithKeys(txnId, op.keyMap)
+
 	s.txnStore[txnId] = &TxnInfo{
 		readAndPrepareRequestOp: op,
 		status:                  INIT,
@@ -134,9 +137,6 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 	} else {
 		s.addToQueue(op.keyMap, op)
 	}
-
-	// add to the dependency graph
-	s.graph.AddNodeWithKeys(txnId, op.keyMap)
 }
 
 func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
