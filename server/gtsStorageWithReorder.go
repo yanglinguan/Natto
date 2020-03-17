@@ -128,11 +128,7 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 	available := s.checkKeysAvailable(op)
 	canReorder := s.reorder(op)
 	hasWaiting := s.hasWaitingTxn(op)
-	if available && canReorder {
-		if hasWaiting {
-			log.Debugf("txn %v can reorder keys %v", txnId, op.keyMap)
-			s.txnStore[txnId].canReorder = 1
-		}
+	if available && (!hasWaiting || canReorder) {
 		s.prepared(op)
 	} else {
 		s.addToQueue(op.keyMap, op)
