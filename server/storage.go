@@ -347,6 +347,7 @@ func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	available := true
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			log.Debugf("txn %v cannot prepare because of cannot get read key %v", op.request.Txn.TxnId, rk)
 			available = false
 			break
 		}
@@ -356,6 +357,7 @@ func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 		if !available ||
 			len(s.kvStore[wk].PreparedTxnRead) > 0 ||
 			len(s.kvStore[wk].PreparedTxnWrite) > 0 {
+			log.Debugf("txn %v cannot prepare because of cannot get write key %v", op.request.Txn.TxnId, wk)
 			available = false
 			break
 		}
