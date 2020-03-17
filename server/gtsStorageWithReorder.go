@@ -86,7 +86,7 @@ func (s *GTSStorageWithReorder) coordinatorAbort(request *rpc.AbortRequest) {
 			break
 		default:
 			log.Debugf("call abort processed txn %v", txnId)
-			s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.keyMap)
+			s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 			s.abortProcessedTxn(txnId)
 			break
 		}
@@ -114,7 +114,7 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	// add to the dependency graph
-	s.graph.AddNodeWithKeys(txnId, op.keyMap)
+	s.graph.AddNodeWithKeys(txnId, op.allKeys)
 
 	s.txnStore[txnId] = &TxnInfo{
 		readAndPrepareRequestOp: op,
@@ -155,7 +155,7 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 
 	s.release(txnId)
 	s.writeToDB(op)
-	s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.keyMap)
+	s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true

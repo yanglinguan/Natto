@@ -21,6 +21,8 @@ type ReadAndPrepareOp struct {
 
 	keyMap map[string]bool
 
+	allKeys map[string]bool
+
 	partitionKeys map[int]map[string]bool
 
 	// prepare result will send to coordinator
@@ -47,6 +49,7 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *Re
 		numPartitions:       0,
 		sendToCoordinator:   false,
 		partitionKeys:       make(map[int]map[string]bool),
+		allKeys:             make(map[string]bool),
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
@@ -64,6 +67,7 @@ func (o *ReadAndPrepareOp) processKey(keys []string, server *Server, keyType Key
 			o.partitionKeys[pId] = make(map[string]bool)
 		}
 		o.partitionKeys[pId][key] = true
+		o.allKeys[key] = true
 		if !server.storage.HasKey(key) {
 			continue
 		}
