@@ -44,6 +44,7 @@ func (s *GTSStorageWithReorder) reorder(op *ReadAndPrepareOp) bool {
 	txnId := op.request.Txn.TxnId
 	canReorder := true
 	conflictTxnList := s.graph.txnBefore(txnId)
+	log.Debugf("txn %v conflict txn: %v", txnId, conflictTxnList)
 	for _, conflictTxn := range conflictTxnList {
 		if s.hasConflictOnOtherPartition(txnId, conflictTxn) {
 			canReorder = false

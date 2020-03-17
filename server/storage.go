@@ -336,7 +336,7 @@ func (s *AbstractStorage) release(txnId string) {
 			delete(s.kvStore[key].WaitingItem, txnId)
 		} else {
 			// otherwise, check if the top of the queue can prepare
-			log.Debugf("txn %v release key %v check if txn can be prepared", key, txnId)
+			log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
 			s.checkPrepare(key)
 		}
 	}
