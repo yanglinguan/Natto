@@ -430,12 +430,12 @@ func (s *AbstractStorage) checkPrepare(key string) {
 		canPrepare := s.checkKeysAvailable(op)
 		hasWaiting := s.hasWaitingTxn(op)
 		if !canPrepare || hasWaiting {
-			log.Infof("cannot prepare %v had waiting %v, can prepare %v",
-				op.request.Txn.TxnId, hasWaiting, canPrepare)
+			log.Infof("cannot prepare %v had waiting %v, can prepare %v when release key %v",
+				op.request.Txn.TxnId, hasWaiting, canPrepare, key)
 			break
 		}
 
-		log.Infof("can prepare %v", op.request.Txn.TxnId)
+		log.Infof("can prepare %v when key %v is released", op.request.Txn.TxnId, key)
 		s.prepared(op)
 
 		s.kvStore[key].WaitingOp.Remove(e)

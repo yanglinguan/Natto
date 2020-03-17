@@ -151,3 +151,98 @@ func TestGraph_Remove2(t *testing.T) {
 		t.Errorf("error")
 	}
 }
+
+func TestGraph_AddNodeWithKeys(t *testing.T) {
+	graph := NewDependencyGraph()
+
+	graph.AddNodeWithKeys("a", map[string]bool{"1": true, "2": true, "3": true})
+
+	graph.AddNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+
+	graph.AddNodeWithKeys("c", map[string]bool{"4": true, "3": true})
+
+	path := graph.txnBefore("c")
+
+	expectPath := []string{"a", "b", "c"}
+
+	if len(path) != len(expectPath) {
+		t.Errorf("error")
+	} else {
+		for i, txnId := range expectPath {
+			if path[i] != txnId {
+				t.Errorf("txn %v not in order", txnId)
+			}
+		}
+	}
+
+}
+
+func TestGraph_RemoveNodeWithKeys(t *testing.T) {
+	graph := NewDependencyGraph()
+
+	graph.AddNodeWithKeys("a", map[string]bool{"1": true, "2": true, "3": true})
+
+	graph.AddNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+
+	graph.AddNodeWithKeys("c", map[string]bool{"4": true, "3": true})
+
+	path := graph.txnBefore("c")
+
+	expectPath := []string{"a", "b", "c"}
+
+	if len(path) != len(expectPath) {
+		t.Errorf("error")
+	} else {
+		for i, txnId := range expectPath {
+			if path[i] != txnId {
+				t.Errorf("txn %v not in order", txnId)
+			}
+		}
+	}
+
+	graph.RemoveNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+	path = graph.txnBefore("c")
+
+	expectPath = []string{"a", "c"}
+
+	if len(path) != len(expectPath) {
+		t.Errorf("error")
+	} else {
+		for i, txnId := range expectPath {
+			if path[i] != txnId {
+				t.Errorf("txn %v not in order", txnId)
+			}
+		}
+	}
+
+	graph.AddNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+
+	path = graph.txnBefore("c")
+
+	expectPath = []string{"a", "c"}
+
+	if len(path) != len(expectPath) {
+		t.Errorf("error")
+	} else {
+		for i, txnId := range expectPath {
+			if path[i] != txnId {
+				t.Errorf("txn %v not in order", txnId)
+			}
+		}
+	}
+
+	path = graph.txnBefore("b")
+
+	expectPath = []string{"a", "c", "b"}
+
+	if len(path) != len(expectPath) {
+		t.Errorf("error")
+	} else {
+		for i, txnId := range expectPath {
+			if path[i] != txnId {
+				t.Errorf("txn %v not in order", txnId)
+			}
+		}
+	}
+
+}

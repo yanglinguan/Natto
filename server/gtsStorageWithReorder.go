@@ -8,10 +8,15 @@ import (
 
 type GTSStorageWithReorder struct {
 	*AbstractStorage
+
+	graph *Graph
 }
 
 func NewGTSStorageWithReorder(server *Server) *GTSStorageWithReorder {
-	s := &GTSStorageWithReorder{NewAbstractStorage(server)}
+	s := &GTSStorageWithReorder{
+		AbstractStorage: NewAbstractStorage(server),
+		graph:           NewDependencyGraph(),
+	}
 	return s
 }
 
@@ -35,24 +40,13 @@ func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflic
 	return false
 }
 
-func (s GTSStorageWithReorder) hasConflictInQueue(txnId string, key string) bool {
-	log.Debugf("txnId %v check has conflict in queue key %v", txnId, key)
-	for e := s.kvStore[key].WaitingOp.Back(); e != nil; e = e.Prev() {
-		isConflict := s.hasConflictOnOtherPartition(txnId, e.Value.(*ReadAndPrepareOp).request.Txn.TxnId)
-		if isConflict {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *GTSStorageWithReorder) reorder(op *ReadAndPrepareOp) bool {
 	txnId := op.request.Txn.TxnId
 	canReorder := true
-	for key := range op.keyMap {
-		if s.hasConflictInQueue(txnId, key) {
+	conflictTxnList := s.graph.txnBefore(txnId)
+	for _, conflictTxn := range conflictTxnList {
+		if s.hasConflictOnOtherPartition(txnId, conflictTxn) {
 			canReorder = false
-			break
 		}
 	}
 	return canReorder
@@ -91,6 +85,7 @@ func (s *GTSStorageWithReorder) coordinatorAbort(request *rpc.AbortRequest) {
 			break
 		default:
 			log.Debugf("call abort processed txn %v", txnId)
+			s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.keyMap)
 			s.abortProcessedTxn(txnId)
 			break
 		}
@@ -138,6 +133,9 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 	} else {
 		s.addToQueue(op.keyMap, op)
 	}
+
+	// add to the dependency graph
+	s.graph.AddNodeWithKeys(txnId, op.keyMap)
 }
 
 func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
@@ -156,6 +154,7 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 
 	s.release(txnId)
 	s.writeToDB(op)
+	s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.keyMap)
 
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true

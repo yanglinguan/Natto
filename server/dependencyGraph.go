@@ -12,6 +12,8 @@ type Graph struct {
 	inDegree   map[string]int
 
 	noDependency []string
+
+	keyToTxn map[string]map[string]bool
 }
 
 func NewDependencyGraph() *Graph {
@@ -20,6 +22,7 @@ func NewDependencyGraph() *Graph {
 		revAdjList:   make(map[string]map[string]bool),
 		inDegree:     make(map[string]int),
 		noDependency: make([]string, 0),
+		keyToTxn:     make(map[string]map[string]bool),
 	}
 
 	return g
@@ -33,6 +36,27 @@ func (g *Graph) AddNode(txn string) {
 	if _, exist := g.adjList[txn]; !exist {
 		g.adjList[txn] = make(map[string]bool)
 	}
+}
+
+func (g *Graph) AddNodeWithKeys(txnId string, keys map[string]bool) {
+	for key := range keys {
+		if _, exist := g.keyToTxn[key]; !exist {
+			g.keyToTxn[key] = make(map[string]bool)
+		}
+
+		for txn := range g.keyToTxn[key] {
+			g.AddEdge(txn, txnId)
+		}
+		g.keyToTxn[key][txnId] = true
+	}
+}
+
+func (g *Graph) RemoveNodeWithKeys(txnId string, keys map[string]bool) {
+	for key := range keys {
+		delete(g.keyToTxn[key], txnId)
+	}
+
+	g.Remove(txnId)
 }
 
 // txn1 should commit before txn2 t1->t2
