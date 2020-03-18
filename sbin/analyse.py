@@ -39,7 +39,7 @@ def analyse_waiting():
                 y = 0
                 z = 0
                 t = 0
-                if len(items) == 6:
+                if len(items) == 7:
                     wait_num_t = int(items[2])
                     x = float(items[3]) / 1000000
                     y = float(items[4]) / 1000000
@@ -51,7 +51,7 @@ def analyse_waiting():
                 txn_map[txn_id][1] = max(txn_map[txn_id][1], wait_num_t)
                 txn_map[txn_id][2] = max(txn_map[txn_id][2], x)
                 txn_map[txn_id][3] = max(txn_map[txn_id][3], y)
-                txn_map[txn_id][4] = max(txn_map[txn_id][4], x)
+                txn_map[txn_id][4] = max(txn_map[txn_id][4], z)
                 txn_map[txn_id][5] = txn_map[txn_id][5] + t
 
     f = open("waiting.analyse", "w")
