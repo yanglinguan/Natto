@@ -1,7 +1,6 @@
 package server
 
 import (
-	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
@@ -17,6 +16,9 @@ func NewGTSStorageWithReorder(server *Server) *GTSStorageWithReorder {
 		AbstractStorage: NewAbstractStorage(server),
 		graph:           NewDependencyGraph(),
 	}
+
+	s.AbstractStorage.abstractMethod = s
+
 	return s
 }
 
@@ -43,7 +45,7 @@ func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflic
 func (s *GTSStorageWithReorder) reorder(op *ReadAndPrepareOp) bool {
 	txnId := op.request.Txn.TxnId
 	canReorder := true
-	conflictTxnList := s.graph.txnBefore(txnId)
+	conflictTxnList := s.graph.GetConflictTxn(txnId)
 	log.Debugf("txn %v conflict txn: %v", txnId, conflictTxnList)
 	for _, conflictTxn := range conflictTxnList {
 		if conflictTxn != txnId && s.hasConflictOnOtherPartition(txnId, conflictTxn) {
@@ -58,46 +60,20 @@ func (s *GTSStorageWithReorder) abortProcessedTxn(txnId string) {
 	case PREPARED:
 		log.Infof("ABORT: %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
+		s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 		s.release(txnId)
 		break
 	case INIT:
 		log.Infof("ABORT: %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+		s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 		s.release(txnId)
 		break
 	default:
 		log.Fatalf("txn %v should be in statue prepared or init, but status is %v",
 			txnId, s.txnStore[txnId].status)
 		break
-	}
-}
-
-func (s *GTSStorageWithReorder) coordinatorAbort(request *rpc.AbortRequest) {
-	txnId := request.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; exist {
-		txnInfo.receiveFromCoordinator = true
-		switch txnInfo.status {
-		case ABORT:
-			log.Infof("txn %v is already abort it self", txnId)
-			break
-		case COMMIT:
-			log.Fatalf("Error: txn %v is already committed", txnId)
-			break
-		default:
-			log.Debugf("call abort processed txn %v", txnId)
-			s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
-			s.abortProcessedTxn(txnId)
-			break
-		}
-	} else {
-		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
-
-		s.txnStore[txnId] = &TxnInfo{
-			readAndPrepareRequestOp: nil,
-			status:                  ABORT,
-			receiveFromCoordinator:  true,
-		}
 	}
 }
 
@@ -114,7 +90,7 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	// add to the dependency graph
-	s.graph.AddNodeWithKeys(txnId, op.allKeys)
+	s.graph.AddNode(txnId, op.allKeys)
 
 	s.txnStore[txnId] = &TxnInfo{
 		readAndPrepareRequestOp: op,
@@ -155,7 +131,7 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 
 	s.release(txnId)
 	s.writeToDB(op)
-	s.graph.RemoveNodeWithKeys(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
+	s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true

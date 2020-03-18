@@ -1,7 +1,6 @@
 package server
 
 import (
-	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
@@ -14,6 +13,8 @@ func NewGTSStorage(server *Server) *GTSStorage {
 	s := &GTSStorage{
 		NewAbstractStorage(server),
 	}
+
+	s.AbstractStorage.abstractMethod = s
 
 	return s
 }
@@ -60,33 +61,6 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 		log.Fatalf("txn %v should be in statue prepared or init, but status is %v",
 			txnId, s.txnStore[txnId].status)
 		break
-	}
-}
-
-func (s *GTSStorage) coordinatorAbort(request *rpc.AbortRequest) {
-	txnId := request.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; exist {
-		txnInfo.receiveFromCoordinator = true
-		switch txnInfo.status {
-		case ABORT:
-			log.Infof("txn %v is already abort it self", txnId)
-			break
-		case COMMIT:
-			log.Fatalf("Error: txn %v is already committed", txnId)
-			break
-		default:
-			log.Debugf("call abort processed txn %v", txnId)
-			s.abortProcessedTxn(txnId)
-			break
-		}
-	} else {
-		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
-
-		s.txnStore[txnId] = &TxnInfo{
-			readAndPrepareRequestOp: nil,
-			status:                  ABORT,
-			receiveFromCoordinator:  true,
-		}
 	}
 }
 

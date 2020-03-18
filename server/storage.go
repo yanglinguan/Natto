@@ -56,8 +56,16 @@ type Storage interface {
 	HasKey(key string) bool
 }
 
+type AbstractMethod interface {
+	checkKeysAvailable(op *ReadAndPrepareOp) bool
+	prepared(op *ReadAndPrepareOp)
+	abortProcessedTxn(txnId string)
+}
+
 type AbstractStorage struct {
 	Storage
+
+	abstractMethod AbstractMethod
 
 	kvStore                map[string]*KeyInfo
 	server                 *Server
@@ -392,7 +400,7 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 	}
 }
 
-func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
+func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 	// remove from the top of the queue
 	txnId := op.request.Txn.TxnId
 	for key := range op.keyMap {
@@ -407,6 +415,10 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 		s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 		delete(s.kvStore[key].WaitingItem, txnId)
 	}
+}
+
+func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
+	s.removeFromQueue(op)
 	// record the prepared keys
 	s.recordPrepared(op)
 	s.setReadResult(op)
@@ -427,7 +439,7 @@ func (s *AbstractStorage) checkPrepare(key string) {
 		}
 
 		// check if the txn can acquire all the keys
-		canPrepare := s.checkKeysAvailable(op)
+		canPrepare := s.abstractMethod.checkKeysAvailable(op)
 		hasWaiting := s.hasWaitingTxn(op)
 		if !canPrepare || hasWaiting {
 			log.Infof("cannot prepare %v had waiting %v, can prepare %v when release key %v",
@@ -436,10 +448,7 @@ func (s *AbstractStorage) checkPrepare(key string) {
 		}
 
 		log.Infof("can prepare %v when key %v is released", op.request.Txn.TxnId, key)
-		s.prepared(op)
-
-		s.kvStore[key].WaitingOp.Remove(e)
-		delete(s.kvStore[key].WaitingItem, txnId)
+		s.abstractMethod.prepared(op)
 	}
 }
 
@@ -474,6 +483,33 @@ func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
 			readAndPrepareRequestOp: op,
 			status:                  ABORT,
 			receiveFromCoordinator:  false,
+		}
+	}
+}
+
+func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
+	txnId := request.TxnId
+	if txnInfo, exist := s.txnStore[txnId]; exist {
+		txnInfo.receiveFromCoordinator = true
+		switch txnInfo.status {
+		case ABORT:
+			log.Infof("txn %v is already abort it self", txnId)
+			break
+		case COMMIT:
+			log.Fatalf("Error: txn %v is already committed", txnId)
+			break
+		default:
+			log.Debugf("call abort processed txn %v", txnId)
+			s.abstractMethod.abortProcessedTxn(txnId)
+			break
+		}
+	} else {
+		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
+
+		s.txnStore[txnId] = &TxnInfo{
+			readAndPrepareRequestOp: nil,
+			status:                  ABORT,
+			receiveFromCoordinator:  true,
 		}
 	}
 }

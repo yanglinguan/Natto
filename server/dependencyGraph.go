@@ -28,39 +28,29 @@ func NewDependencyGraph() *Graph {
 	return g
 }
 
-func (g *Graph) AddNode(txn string) {
-	logrus.Debugf("add node %v", txn)
-	if _, exist := g.inDegree[txn]; !exist {
-		g.inDegree[txn] = 0
-	}
-	if _, exist := g.adjList[txn]; !exist {
-		g.adjList[txn] = make(map[string]bool)
-	}
-}
-
-func (g *Graph) AddNodeWithKeys(txnId string, keys map[string]bool) {
+func (g *Graph) AddNode(txnId string, keys map[string]bool) {
 	for key := range keys {
 		if _, exist := g.keyToTxn[key]; !exist {
 			g.keyToTxn[key] = make(map[string]bool)
 		}
 
 		for txn := range g.keyToTxn[key] {
-			g.AddEdge(txn, txnId)
+			g.addEdge(txn, txnId)
 		}
 		g.keyToTxn[key][txnId] = true
 	}
 }
 
-func (g *Graph) RemoveNodeWithKeys(txnId string, keys map[string]bool) {
+func (g *Graph) RemoveNode(txnId string, keys map[string]bool) {
 	for key := range keys {
 		delete(g.keyToTxn[key], txnId)
 	}
 
-	g.Remove(txnId)
+	g.remove(txnId)
 }
 
 // txn1 should commit before txn2 t1->t2
-func (g *Graph) AddEdge(txn1 string, txn2 string) {
+func (g *Graph) addEdge(txn1 string, txn2 string) {
 	logrus.Debugf("add edge %v -> %v", txn1, txn2)
 	if _, exist := g.adjList[txn1]; !exist {
 		g.adjList[txn1] = make(map[string]bool)
@@ -106,7 +96,7 @@ func (g *Graph) GetNext() []string {
 	return result
 }
 
-func (g *Graph) Remove(txnId string) {
+func (g *Graph) remove(txnId string) {
 	for child := range g.adjList[txnId] {
 		if g.inDegree[child] > 0 {
 			g.inDegree[child]--
@@ -136,7 +126,7 @@ func (g *Graph) Remove(txnId string) {
 	delete(g.inDegree, txnId)
 }
 
-func (g *Graph) txnBefore(txnId string) []string {
+func (g *Graph) GetConflictTxn(txnId string) []string {
 	path := make([]string, 0)
 
 	g.dfs(txnId, make(map[string]bool), &path)

@@ -7,10 +7,10 @@ import (
 func TestGraph_AddEdge(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddEdge("a", "b")
-	graph.AddEdge("a", "c")
-	graph.AddEdge("c", "d")
-	graph.AddEdge("e", "b")
+	graph.addEdge("a", "b")
+	graph.addEdge("a", "c")
+	graph.addEdge("c", "d")
+	graph.addEdge("e", "b")
 
 	available := graph.GetNext()
 	expect := map[string]bool{"a": true, "e": true}
@@ -29,16 +29,16 @@ func TestGraph_AddEdge(t *testing.T) {
 func TestGraph_Remove(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddEdge("a", "b")
-	graph.AddEdge("a", "c")
-	graph.AddEdge("c", "d")
-	graph.AddEdge("e", "b")
+	graph.addEdge("a", "b")
+	graph.addEdge("a", "c")
+	graph.addEdge("c", "d")
+	graph.addEdge("e", "b")
 
-	path1 := graph.txnBefore("d")
+	path1 := graph.GetConflictTxn("d")
 
-	graph.Remove("c")
+	graph.remove("c")
 
-	path2 := graph.txnBefore("d")
+	path2 := graph.GetConflictTxn("d")
 
 	available := graph.GetNext()
 	expect := map[string]bool{"a": true, "e": true}
@@ -76,14 +76,14 @@ func TestGraph_Remove(t *testing.T) {
 func TestGraph_GetNext(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddEdge("a", "b")
-	graph.AddEdge("a", "c")
-	graph.AddEdge("c", "d")
-	graph.AddEdge("a", "d")
-	graph.AddEdge("b", "c")
-	graph.AddEdge("b", "d")
+	graph.addEdge("a", "b")
+	graph.addEdge("a", "c")
+	graph.addEdge("c", "d")
+	graph.addEdge("a", "d")
+	graph.addEdge("b", "c")
+	graph.addEdge("b", "d")
 
-	path := graph.txnBefore("d")
+	path := graph.GetConflictTxn("d")
 	expectPath := []string{"a", "b", "c", "d"}
 	if len(path) != len(expectPath) {
 		t.Errorf("error")
@@ -95,10 +95,10 @@ func TestGraph_GetNext(t *testing.T) {
 		}
 	}
 
-	graph.Remove("a")
-	graph.Remove("b")
+	graph.remove("a")
+	graph.remove("b")
 
-	path = graph.txnBefore("d")
+	path = graph.GetConflictTxn("d")
 	expectPath = []string{"c", "d"}
 	if len(path) != len(expectPath) {
 		t.Errorf("error")
@@ -127,14 +127,14 @@ func TestGraph_GetNext(t *testing.T) {
 func TestGraph_Remove2(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddEdge("a", "b")
-	graph.AddEdge("a", "c")
-	graph.AddEdge("c", "d")
-	graph.AddEdge("a", "d")
-	graph.AddEdge("b", "c")
-	graph.AddEdge("b", "d")
+	graph.addEdge("a", "b")
+	graph.addEdge("a", "c")
+	graph.addEdge("c", "d")
+	graph.addEdge("a", "d")
+	graph.addEdge("b", "c")
+	graph.addEdge("b", "d")
 
-	path := graph.txnBefore("d")
+	path := graph.GetConflictTxn("d")
 	expectPath := []string{"a", "b", "c", "d"}
 	if len(path) != len(expectPath) {
 		t.Errorf("error")
@@ -146,7 +146,7 @@ func TestGraph_Remove2(t *testing.T) {
 		}
 	}
 
-	graph.Remove("c")
+	graph.remove("c")
 	if graph.inDegree["d"] != 2 {
 		t.Errorf("error")
 	}
@@ -155,13 +155,13 @@ func TestGraph_Remove2(t *testing.T) {
 func TestGraph_AddNodeWithKeys(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddNodeWithKeys("a", map[string]bool{"1": true, "2": true, "3": true})
+	graph.AddNode("a", map[string]bool{"1": true, "2": true, "3": true})
 
-	graph.AddNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+	graph.AddNode("b", map[string]bool{"2": true, "4": true})
 
-	graph.AddNodeWithKeys("c", map[string]bool{"4": true, "3": true})
+	graph.AddNode("c", map[string]bool{"4": true, "3": true})
 
-	path := graph.txnBefore("c")
+	path := graph.GetConflictTxn("c")
 
 	expectPath := []string{"a", "b", "c"}
 
@@ -180,13 +180,13 @@ func TestGraph_AddNodeWithKeys(t *testing.T) {
 func TestGraph_RemoveNodeWithKeys(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddNodeWithKeys("a", map[string]bool{"1": true, "2": true, "3": true})
+	graph.AddNode("a", map[string]bool{"1": true, "2": true, "3": true})
 
-	graph.AddNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+	graph.AddNode("b", map[string]bool{"2": true, "4": true})
 
-	graph.AddNodeWithKeys("c", map[string]bool{"4": true, "3": true})
+	graph.AddNode("c", map[string]bool{"4": true, "3": true})
 
-	path := graph.txnBefore("c")
+	path := graph.GetConflictTxn("c")
 
 	expectPath := []string{"a", "b", "c"}
 
@@ -200,8 +200,8 @@ func TestGraph_RemoveNodeWithKeys(t *testing.T) {
 		}
 	}
 
-	graph.RemoveNodeWithKeys("b", map[string]bool{"2": true, "4": true})
-	path = graph.txnBefore("c")
+	graph.RemoveNode("b", map[string]bool{"2": true, "4": true})
+	path = graph.GetConflictTxn("c")
 
 	expectPath = []string{"a", "c"}
 
@@ -215,9 +215,9 @@ func TestGraph_RemoveNodeWithKeys(t *testing.T) {
 		}
 	}
 
-	graph.AddNodeWithKeys("b", map[string]bool{"2": true, "4": true})
+	graph.AddNode("b", map[string]bool{"2": true, "4": true})
 
-	path = graph.txnBefore("c")
+	path = graph.GetConflictTxn("c")
 
 	expectPath = []string{"a", "c"}
 
@@ -231,7 +231,7 @@ func TestGraph_RemoveNodeWithKeys(t *testing.T) {
 		}
 	}
 
-	path = graph.txnBefore("b")
+	path = graph.GetConflictTxn("b")
 
 	expectPath = []string{"a", "c", "b"}
 

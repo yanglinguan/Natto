@@ -1,7 +1,6 @@
 package server
 
 import (
-	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -24,12 +23,14 @@ func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
 		waitToCommitTxn:  make(map[string]*CommitRequestOp),
 	}
 
+	s.AbstractStorage.abstractMethod = s
+
 	return s
 }
 
 func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
 	log.Debugf("REMOVE %v", txnId)
-	s.graph.Remove(txnId)
+	s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.keyMap)
 	delete(s.readyToCommitTxn, txnId)
 	for _, txn := range s.graph.GetNext() {
 		log.Debugf("txn %v can commit now", txn)
@@ -109,33 +110,6 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	}
 }
 
-func (s *GTSStorageDepGraph) coordinatorAbort(request *rpc.AbortRequest) {
-	txnId := request.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; exist {
-		txnInfo.receiveFromCoordinator = true
-		switch txnInfo.status {
-		case ABORT:
-			log.Infof("txn %v is already abort it self", txnId)
-			break
-		case COMMIT:
-			log.Fatalf("Error: txn %v is already committed", txnId)
-			break
-		default:
-			log.Debugf("call abort processed txn %v", txnId)
-			s.abortProcessedTxn(txnId)
-			break
-		}
-	} else {
-		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
-
-		s.txnStore[txnId] = &TxnInfo{
-			readAndPrepareRequestOp: nil,
-			status:                  ABORT,
-			receiveFromCoordinator:  true,
-		}
-	}
-}
-
 func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
@@ -163,7 +137,8 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 
 func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
-	s.addToGraph(op, true)
+	s.removeFromQueue(op)
+	s.graph.AddNode(op.request.Txn.TxnId, op.keyMap)
 	s.recordPrepared(op)
 	s.setReadResult(op)
 	s.setPrepareResult(op, PREPARED)
@@ -195,35 +170,5 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 		s.prepared(op)
 	} else {
 		s.addToQueue(op.keyMap, op)
-	}
-}
-
-func (s *GTSStorageDepGraph) addToGraph(op *ReadAndPrepareOp, addWrite bool) {
-	txnId := op.request.Txn.TxnId
-	// only add to dependent graph when txn can be prepared
-	if !op.IsPrepared() {
-		log.WithFields(log.Fields{
-			"txnId":      txnId,
-			"isPrepared": false,
-		}).Fatalln("cannot add a txn that is not prepared into dependency graph")
-	}
-
-	s.graph.AddNode(txnId)
-
-	for wk := range op.writeKeyMap {
-
-		for txn := range s.kvStore[wk].PreparedTxnRead {
-			if txn != txnId {
-				s.graph.AddEdge(txn, txnId)
-			}
-		}
-
-		if addWrite {
-			for txn := range s.kvStore[wk].PreparedTxnWrite {
-				if txn != txnId {
-					s.graph.AddEdge(txn, txnId)
-				}
-			}
-		}
 	}
 }
