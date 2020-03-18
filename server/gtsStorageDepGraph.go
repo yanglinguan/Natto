@@ -73,6 +73,7 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		log.Infof("COMMIT %v", txnId)
 		op.wait <- true
 
+		s.getNextCommitListByCommitOrAbort(txnId)
 		s.release(txnId)
 		s.writeToDB(op)
 
@@ -80,7 +81,6 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		s.txnStore[txnId].receiveFromCoordinator = true
 		s.txnStore[txnId].commitOrder = s.committed
 		s.committed++
-		s.getNextCommitListByCommitOrAbort(txnId)
 		s.print()
 	} else {
 		log.Debugf("WAIT COMMIT %v", txnId)

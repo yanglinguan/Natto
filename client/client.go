@@ -192,13 +192,13 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 	if c.Config.GetServerMode() == configuration.GTSReorder {
 		for _, key := range op.readKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("key %v, pId %v", key, pId)
+			logrus.Debugf("read key %v, pId %v", key, pId)
 			participants[pId] = true
 		}
 
 		for _, key := range op.writeKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("key %v, pId %v", key, pId)
+			logrus.Debugf("write key %v, pId %v", key, pId)
 			participants[pId] = true
 		}
 
@@ -213,7 +213,7 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 	} else {
 		for _, key := range op.readKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("key %v, pId %v", key, pId)
+			logrus.Debugf("read key %v, pId %v", key, pId)
 			if _, exist := partitionSet[pId]; !exist {
 				partitionSet[pId] = make([][]string, 2)
 			}
@@ -223,7 +223,7 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 
 		for _, key := range op.writeKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("key %v, pId %v", key, pId)
+			logrus.Debugf("write key %v, pId %v", key, pId)
 			if _, exist := partitionSet[pId]; !exist {
 				partitionSet[pId] = make([][]string, 2)
 			}
