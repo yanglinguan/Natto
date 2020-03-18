@@ -37,8 +37,8 @@ func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
 		s.readyToCommitTxn[txn] = true
 		if _, exist := s.waitToCommitTxn[txn]; exist {
 			s.waitToCommitTxn[txn].canCommit = true
-			s.Commit(s.waitToCommitTxn[txn])
-			//s.server.executor.CommitTxn <- s.waitToCommitTxn[txn]
+			//s.Commit(s.waitToCommitTxn[txn])
+			s.server.executor.CommitTxn <- s.waitToCommitTxn[txn]
 			delete(s.waitToCommitTxn, txn)
 		}
 	}
