@@ -128,6 +128,7 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	// read write conflict
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			log.Debugf("txn %v read write conflict key %v with %v", op.request.Txn.TxnId, rk, s.kvStore[rk].PreparedTxnWrite)
 			available = false
 			break
 		}
@@ -169,6 +170,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	if available && !hasWaiting {
 		s.prepared(op)
 	} else {
+		log.Debugf("txn %v cannot prepare available %v, hasWaiting %v", txnId, available, hasWaiting)
 		s.addToQueue(op.keyMap, op)
 	}
 }

@@ -30,6 +30,16 @@ func NewDependencyGraph() *Graph {
 
 func (g *Graph) AddNode(txnId string, keys map[string]bool) {
 	for key := range keys {
+		if _, exist := g.inDegree[txnId]; !exist {
+			g.inDegree[txnId] = 0
+		}
+		if _, exist := g.adjList[txnId]; !exist {
+			g.adjList[txnId] = make(map[string]bool)
+		}
+		if _, exist := g.revAdjList[txnId]; !exist {
+			g.revAdjList[txnId] = make(map[string]bool)
+		}
+
 		if _, exist := g.keyToTxn[key]; !exist {
 			g.keyToTxn[key] = make(map[string]bool)
 		}
