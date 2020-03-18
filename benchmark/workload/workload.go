@@ -13,8 +13,12 @@ type Txn struct {
 }
 
 func (t *Txn) GenWriteData(readData map[string]string) {
-	for k, v := range readData {
-		t.WriteData[k] = utils.ConvertToString(len(v), utils.ConvertToInt(v)+1)
+	for key := range t.WriteData {
+		if value, exist := readData[key]; exist {
+			t.WriteData[key] = utils.ConvertToString(len(value), utils.ConvertToInt(value)+1)
+		} else {
+			t.WriteData[key] = key
+		}
 	}
 }
 
