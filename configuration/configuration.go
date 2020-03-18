@@ -23,6 +23,7 @@ type WorkLoad int
 const (
 	YCSBT WorkLoad = iota
 	ONETXN
+	RETWIS
 )
 
 type RetryMode int
@@ -244,6 +245,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.workload = YCSBT
 			} else if workload == "oneTxn" {
 				f.workload = ONETXN
+			} else if workload == "retwis" {
+				f.workload = RETWIS
 			}
 		} else if key == "seed" {
 			f.seed = int64(v.(float64))

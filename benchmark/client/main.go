@@ -28,6 +28,17 @@ func main() {
 	case configuration.ONETXN:
 		expWorkload = workload.NewOneTxnWorkload(baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
 		break
+	case configuration.RETWIS:
+		expWorkload = workload.NewRetwisWorkload(
+			baseWorkload,
+			workload.RetwisDefaultAddUserRatio,
+			workload.RetwisDefaultFollowUnfollowRatio,
+			workload.RetwisDefaultPostTweetRatio,
+			workload.RetwisDefaultLoadTimelineRatio)
+		break
+	default:
+		logrus.Fatalf("workload should be: ycsbt, oneTxn or retwis")
+		return
 	}
 
 	if c.Config.GetOpenLoop() {
