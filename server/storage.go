@@ -404,6 +404,7 @@ func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 }
 
 func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
+	log.Debugf("PREPARED txn %v", op.request.Txn.TxnId)
 	s.removeFromQueue(op)
 	// record the prepared keys
 	s.txnStore[op.request.Txn.TxnId].status = PREPARED

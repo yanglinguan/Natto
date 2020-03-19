@@ -38,7 +38,7 @@ func (s *ReadAndPrepareSender) Send() {
 
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err == nil {
-		logrus.Infof("RECEIVE ReadResult %v from %v", s.request.Txn.TxnId, s.connection.GetDstAddr())
+		logrus.Infof("RECEIVE ReadResult %v from %v isAbort %v", s.request.Txn.TxnId, s.connection.GetDstAddr(), reply.IsAbort)
 		s.txn.readAndPrepareReply <- reply
 	} else {
 		logrus.Fatalf("cannot send txn %v readAndPrepare to server %v: %v", s.request.Txn.TxnId, s.connection.GetDstAddr(), err)
