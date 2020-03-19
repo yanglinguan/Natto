@@ -328,7 +328,7 @@ func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bo
 }
 
 func (c *Client) Abort(txnId string) (bool, time.Duration) {
-	ongoingTxn := c.getTxn(txnId)
+	ongoingTxn := c.getTxn(c.getTxnId(txnId))
 	return c.isRetryTxn(ongoingTxn.execCount + 1)
 }
 

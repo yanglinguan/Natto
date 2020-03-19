@@ -35,6 +35,7 @@ if args.debug:
 src_path = "$HOME/Projects/go/src/Carousel-GTS/"
 server_path = src_path + "carousel-server/"
 client_path = src_path + "benchmark/client/"
+rpc_path = src_path + "rpc/"
 
 
 def ssh_exec_thread(ssh_client, command):
@@ -128,6 +129,7 @@ def remove_log(dir_path):
 def build():
     try:
         print("build server at " + server_path)
+        subprocess.call("cd " + rpc_path + "; protoc --go_out=plugins=grpc:. *.proto", shell=True)
         subprocess.call("cd " + server_path + "; go install", shell=True)
         print("build client at " + client_path)
         subprocess.call("cd " + client_path + "; go install", shell=True)
