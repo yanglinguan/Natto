@@ -111,20 +111,17 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 	txnId := result.Request.TxnId
 	twoPCInfo := c.initTwoPCInfoIfNotExist(txnId)
 
-	logger := log.WithFields(log.Fields{
-		"txnId":             txnId,
-		"txnStatus":         twoPCInfo.status,
-		"preparedPartition": twoPCInfo.preparedPartition,
-		"partitionId":       result.Request.PartitionId,
-	})
-	logger.Debugf("receive prepared result")
+	log.Debugf("txn %v receive prepared result from partition %v result %v",
+		txnId, result.Request.PartitionId, result.Request.PrepareStatus)
 	switch twoPCInfo.status {
 	case COMMIT:
-		logger.Fatalln("should not be prepared without the result from this partition")
+		log.Fatalln("txn %v should not be prepared without the result from partition %v", txnId, result.Request.PartitionId)
 		break
 	case ABORT:
-		logger.Debugln("txn is already abort")
+		log.Debugf("txn %v is already abort", txnId)
 		return
+	default:
+		break
 	}
 
 	if result.Request.PrepareStatus == int32(ABORT) {
@@ -154,7 +151,6 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 
 func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
-		//if info.readAndPrepareOp != nil && info.commitRequest != nil {
 		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
 			c.sendToParticipantsAndClient(info)
@@ -166,21 +162,18 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 					log.Debugf("txn %v commit coordinator %v", info.txnId, info.preparedPartition)
 					info.status = COMMIT
 				} else {
+					log.Debugf("txn %v abort coordinator %v, due to read version invalid",
+						info.txnId, info.preparedPartition)
 					info.status = ABORT
 				}
 				c.sendToParticipantsAndClient(info)
 			} else {
-				log.WithFields(log.Fields{
-					"txnId":              info.txnId,
-					"received Partition": len(info.preparedPartition),
-					"required":           len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds),
-				}).Debugln("cannot commit yet")
+				log.Debugf("txn %v cannot commit yet required partitions %v, received partition %v",
+					info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds,
+					len(info.preparedPartition))
 			}
 		} else {
-			log.WithFields(log.Fields{
-				"txnId":              info.txnId,
-				"received Partition": len(info.preparedPartition),
-			}).Debugln("cannot commit yet")
+			log.Debugf("txn %v cannot commit yet, read and prepared request or commit request does not received from client", info.txnId)
 		}
 	}
 }

@@ -228,26 +228,28 @@ func (s AbstractStorage) printModifiedData() {
 func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 	op.reply = &rpc.ReadAndPrepareReply{
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
+		IsAbort:       s.txnStore[op.request.Txn.TxnId].status == ABORT,
 	}
-	for rk := range op.readKeyMap {
-		keyValueVersion := &rpc.KeyValueVersion{
-			Key:     rk,
-			Value:   s.kvStore[rk].Value,
-			Version: s.kvStore[rk].Version,
+
+	if !op.reply.IsAbort {
+		for rk := range op.readKeyMap {
+			keyValueVersion := &rpc.KeyValueVersion{
+				Key:     rk,
+				Value:   s.kvStore[rk].Value,
+				Version: s.kvStore[rk].Version,
+			}
+			op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 		}
-		op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 	}
+
 	op.wait <- true
 }
 
-// set the prepared result that sent to coordinator
-func (s *AbstractStorage) preparedResult(op *ReadAndPrepareOp) {
+// set prepared or abort result
+func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; !exist {
-		log.WithFields(log.Fields{
-			"txnId":   txnId,
-			"txnInfo": txnInfo != nil,
-		}).Fatalln("txnInfo should be created, and INIT status")
+	if _, exist := s.txnStore[txnId]; !exist {
+		log.Fatalln("txn %v txnInfo should be created, and INIT status", txnId)
 	}
 
 	op.prepareResult = &rpc.PrepareResultRequest{
@@ -255,54 +257,37 @@ func (s *AbstractStorage) preparedResult(op *ReadAndPrepareOp) {
 		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
 		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 		PartitionId:     int32(s.server.partitionId),
-		PrepareStatus:   int32(PREPARED),
-	}
-	for rk := range op.readKeyMap {
-		op.prepareResult.ReadKeyVerList = append(op.prepareResult.ReadKeyVerList, &rpc.KeyVersion{
-			Key:     rk,
-			Version: s.kvStore[rk].Version,
-		})
+		PrepareStatus:   int32(s.txnStore[op.request.Txn.TxnId].status),
 	}
 
-	for wk := range op.writeKeyMap {
-		op.prepareResult.WriteKeyVerList = append(op.prepareResult.WriteKeyVerList, &rpc.KeyVersion{
-			Key:     wk,
-			Version: s.kvStore[wk].Version,
-		})
-	}
+	if s.txnStore[op.request.Txn.TxnId].status == PREPARED {
+		s.txnStore[op.request.Txn.TxnId].preparedTime = time.Now()
 
-	s.txnStore[txnId].status = PREPARED
-	op.sendToCoordinator = true
+		for rk := range op.readKeyMap {
+			op.prepareResult.ReadKeyVerList = append(op.prepareResult.ReadKeyVerList,
+				&rpc.KeyVersion{
+					Key:     rk,
+					Version: s.kvStore[rk].Version,
+				},
+			)
+		}
+
+		for wk := range op.writeKeyMap {
+			op.prepareResult.WriteKeyVerList = append(op.prepareResult.WriteKeyVerList,
+				&rpc.KeyVersion{
+					Key:     wk,
+					Version: s.kvStore[wk].Version,
+				},
+			)
+		}
+
+		op.sendToCoordinator = true
+	}
 
 	// ready to send the coordinator
 	s.server.executor.PrepareResult <- &PrepareResultOp{
 		Request:          op.prepareResult,
 		CoordPartitionId: int(op.request.Txn.CoordPartitionId),
-	}
-}
-
-// set prepared or abort result
-func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp, status TxnStatus) {
-	switch status {
-	case PREPARED:
-		log.Infof("PREPARED %v", op.request.Txn.TxnId)
-		s.txnStore[op.request.Txn.TxnId].preparedTime = time.Now()
-		s.preparedResult(op)
-		break
-	case ABORT:
-		log.Infof("ABORT %v", op.request.Txn.TxnId)
-		op.prepareResult = &rpc.PrepareResultRequest{
-			TxnId:           op.request.Txn.TxnId,
-			ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
-			WriteKeyVerList: make([]*rpc.KeyVersion, 0),
-			PartitionId:     int32(s.server.partitionId),
-			PrepareStatus:   int32(ABORT),
-		}
-		s.server.executor.PrepareResult <- &PrepareResultOp{
-			Request:          op.prepareResult,
-			CoordPartitionId: int(op.request.Txn.CoordPartitionId),
-		}
-		break
 	}
 }
 
@@ -420,9 +405,10 @@ func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	s.removeFromQueue(op)
 	// record the prepared keys
+	s.txnStore[op.request.Txn.TxnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setReadResult(op)
-	s.setPrepareResult(op, PREPARED)
+	s.setPrepareResult(op)
 }
 
 // check if there is txn can be prepared when key is released

@@ -50,6 +50,7 @@ message ReadAndPrepareReply {
     repeated KeyValueVersion keyValVerList = 1;
     string leaderAddr = 2; // partition leader's network address
     bool isRead = 3;
+    bool isAbort = 4;
 }
 
 message PrepareResultRequest {

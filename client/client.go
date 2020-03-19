@@ -27,6 +27,7 @@ type Transaction struct {
 	startTime           time.Time
 	endTime             time.Time
 	execCount           int64
+	isAbort             bool
 }
 
 type SendOp struct {
@@ -34,6 +35,7 @@ type SendOp struct {
 	readKeyList  []string
 	writeKeyList []string
 	readResult   map[string]string
+	isAbort      bool
 	wait         chan bool
 }
 
@@ -124,7 +126,7 @@ func (c *Client) genTxnIdToServer() string {
 	return "c" + strconv.Itoa(c.clientId) + "-" + strconv.Itoa(c.count)
 }
 
-func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) map[string]string {
+func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) (map[string]string, bool) {
 	sendOp := &SendOp{
 		txnId:        c.getTxnId(txnId),
 		readKeyList:  readKeyList,
@@ -137,33 +139,31 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txn
 
 	sendOp.BlockOwner()
 
-	return sendOp.readResult
+	return sendOp.readResult, sendOp.isAbort
 }
 
 func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) {
 	// wait for result
 	for {
-		readAndPrepareRequest := <-ongoingTxn.readAndPrepareReply
-		for _, kv := range readAndPrepareRequest.KeyValVerList {
+		readAndPrepareReply := <-ongoingTxn.readAndPrepareReply
+		ongoingTxn.isAbort = ongoingTxn.isAbort || readAndPrepareReply.IsAbort
+		for _, kv := range readAndPrepareReply.KeyValVerList {
 			ongoingTxn.readKeyValueVersion = append(ongoingTxn.readKeyValueVersion, kv)
 		}
 
-		if len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.rpcTxn.ReadKeyList) {
+		if ongoingTxn.isAbort ||
+			len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.rpcTxn.ReadKeyList) {
 			break
 		}
 	}
-
-	for _, kv := range ongoingTxn.readKeyValueVersion {
-		op.readResult[kv.Key] = kv.Value
+	op.isAbort = ongoingTxn.isAbort
+	if !ongoingTxn.isAbort {
+		for _, kv := range ongoingTxn.readKeyValueVersion {
+			op.readResult[kv.Key] = kv.Value
+		}
 	}
 
 	op.wait <- true
-}
-
-func (c *Client) addTxn(txn *Transaction) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.txnStore[txn.txnId] = txn
 }
 
 func (c *Client) getTxn(txnId string) *Transaction {
@@ -172,17 +172,31 @@ func (c *Client) getTxn(txnId string) *Transaction {
 	return c.txnStore[txnId]
 }
 
-func (c *Client) checkExistAndAddExec(txnId string, rpcTxn *rpc.Transaction) bool {
+func (c *Client) addTxnIfNotExist(txnId string, rpcTxn *rpc.Transaction) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if _, exist := c.txnStore[txnId]; exist {
+		// if exist increment the execution number
 		c.txnStore[txnId].readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
 		c.txnStore[txnId].rpcTxn = rpcTxn
 		c.txnStore[txnId].execCount++
 		logrus.Infof("RETRY txn %v: %v", txnId, c.txnStore[txnId].execCount)
-		return true
+	} else {
+		// otherwise add new txn
+		txn := &Transaction{
+			txnId:               txnId,
+			rpcTxn:              rpcTxn,
+			readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(rpcTxn.ParticipatedPartitionIds)),
+			commitReply:         make(chan *rpc.CommitReply, 1),
+			readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
+			commitResult:        0,
+			startTime:           time.Now(),
+			endTime:             time.Time{},
+			execCount:           0,
+		}
+
+		c.txnStore[txn.txnId] = txn
 	}
-	return false
 }
 
 func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool) {
@@ -266,21 +280,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		CoordPartitionId:         int32(coordinatorPartitionId),
 	}
 
-	if !c.checkExistAndAddExec(op.txnId, t) {
-		txn := &Transaction{
-			txnId:               op.txnId,
-			rpcTxn:              t,
-			readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(partitionSet)),
-			commitReply:         make(chan *rpc.CommitReply, 1),
-			readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
-			commitResult:        0,
-			startTime:           time.Now(),
-			endTime:             time.Time{},
-			execCount:           0,
-		}
-
-		c.addTxn(txn)
-	}
+	c.addTxnIfNotExist(op.txnId, t)
 
 	ongoingTxn := c.getTxn(op.txnId)
 
@@ -325,6 +325,11 @@ func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bo
 	c.commitTxnRequest <- commitOp
 	commitOp.BlockOwner()
 	return commitOp.result, commitOp.retry, commitOp.waitTime
+}
+
+func (c *Client) Abort(txnId string) (bool, time.Duration) {
+	ongoingTxn := c.getTxn(txnId)
+	return c.isRetryTxn(ongoingTxn.execCount + 1)
 }
 
 func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {

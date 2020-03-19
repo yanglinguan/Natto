@@ -118,7 +118,7 @@ func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
 		s.setReadResult(op.request)
 		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
 		if op.sendToCoordinator {
-			s.setPrepareResult(op.request, ABORT)
+			s.setPrepareResult(op.request)
 		}
 	}
 }
@@ -140,9 +140,10 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
 	s.removeFromQueue(op)
 	s.graph.AddNode(op.request.Txn.TxnId, op.keyMap)
+	s.txnStore[op.request.Txn.TxnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setReadResult(op)
-	s.setPrepareResult(op, PREPARED)
+	s.setPrepareResult(op)
 }
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {

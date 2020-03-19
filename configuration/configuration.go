@@ -16,6 +16,7 @@ const (
 	GTS
 	GtsDepGraph
 	GTSReorder
+	OCCReadOnly
 )
 
 type WorkLoad int
@@ -222,6 +223,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.serverMode = GtsDepGraph
 			} else if mode == "gts_reorder" {
 				f.serverMode = GTSReorder
+			} else if mode == "occ_readOnly" {
+				f.serverMode = OCCReadOnly
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)

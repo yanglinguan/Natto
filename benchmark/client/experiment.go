@@ -61,7 +61,12 @@ func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duratio
 		writeKeyList[i] = key
 		i++
 	}
-	readResult := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId)
+	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId)
+
+	if isAbort {
+		retry, waitTime := client.Abort(txn.TxnId)
+		return false, retry, waitTime
+	}
 
 	txn.GenWriteData(readResult)
 

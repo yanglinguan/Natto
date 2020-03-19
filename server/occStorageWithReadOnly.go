@@ -1,0 +1,44 @@
+package server
+
+type OccStorageWithReadOnly struct {
+	*OccStorage
+}
+
+func NewOccStorageWithReadOnly(server *Server) *OccStorageWithReadOnly {
+	s := &OccStorageWithReadOnly{NewOccStorage(server)}
+	return s
+}
+
+func (s *OccStorageWithReadOnly) Prepare(op *ReadAndPrepareOp) {
+	txnId := op.request.Txn.TxnId
+	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
+		s.setReadResult(op)
+		return
+	}
+
+	s.txnStore[txnId] = &TxnInfo{
+		readAndPrepareRequestOp: op,
+		status:                  INIT,
+		receiveFromCoordinator:  false,
+		commitOrder:             0,
+	}
+
+	if len(op.writeKeyMap) > 0 {
+		s.setReadResult(op)
+	}
+
+	available := s.checkKeysAvailable(op)
+	if available {
+		s.txnStore[txnId].status = PREPARED
+		s.recordPrepared(op)
+		s.setPrepareResult(op)
+	} else {
+		s.txnStore[txnId].status = ABORT
+		abortOp := NewAbortRequestOp(nil, op, false)
+		s.server.executor.AbortTxn <- abortOp
+	}
+	// read only txn
+	if len(op.writeKeyMap) == 0 {
+		s.setReadResult(op)
+	}
+}
