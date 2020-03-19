@@ -111,7 +111,13 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 		}
 		s.prepared(op)
 	} else {
-		s.addToQueue(op.keyMap, op)
+		if !op.passedTimestamp {
+			s.addToQueue(op.keyMap, op)
+		} else {
+			s.txnStore[txnId].status = ABORT
+			s.setReadResult(op)
+			s.selfAbort(op)
+		}
 	}
 }
 
@@ -140,15 +146,15 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 	s.print()
 }
 
-func (s *GTSStorageWithReorder) Abort(op *AbortRequestOp) {
-	if op.isFromCoordinator {
-		s.coordinatorAbort(op.abortRequest)
-	} else {
-		s.selfAbort(op.request)
-		s.setReadResult(op.request)
-		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-		if op.sendToCoordinator {
-			s.setPrepareResult(op.request)
-		}
-	}
-}
+//func (s *GTSStorageWithReorder) Abort(op *AbortRequestOp) {
+//	if op.isFromCoordinator {
+//		s.coordinatorAbort(op.abortRequest)
+//	} else {
+//		//s.selfAbort(op.request)
+//		//s.setReadResult(op.request)
+//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
+//		if op.sendToCoordinator {
+//			s.setPrepareResult(op.request)
+//		}
+//	}
+//}

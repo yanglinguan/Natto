@@ -110,18 +110,18 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	}
 }
 
-func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
-	if op.isFromCoordinator {
-		s.coordinatorAbort(op.abortRequest)
-	} else {
-		s.selfAbort(op.request)
-		s.setReadResult(op.request)
-		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-		if op.sendToCoordinator {
-			s.setPrepareResult(op.request)
-		}
-	}
-}
+//func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
+//	if op.isFromCoordinator {
+//		s.coordinatorAbort(op.abortRequest)
+//	} else {
+//		//s.selfAbort(op.request)
+//		//s.setReadResult(op.request)
+//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
+//		if op.sendToCoordinator {
+//			s.setPrepareResult(op.request)
+//		}
+//	}
+//}
 
 func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	available := true
@@ -171,7 +171,13 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	if available && !hasWaiting {
 		s.prepared(op)
 	} else {
-		log.Debugf("txn %v cannot prepare available %v, hasWaiting %v", txnId, available, hasWaiting)
-		s.addToQueue(op.keyMap, op)
+		if !op.passedTimestamp {
+			log.Debugf("txn %v cannot prepare available %v, hasWaiting %v", txnId, available, hasWaiting)
+			s.addToQueue(op.keyMap, op)
+		} else {
+			s.txnStore[txnId].status = ABORT
+			s.setReadResult(op)
+			s.selfAbort(op)
+		}
 	}
 }

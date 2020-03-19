@@ -18,6 +18,12 @@ func NewOccStorage(server *Server) *OccStorage {
 	return o
 }
 
+func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
+	s.txnStore[op.request.Txn.TxnId].status = PREPARED
+	s.recordPrepared(op)
+	s.setPrepareResult(op)
+}
+
 func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
 	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
@@ -37,13 +43,10 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 	available := s.checkKeysAvailable(op)
 
 	if available {
-		s.txnStore[txnId].status = PREPARED
-		s.recordPrepared(op)
-		s.setPrepareResult(op)
+		s.prepared(op)
 	} else {
 		s.txnStore[txnId].status = ABORT
-		abortOp := NewAbortRequestOp(nil, op, false)
-		s.server.executor.AbortTxn <- abortOp
+		s.selfAbort(op)
 	}
 }
 
@@ -76,13 +79,13 @@ func (s *OccStorage) abortProcessedTxn(txnId string) {
 
 }
 
-func (s *OccStorage) Abort(op *AbortRequestOp) {
-	if op.isFromCoordinator {
-		s.coordinatorAbort(op.abortRequest)
-	} else {
-		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-		if op.sendToCoordinator {
-			s.setPrepareResult(op.request)
-		}
-	}
-}
+//func (s *OccStorage) Abort(op *AbortRequestOp) {
+//	if op.isFromCoordinator {
+//		s.coordinatorAbort(op.abortRequest)
+//	} else {
+//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
+//		if op.sendToCoordinator {
+//			s.setPrepareResult(op.request)
+//		}
+//	}
+//}

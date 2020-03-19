@@ -32,6 +32,8 @@ type ReadAndPrepareOp struct {
 	numPartitions int
 
 	sendToCoordinator bool
+
+	passedTimestamp bool
 }
 
 func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPrepareOp {
@@ -50,6 +52,7 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *Re
 		sendToCoordinator:   false,
 		partitionKeys:       make(map[int]map[string]bool),
 		allKeys:             make(map[string]bool),
+		passedTimestamp:     false,
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)

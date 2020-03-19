@@ -445,32 +445,22 @@ func (s *AbstractStorage) writeToDB(op *CommitRequestOp) {
 	}
 }
 
-func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; exist {
-		switch txnInfo.status {
-		case ABORT:
-			log.WithFields(log.Fields{
-				"txnId":  txnId,
-				"status": txnInfo.status,
-			}).Debugln("txn is already abort by coordinator")
-			break
-		default:
-			log.WithFields(log.Fields{
-				"txnId":  txnId,
-				"status": txnInfo.status,
-			}).Fatalln("error: txn status should be abort")
-			break
-		}
+func (s *AbstractStorage) Abort(op *AbortRequestOp) {
+	if op.isFromCoordinator {
+		s.coordinatorAbort(op.abortRequest)
 	} else {
-		log.Infof("ABORT: %v (self abort)", txnId)
-
-		s.txnStore[txnId] = &TxnInfo{
-			readAndPrepareRequestOp: op,
-			status:                  ABORT,
-			receiveFromCoordinator:  false,
+		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
+		if op.sendToCoordinator {
+			s.setPrepareResult(op.request)
 		}
 	}
+}
+
+func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
+	txnId := op.request.Txn.TxnId
+	log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
+	abortOp := NewAbortRequestOp(nil, op, false)
+	s.server.executor.AbortTxn <- abortOp
 }
 
 func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
