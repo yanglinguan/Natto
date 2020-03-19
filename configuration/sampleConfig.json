@@ -43,7 +43,15 @@
     "duration": 30,
     "totalTxn": 1000,
     "zipfAlpha": 0.75,
-    "workload": "ycsbt",
+    "workload": {
+      "type": "ycsbt",
+      "retwis": {
+        "addUserRatio": 5,
+        "followUnfollowRatio": 15,
+        "postTweetRatio": 30,
+        "loadTimelineRatio": 50
+      }
+    },
     "seed": 0,
     "queueLen": 10240,
     "retry": {

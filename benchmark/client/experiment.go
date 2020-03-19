@@ -55,7 +55,14 @@ func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
 }
 
 func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration) {
-	readResult := client.ReadAndPrepare(txn.ReadKeys, txn.ReadKeys, txn.TxnId)
+	writeKeyList := make([]string, len(txn.WriteData))
+	i := 0
+	for key := range txn.WriteData {
+		writeKeyList[i] = key
+		i++
+	}
+	readResult := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId)
+
 	txn.GenWriteData(readResult)
 
 	for k, v := range txn.WriteData {

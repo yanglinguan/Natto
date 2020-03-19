@@ -66,6 +66,11 @@ type Configuration interface {
 	GetRetryMode() RetryMode
 	GetMaxRetry() int64
 	GetRetryMaxSlot() int64
+
+	GetAddUserRatio() int
+	GetFollowUnfollowRatio() int
+	GetPostTweetRatio() int
+	GetLoadTimelineRatio() int
 }
 
 type FileConfiguration struct {
@@ -107,6 +112,11 @@ type FileConfiguration struct {
 	retryMode     RetryMode
 	maxRetry      int64 // -1: retry until commit, otherwise only retry maxRetry time
 	maxSlot       int64
+
+	addUserRatio        int
+	followUnfollowRatio int
+	postTweetRatio      int
+	loadTimelineRatio   int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -240,13 +250,19 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "zipfAlpha" {
 			f.zipfAlpha = v.(float64)
 		} else if key == "workload" {
-			workload := v.(string)
-			if workload == "ycsbt" {
+			workload := v.(map[string]interface{})
+			workloadType := workload["type"].(string)
+			if workloadType == "ycsbt" {
 				f.workload = YCSBT
-			} else if workload == "oneTxn" {
+			} else if workloadType == "oneTxn" {
 				f.workload = ONETXN
-			} else if workload == "retwis" {
+			} else if workloadType == "retwis" {
 				f.workload = RETWIS
+				retwis := workload["retwis"].(map[string]interface{})
+				f.addUserRatio = int(retwis["addUserRatio"].(float64))
+				f.followUnfollowRatio = int(retwis["followUnfollowRatio"].(float64))
+				f.postTweetRatio = int(retwis["postTweetRatio"].(float64))
+				f.loadTimelineRatio = int(retwis["loadTimelineRatio"].(float64))
 			}
 		} else if key == "seed" {
 			f.seed = int64(v.(float64))
@@ -449,4 +465,20 @@ func (f *FileConfiguration) GetMaxRetry() int64 {
 
 func (f *FileConfiguration) GetRetryMaxSlot() int64 {
 	return f.maxSlot
+}
+
+func (f *FileConfiguration) GetAddUserRatio() int {
+	return f.addUserRatio
+}
+
+func (f *FileConfiguration) GetFollowUnfollowRatio() int {
+	return f.followUnfollowRatio
+}
+
+func (f *FileConfiguration) GetPostTweetRatio() int {
+	return f.postTweetRatio
+}
+
+func (f *FileConfiguration) GetLoadTimelineRatio() int {
+	return f.loadTimelineRatio
 }

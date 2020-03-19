@@ -31,10 +31,10 @@ func main() {
 	case configuration.RETWIS:
 		expWorkload = workload.NewRetwisWorkload(
 			baseWorkload,
-			workload.RetwisDefaultAddUserRatio,
-			workload.RetwisDefaultFollowUnfollowRatio,
-			workload.RetwisDefaultPostTweetRatio,
-			workload.RetwisDefaultLoadTimelineRatio)
+			c.Config.GetAddUserRatio(),
+			c.Config.GetFollowUnfollowRatio(),
+			c.Config.GetPostTweetRatio(),
+			c.Config.GetLoadTimelineRatio())
 		break
 	default:
 		logrus.Fatalf("workload should be: ycsbt, oneTxn or retwis")
