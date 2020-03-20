@@ -38,10 +38,11 @@ client_path = src_path + "benchmark/client/"
 rpc_path = src_path + "rpc/"
 
 
-def ssh_exec_thread(ssh_client, command):
+def ssh_exec_thread(ssh_client, command, server):
     stdin, stdout, stderr = ssh_client.exec_command(command)
     print(stdout.read())
     print(stderr.read())
+    print("clients on " + server + " finishes")
 
 
 def start_servers():
@@ -59,6 +60,7 @@ def start_servers():
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
         print(stderr.read())
+        print("server " + serverId + " is running on machine " + ip)
 
 
 def start_clients():
@@ -85,7 +87,7 @@ def start_clients():
         loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd))
+        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
         threads.append(thread)
         thread.start()
 
