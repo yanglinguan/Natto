@@ -18,16 +18,31 @@ import (
 
 type Transaction struct {
 	// when retry, txnId is different from txn.TxnId
-	txnId               string
+	txnId        string
+	commitReply  chan *rpc.CommitReply
+	commitResult int
+	startTime    time.Time
+	endTime      time.Time
+	execCount    int64
+
+	executions []*ExecutionRecord
+}
+
+type ExecutionRecord struct {
 	rpcTxn              *rpc.Transaction
 	readAndPrepareReply chan *rpc.ReadAndPrepareReply
-	commitReply         chan *rpc.CommitReply
 	readKeyValueVersion []*rpc.KeyValueVersion
-	commitResult        int
-	startTime           time.Time
-	endTime             time.Time
-	execCount           int64
 	isAbort             bool
+}
+
+func NewExecutionRecord(rpcTxn *rpc.Transaction) *ExecutionRecord {
+	e := &ExecutionRecord{
+		rpcTxn:              rpcTxn,
+		readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(rpcTxn.ParticipatedPartitionIds)),
+		readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
+		isAbort:             false,
+	}
+	return e
 }
 
 type SendOp struct {
@@ -142,23 +157,23 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txn
 	return sendOp.readResult, sendOp.isAbort
 }
 
-func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) {
+func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecord) {
 	// wait for result
 	for {
-		readAndPrepareReply := <-ongoingTxn.readAndPrepareReply
-		ongoingTxn.isAbort = ongoingTxn.isAbort || readAndPrepareReply.IsAbort
+		readAndPrepareReply := <-execution.readAndPrepareReply
+		execution.isAbort = execution.isAbort || readAndPrepareReply.IsAbort
 		for _, kv := range readAndPrepareReply.KeyValVerList {
-			ongoingTxn.readKeyValueVersion = append(ongoingTxn.readKeyValueVersion, kv)
+			execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 		}
 
-		if ongoingTxn.isAbort ||
-			len(ongoingTxn.readKeyValueVersion) == len(ongoingTxn.rpcTxn.ReadKeyList) {
+		if execution.isAbort ||
+			len(execution.readKeyValueVersion) == len(execution.rpcTxn.ReadKeyList) {
 			break
 		}
 	}
-	op.isAbort = ongoingTxn.isAbort
-	if !ongoingTxn.isAbort {
-		for _, kv := range ongoingTxn.readKeyValueVersion {
+	op.isAbort = execution.isAbort
+	if !execution.isAbort {
+		for _, kv := range execution.readKeyValueVersion {
 			op.readResult[kv.Key] = kv.Value
 		}
 	}
@@ -166,39 +181,38 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, ongoingTxn *Transaction) 
 	op.wait <- true
 }
 
-func (c *Client) getTxn(txnId string) *Transaction {
+func (c *Client) getTxnAndExecution(txnId string) (*Transaction, *ExecutionRecord) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.txnStore[txnId]
+	exec := c.txnStore[txnId].execCount
+	return c.txnStore[txnId], c.txnStore[txnId].executions[exec]
 }
 
 func (c *Client) addTxnIfNotExist(txnId string, rpcTxn *rpc.Transaction) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+
+	execution := NewExecutionRecord(rpcTxn)
+
 	if _, exist := c.txnStore[txnId]; exist {
 		// if exist increment the execution number
-		c.txnStore[txnId].readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
-		c.txnStore[txnId].rpcTxn = rpcTxn
 		c.txnStore[txnId].execCount++
-		c.txnStore[txnId].isAbort = false
 		logrus.Infof("RETRY txn %v: %v", txnId, c.txnStore[txnId].execCount)
 	} else {
 		// otherwise add new txn
 		txn := &Transaction{
-			txnId:               txnId,
-			rpcTxn:              rpcTxn,
-			readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(rpcTxn.ParticipatedPartitionIds)),
-			commitReply:         make(chan *rpc.CommitReply, 1),
-			readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
-			commitResult:        0,
-			startTime:           time.Now(),
-			endTime:             time.Time{},
-			execCount:           0,
-			isAbort:             false,
+			txnId:        txnId,
+			commitReply:  make(chan *rpc.CommitReply, 1),
+			commitResult: 0,
+			startTime:    time.Now(),
+			endTime:      time.Time{},
+			execCount:    0,
+			executions:   make([]*ExecutionRecord, 0),
 		}
-
-		c.txnStore[txn.txnId] = txn
+		c.txnStore[txnId] = txn
 	}
+
+	c.txnStore[txnId].executions = append(c.txnStore[txnId].executions, execution)
 }
 
 func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool) {
@@ -284,7 +298,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	c.addTxnIfNotExist(op.txnId, t)
 
-	ongoingTxn := c.getTxn(op.txnId)
+	_, execution := c.getTxnAndExecution(op.txnId)
 
 	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
 	maxDelay += c.Config.GetDelay().Nanoseconds()
@@ -293,7 +307,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	// send read and prepare request to each partition
 	for pId, keyLists := range partitionSet {
 		txn := &rpc.Transaction{
-			TxnId:                    ongoingTxn.rpcTxn.TxnId,
+			TxnId:                    execution.rpcTxn.TxnId,
 			ReadKeyList:              keyLists[0],
 			WriteKeyList:             keyLists[1],
 			ParticipatedPartitionIds: participatedPartitions,
@@ -309,12 +323,12 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		}
 
 		sId := c.Config.GetServerIdByPartitionId(pId)
-		sender := NewReadAndPrepareSender(request, ongoingTxn, c.connections[sId])
+		sender := NewReadAndPrepareSender(request, execution, c.connections[sId])
 
 		go sender.Send()
 	}
 
-	go c.waitReadAndPrepareRequest(op, ongoingTxn)
+	go c.waitReadAndPrepareRequest(op, execution)
 }
 
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration) {
@@ -330,8 +344,8 @@ func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bo
 }
 
 func (c *Client) Abort(txnId string) (bool, time.Duration) {
-	ongoingTxn := c.getTxn(c.getTxnId(txnId))
-	return c.isRetryTxn(ongoingTxn.execCount + 1)
+	txn, _ := c.getTxnAndExecution(c.getTxnId(txnId))
+	return c.isRetryTxn(txn.execCount + 1)
 }
 
 func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
@@ -385,11 +399,11 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		i++
 	}
 
-	ongoingTxn := c.getTxn(op.txnId)
+	ongoingTxn, execution := c.getTxnAndExecution(op.txnId)
 
-	readKeyVerList := make([]*rpc.KeyVersion, len(ongoingTxn.readKeyValueVersion))
+	readKeyVerList := make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
 	i = 0
-	for _, kv := range ongoingTxn.readKeyValueVersion {
+	for _, kv := range execution.readKeyValueVersion {
 		readKeyVerList[i] = &rpc.KeyVersion{
 			Key:     kv.Key,
 			Version: kv.Version,
@@ -398,14 +412,14 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	}
 
 	request := &rpc.CommitRequest{
-		TxnId:            ongoingTxn.rpcTxn.TxnId,
+		TxnId:            execution.rpcTxn.TxnId,
 		WriteKeyValList:  writeKeyValueList,
 		IsCoordinator:    false,
 		ReadKeyVerList:   readKeyVerList,
 		IsReadAnyReplica: false,
 	}
 
-	coordinatorId := c.Config.GetServerIdByPartitionId(int(ongoingTxn.rpcTxn.CoordPartitionId))
+	coordinatorId := c.Config.GetServerIdByPartitionId(int(execution.rpcTxn.CoordPartitionId))
 	sender := NewCommitRequestSender(request, ongoingTxn, c.connections[coordinatorId])
 
 	go sender.Send()
@@ -417,7 +431,7 @@ func (c *Client) getCommitTxn() map[int]int {
 	commitTxn := make(map[int]int)
 	for _, txn := range c.txnStore {
 		if txn.commitResult == 1 {
-			for _, pId := range txn.rpcTxn.ParticipatedPartitionIds {
+			for _, pId := range txn.executions[0].rpcTxn.ParticipatedPartitionIds {
 				commitTxn[int(pId)]++
 			}
 		}
@@ -450,8 +464,8 @@ func (c *Client) PrintTxnStatisticData() {
 	}
 
 	for _, txn := range c.txnStore {
-		key := make([]int, len(txn.rpcTxn.ReadKeyList))
-		for i, ks := range txn.rpcTxn.ReadKeyList {
+		key := make([]int, len(txn.executions[0].rpcTxn.ReadKeyList))
+		for i, ks := range txn.executions[0].rpcTxn.ReadKeyList {
 			var k int
 			_, err = fmt.Sscan(ks, &k)
 			key[i] = k

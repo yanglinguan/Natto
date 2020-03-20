@@ -10,16 +10,16 @@ import (
 
 type ReadAndPrepareSender struct {
 	request    *rpc.ReadAndPrepareRequest
-	txn        *Transaction
+	execution  *ExecutionRecord
 	timeout    time.Duration
 	connection connection.Connection
 }
 
 func NewReadAndPrepareSender(request *rpc.ReadAndPrepareRequest,
-	txn *Transaction, connection connection.Connection) *ReadAndPrepareSender {
+	txn *ExecutionRecord, connection connection.Connection) *ReadAndPrepareSender {
 	r := &ReadAndPrepareSender{
 		request:    request,
-		txn:        txn,
+		execution:  txn,
 		timeout:    0,
 		connection: connection,
 	}
@@ -39,7 +39,7 @@ func (s *ReadAndPrepareSender) Send() {
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err == nil {
 		logrus.Infof("RECEIVE ReadResult %v from %v isAbort %v", s.request.Txn.TxnId, s.connection.GetDstAddr(), reply.IsAbort)
-		s.txn.readAndPrepareReply <- reply
+		s.execution.readAndPrepareReply <- reply
 	} else {
 		logrus.Fatalf("cannot send txn %v readAndPrepare to server %v: %v", s.request.Txn.TxnId, s.connection.GetDstAddr(), err)
 	}
