@@ -180,6 +180,7 @@ func (c *Client) addTxnIfNotExist(txnId string, rpcTxn *rpc.Transaction) {
 		c.txnStore[txnId].readKeyValueVersion = make([]*rpc.KeyValueVersion, 0)
 		c.txnStore[txnId].rpcTxn = rpcTxn
 		c.txnStore[txnId].execCount++
+		c.txnStore[txnId].isAbort = false
 		logrus.Infof("RETRY txn %v: %v", txnId, c.txnStore[txnId].execCount)
 	} else {
 		// otherwise add new txn
@@ -193,6 +194,7 @@ func (c *Client) addTxnIfNotExist(txnId string, rpcTxn *rpc.Transaction) {
 			startTime:           time.Now(),
 			endTime:             time.Time{},
 			execCount:           0,
+			isAbort:             false,
 		}
 
 		c.txnStore[txn.txnId] = txn

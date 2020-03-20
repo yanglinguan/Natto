@@ -366,6 +366,8 @@ func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
 		if s.kvStore[key].WaitingOp.Len() > 0 {
 			top := s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp)
 			if top.request.Txn.TxnId != op.request.Txn.TxnId {
+				log.Debugf("txn %v has txn in queue key %v top of queue is %v",
+					op.request.Txn.TxnId, key, top.request.Txn.TxnId)
 				return true
 			}
 		}
