@@ -9,12 +9,6 @@ func NewOccStorageWithReadOnly(server *Server) *OccStorageWithReadOnly {
 	return s
 }
 
-func (s *OccStorageWithReadOnly) prepared(op *ReadAndPrepareOp) {
-	s.txnStore[op.request.Txn.TxnId].status = PREPARED
-	s.recordPrepared(op)
-	s.setPrepareResult(op)
-}
-
 func (s *OccStorageWithReadOnly) Prepare(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
 	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
@@ -41,7 +35,7 @@ func (s *OccStorageWithReadOnly) Prepare(op *ReadAndPrepareOp) {
 		s.selfAbort(op)
 	}
 	// read only txn
-	if len(op.writeKeyMap) == 0 {
-		s.setReadResult(op)
-	}
+	//if len(op.writeKeyMap) == 0 {
+	//	s.setReadResult(op)
+	//}
 }

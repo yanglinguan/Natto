@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"math/rand"
+	"strconv"
 	"time"
 )
 
@@ -36,19 +37,24 @@ const (
 )
 
 type Configuration interface {
-	GetServerAddressByServerId(serverId string) string
-	GetServerIdByPartitionId(partitionId int) string
-	GetServerAddressMap() map[string]string
-
-	GetPartitionIdByServerId(serverId string) int
+	GetServerAddressByServerId(serverId int) string
+	GetServerIdByPartitionId(partitionId int) int
+	GetServerAddress() []string
+	GetPartitionIdByServerId(serverId int) int
+	GetRaftPeersByServerId(serverId int) []string
+	GetRaftIdByServerId(serverId int) int
+	GetRaftPortByServerId(serverId int) string
+	GetServerIdByRaftId(raftId int, serverId int) int
+	GetTotalPartition() int
+	GetExpectPartitionLeaders() []int
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
 	GetPartitionIdByKey(key string) int
-	GetDataCenterIdByServerId(serverId string) string
+	GetDataCenterIdByServerId(serverId int) string
 	GetDataCenterIdByClientId(clientId int) string
 	GetMaxDelay(clientDCId string, dcIds []string) time.Duration
-	GetServerListByDataCenterId(dataCenterId string) []string
+	GetServerListByDataCenterId(dataCenterId string) []int
 	GetKeyNum() int64
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
@@ -72,15 +78,25 @@ type Configuration interface {
 	GetFollowUnfollowRatio() int
 	GetPostTweetRatio() int
 	GetLoadTimelineRatio() int
+	GetReplication() bool
+
+	GetSSHIdentity() string
+	GetSSHUsername() string
 }
 
 type FileConfiguration struct {
 	// serverId -> server Address (ip:port)
-	servers    map[string]string
-	clients    int
-	partitions [][]string
+	servers                []string
+	clients                int
+	partitions             [][]int
+	raftPeers              [][]string
+	raftToServerId         [][]int
+	expectPartitionLeaders []int
 
-	serverToPartitionMap map[string]int
+	serverToRaftId   []int
+	serverToRaftPort []string
+
+	serverToPartitionId []int
 
 	serverMode ServerMode
 
@@ -90,12 +106,12 @@ type FileConfiguration struct {
 	// dataCenterId -> (dataCenterId -> distance)
 	dataCenterDistance map[string]map[string]time.Duration
 	// serverId -> dataCenterId
-	serverToDataCenterId map[string]string
+	serverToDataCenterId []string
 	// dataCenterId -> serverId
-	dataCenterIdToServerIdList map[string][]string
+	dataCenterIdToServerIdList map[string][]int
 
 	// clientId -> dataCenterId
-	clientToDataCenterId map[int]string
+	clientToDataCenterId []string
 
 	delay         time.Duration
 	poolSize      int
@@ -118,21 +134,25 @@ type FileConfiguration struct {
 	followUnfollowRatio int
 	postTweetRatio      int
 	loadTimelineRatio   int
+
+	isReplication bool
+
+	username string
+	identity string
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
 	c := &FileConfiguration{
-		servers:                    make(map[string]string),
-		clients:                    0,
-		partitions:                 make([][]string, 0),
-		serverToPartitionMap:       make(map[string]int),
+		servers:                    nil,
+		partitions:                 nil,
+		serverToPartitionId:        nil,
 		serverMode:                 0,
-		keys:                       make([][]string, 0),
+		keys:                       nil,
 		keyNum:                     0,
 		dataCenterDistance:         make(map[string]map[string]time.Duration),
-		serverToDataCenterId:       make(map[string]string),
-		dataCenterIdToServerIdList: make(map[string][]string),
-		clientToDataCenterId:       make(map[int]string),
+		serverToDataCenterId:       nil,
+		dataCenterIdToServerIdList: make(map[string][]int),
+		clientToDataCenterId:       nil,
 	}
 	c.loadFile(filePath)
 	return c
@@ -148,24 +168,61 @@ func (f *FileConfiguration) loadFile(configFilePath string) {
 	if err != nil {
 		log.Fatal("cannot parse the json file: err %s", err)
 	}
-
 	f.loadServers(config["servers"].(map[string]interface{}))
 	f.loadClients(config["clients"].(map[string]interface{}))
-	f.loadPartitions(config["partitions"].([]interface{}))
+	//f.loadPartitions(config["partitions"].([]interface{}))
 	f.loadExperiment(config["experiment"].(map[string]interface{}))
 
 	f.loadKey()
 }
 
 func (f *FileConfiguration) loadServers(config map[string]interface{}) {
-	for sId, kv := range config {
-		addr := kv.(map[string]interface{})
-		address := addr["ip"].(string) + ":" + addr["port"].(string)
-		f.servers[sId] = address
-		dcId := addr["dataCenterId"].(string)
+	partitionNum := int(config["partitions"].(float64))
+	serverNum := int(config["nums"].(float64))
+	machines := config["machines"].([]interface{})
+	totalMachines := len(machines)
+	rpcPortBase := int(config["rpcPortBase"].(float64))
+	raftPortBase := int(config["raftPortBase"].(float64))
+
+	f.servers = make([]string, serverNum)
+	f.serverToPartitionId = make([]int, serverNum)
+	f.serverToRaftId = make([]int, serverNum)
+	f.serverToRaftPort = make([]string, serverNum)
+	f.serverToDataCenterId = make([]string, serverNum)
+	f.partitions = make([][]int, partitionNum)
+	f.raftPeers = make([][]string, partitionNum)
+	f.raftToServerId = make([][]int, partitionNum)
+	f.expectPartitionLeaders = make([]int, partitionNum)
+	for i := range f.expectPartitionLeaders {
+		f.expectPartitionLeaders[i] = -1
+	}
+	for sId := 0; sId < serverNum; sId++ {
+		mId := sId % totalMachines
+		pId := sId % partitionNum
+		machine := machines[mId].(map[string]interface{})
+		ip := machine["ip"].(string)
+		dcId := machine["dataCenterId"].(string)
+		rpcPort := strconv.Itoa(rpcPortBase + sId)
+		raftPort := strconv.Itoa(raftPortBase + sId)
+
+		rpcAddr := ip + ":" + rpcPort
+		raftAddr := "http//" + ip + ":" + raftPort
+
+		f.servers[sId] = rpcAddr
+		f.partitions[pId] = append(f.partitions[pId], sId)
+		f.serverToRaftId[sId] = len(f.raftPeers[pId])
+		f.raftToServerId[pId] = append(f.raftToServerId[pId], sId)
+		f.raftPeers[pId] = append(f.raftPeers[pId], raftAddr)
 		f.serverToDataCenterId[sId] = dcId
+		f.serverToPartitionId[sId] = pId
+		f.serverToRaftPort[sId] = raftPort
+
+		if f.expectPartitionLeaders[pId] == -1 {
+			f.expectPartitionLeaders[pId] = sId
+		}
+
 		if _, exist := f.dataCenterIdToServerIdList[dcId]; !exist {
-			f.dataCenterIdToServerIdList[dcId] = make([]string, 0)
+			f.dataCenterIdToServerIdList[dcId] = make([]int, 0)
 		}
 		f.dataCenterIdToServerIdList[dcId] = append(f.dataCenterIdToServerIdList[dcId], sId)
 	}
@@ -175,6 +232,7 @@ func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 	f.clients = int(config["nums"].(float64))
 	machines := config["machines"].([]interface{})
 	totalMachines := len(machines)
+	f.clientToDataCenterId = make([]string, f.clients)
 	for id := 0; id < f.clients; id++ {
 		idx := id % totalMachines
 		machine := machines[idx].(map[string]interface{})
@@ -182,16 +240,16 @@ func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 	}
 }
 
-func (f *FileConfiguration) loadPartitions(config []interface{}) {
-	for pId, servers := range config {
-		sList := servers.([]interface{})
-		f.partitions = append(f.partitions, make([]string, 0))
-		for _, sId := range sList {
-			f.partitions[pId] = append(f.partitions[pId], sId.(string))
-			f.serverToPartitionMap[sId.(string)] = pId
-		}
-	}
-}
+//func (f *FileConfiguration) loadPartitions(config []interface{}) {
+//	for pId, servers := range config {
+//		sList := servers.([]interface{})
+//		f.partitions = append(f.partitions, make([]string, 0))
+//		for _, sId := range sList {
+//			f.partitions[pId] = append(f.partitions[pId], sId.(string))
+//			f.serverToPartitionId[sId.(string)] = pId
+//		}
+//	}
+//}
 
 func (f *FileConfiguration) loadDataCenterDistance(config map[string]interface{}) {
 	var err error
@@ -289,6 +347,12 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			} else if mode == "off" {
 				f.retryMode = OFF
 			}
+		} else if key == "replication" {
+			f.isReplication = v.(bool)
+		} else if key == "ssh" {
+			items := v.(map[string]interface{})
+			f.username = items["username"].(string)
+			f.identity = items["identity"].(string)
 		}
 	}
 }
@@ -303,33 +367,32 @@ func (f *FileConfiguration) loadKey() {
 	}
 }
 
-func (f *FileConfiguration) GetServerAddressByServerId(serverId string) string {
-	if addr, exist := f.servers[serverId]; exist {
-		return addr
-	} else {
+func (f *FileConfiguration) GetServerAddressByServerId(serverId int) string {
+	if serverId > len(f.servers) {
 		log.Fatalf("serverId %v does not exist", serverId)
 		return ""
 	}
+	return f.servers[serverId]
 }
 
-func (f *FileConfiguration) GetServerIdByPartitionId(partitionId int) string {
+func (f *FileConfiguration) GetServerIdByPartitionId(partitionId int) int {
 	if partitionId >= len(f.partitions) {
 		log.Fatalf("partitionId %v does not exist", partitionId)
-		return ""
+		return -1
 	}
 	return f.partitions[partitionId][0]
 }
 
-func (f *FileConfiguration) GetServerAddressMap() map[string]string {
+func (f *FileConfiguration) GetServerAddress() []string {
 	return f.servers
 }
 
-func (f *FileConfiguration) GetPartitionIdByServerId(serverId string) int {
-	if pId, exist := f.serverToPartitionMap[serverId]; exist {
-		return pId
-	} else {
+func (f *FileConfiguration) GetPartitionIdByServerId(serverId int) int {
+	if serverId > len(f.serverToPartitionId) {
 		log.Fatalf("serverId %v does not exist", serverId)
 		return -1
+	} else {
+		return f.serverToPartitionId[serverId]
 	}
 }
 
@@ -352,8 +415,8 @@ func (f *FileConfiguration) GetPartitionIdByKey(key string) int {
 	return int(i) % totalPartition
 }
 
-func (f *FileConfiguration) GetDataCenterIdByServerId(serverId string) string {
-	if _, exist := f.serverToDataCenterId[serverId]; !exist {
+func (f *FileConfiguration) GetDataCenterIdByServerId(serverId int) string {
+	if serverId > len(f.serverToDataCenterId) {
 		log.Fatalf("server %v does not exist", serverId)
 		return ""
 	}
@@ -361,10 +424,11 @@ func (f *FileConfiguration) GetDataCenterIdByServerId(serverId string) string {
 }
 
 func (f *FileConfiguration) GetDataCenterIdByClientId(clientId int) string {
-	if _, exist := f.clientToDataCenterId[clientId]; !exist {
+	if clientId > len(f.clientToDataCenterId) {
 		log.Fatalf("client %v does not exist", clientId)
 		return ""
 	}
+
 	return f.clientToDataCenterId[clientId]
 }
 
@@ -389,10 +453,10 @@ func (f *FileConfiguration) GetMaxDelay(clientDCId string, dcIds []string) time.
 	return max
 }
 
-func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId string) []string {
+func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId string) []int {
 	if _, exist := f.dataCenterIdToServerIdList[dataCenterId]; !exist {
 		log.Fatalf("dataCenter ID %v does not exist", dataCenterId)
-		return make([]string, 0)
+		return make([]int, 0)
 	}
 
 	return f.dataCenterIdToServerIdList[dataCenterId]
@@ -484,4 +548,62 @@ func (f *FileConfiguration) GetPostTweetRatio() int {
 
 func (f *FileConfiguration) GetLoadTimelineRatio() int {
 	return f.loadTimelineRatio
+}
+
+func (f *FileConfiguration) GetRaftPeersByServerId(serverId int) []string {
+	if serverId > len(f.servers) {
+		log.Fatalf("server %d does not exist", serverId)
+		return make([]string, 0)
+	}
+	totalPartitions := len(f.partitions)
+	raftGroupId := serverId % totalPartitions
+	return f.raftPeers[raftGroupId]
+}
+
+func (f *FileConfiguration) GetRaftIdByServerId(serverId int) int {
+	if serverId > len(f.serverToRaftId) {
+		log.Fatalf("server %d does not exist", serverId)
+		return -1
+	}
+	return f.serverToRaftId[serverId]
+}
+
+func (f *FileConfiguration) GetRaftPortByServerId(serverId int) string {
+	if serverId > len(f.serverToRaftId) {
+		log.Fatalf("server %d does not exist", serverId)
+		return ""
+	}
+
+	return f.serverToRaftPort[serverId]
+}
+
+func (f *FileConfiguration) GetServerIdByRaftId(raftId int, serverId int) int {
+	if serverId > len(f.servers) {
+		log.Fatalf("server %d does not exist", serverId)
+		return -1
+	}
+
+	raftGroupId := serverId % len(f.partitions)
+	sId := f.raftToServerId[raftGroupId][raftId]
+	return sId
+}
+
+func (f *FileConfiguration) GetReplication() bool {
+	return f.isReplication
+}
+
+func (f *FileConfiguration) GetTotalPartition() int {
+	return len(f.partitions)
+}
+
+func (f *FileConfiguration) GetExpectPartitionLeaders() []int {
+	return f.expectPartitionLeaders
+}
+
+func (f *FileConfiguration) GetSSHIdentity() string {
+	return f.identity
+}
+
+func (f *FileConfiguration) GetSSHUsername() string {
+	return f.username
 }

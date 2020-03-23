@@ -1,104 +1,128 @@
 package server
 
 import (
-	"Carousel-GTS/connection"
 	"Carousel-GTS/rpc"
+	"Carousel-GTS/utils"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"time"
 )
 
 type PrepareResultSender struct {
-	request    *rpc.PrepareResultRequest
-	timeout    time.Duration
-	connection connection.Connection
+	request     *rpc.PrepareResultRequest
+	timeout     time.Duration
+	dstServerId int
+	server      *Server
 }
 
-func NewPrepareResultSender(request *rpc.PrepareResultRequest, connection connection.Connection) *PrepareResultSender {
+func NewPrepareResultSender(request *rpc.PrepareResultRequest, dstServerId int, server *Server) *PrepareResultSender {
 	s := &PrepareResultSender{
-		request:    request,
-		timeout:    0,
-		connection: connection,
+		request:     request,
+		timeout:     0,
+		server:      server,
+		dstServerId: dstServerId,
 	}
 	return s
 }
 
 func (p *PrepareResultSender) Send() {
+	conn := p.server.connections[p.dstServerId]
 	logrus.Infof("SEND PrepareResult %v partition %v result %v to %v",
-		p.request.TxnId, p.request.PartitionId, p.request.PrepareStatus, p.connection.GetDstAddr())
-	conn := p.connection.GetConn()
-	if p.connection.GetPoolSize() > 0 {
-		defer p.connection.Close(conn)
+		p.request.TxnId, p.request.PartitionId, p.request.PrepareStatus, conn.GetDstAddr())
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
 	}
 
-	client := rpc.NewCarouselClient(conn)
+	client := rpc.NewCarouselClient(clientConn)
 	_, err := client.PrepareResult(context.Background(), p.request)
 
 	if err != nil {
-		logrus.Fatalf("fail to send prepare result txn %v to server %v: %v", p.request.TxnId, p.connection.GetDstAddr(), err)
+		if dstServerId, handled := utils.HandleError(err); handled {
+			p.dstServerId = dstServerId
+			p.Send()
+		} else {
+			logrus.Fatalf("fail to send prepare result txn %v to server %v: %v", p.request.TxnId, conn.GetDstAddr(), err)
+		}
 	}
 }
 
 type AbortRequestSender struct {
-	request    *rpc.AbortRequest
-	timeout    time.Duration
-	connection connection.Connection
+	request     *rpc.AbortRequest
+	timeout     time.Duration
+	dstServerId int
+	server      *Server
 }
 
-func NewAbortRequestSender(request *rpc.AbortRequest, connection connection.Connection) *AbortRequestSender {
+func NewAbortRequestSender(request *rpc.AbortRequest, dstServerId int, server *Server) *AbortRequestSender {
 	s := &AbortRequestSender{
-		request:    request,
-		timeout:    0,
-		connection: connection,
+		request:     request,
+		timeout:     0,
+		dstServerId: dstServerId,
+		server:      server,
 	}
 	return s
 }
 
 func (a *AbortRequestSender) Send() {
-	logrus.Infof("SEND AbortRequest %v to %v", a.request.TxnId, a.connection.GetDstAddr())
-	conn := a.connection.GetConn()
-	if a.connection.GetPoolSize() > 0 {
-		defer a.connection.Close(conn)
+	conn := a.server.connections[a.dstServerId]
+	logrus.Infof("SEND AbortRequest %v to %v", a.request.TxnId, conn.GetDstAddr())
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
 	}
 
-	client := rpc.NewCarouselClient(conn)
+	client := rpc.NewCarouselClient(clientConn)
 	_, err := client.Abort(context.Background(), a.request)
 	if err != nil {
-		logrus.Fatalf("cannot sent abort request txn %v to server %v: %v", a.request.TxnId, a.connection.GetDstAddr(), err)
+		if dstServerId, handled := utils.HandleError(err); handled {
+			a.dstServerId = dstServerId
+			a.Send()
+		} else {
+			logrus.Fatalf("cannot sent abort request txn %v to server %v: %v", a.request.TxnId, conn.GetDstAddr(), err)
+		}
+	} else {
+		logrus.Infof("RECEIVE ACK Abort %v from server %v", a.request.TxnId, conn.GetDstAddr())
 	}
-
-	logrus.Infof("RECEIVE ACK Abort %v from server %v", a.request.TxnId, a.connection.GetDstAddr())
 }
 
 type CommitRequestSender struct {
-	request    *rpc.CommitRequest
-	timeout    time.Duration
-	connection connection.Connection
+	request     *rpc.CommitRequest
+	timeout     time.Duration
+	dstServerId int
+	server      *Server
 }
 
-func NewCommitRequestSender(request *rpc.CommitRequest, connection connection.Connection) *CommitRequestSender {
+func NewCommitRequestSender(request *rpc.CommitRequest, dstServerId int, server *Server) *CommitRequestSender {
 	s := &CommitRequestSender{
-		request:    request,
-		timeout:    0,
-		connection: connection,
+		request:     request,
+		timeout:     0,
+		dstServerId: dstServerId,
+		server:      server,
 	}
 	return s
 }
 
 func (c *CommitRequestSender) Send() {
-	logrus.Infof("SEND Commit %v (coordinator) to %v", c.request.TxnId, c.connection.GetDstAddr())
-	conn := c.connection.GetConn()
-	if c.connection.GetPoolSize() > 0 {
-		defer c.connection.Close(conn)
+	conn := c.server.connections[c.dstServerId]
+	logrus.Infof("SEND Commit %v (coordinator) to %v", c.request.TxnId, conn.GetDstAddr())
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
 	}
 
-	client := rpc.NewCarouselClient(conn)
+	client := rpc.NewCarouselClient(clientConn)
 
 	_, err := client.Commit(context.Background(), c.request)
 
 	if err != nil {
-		logrus.Fatalf("cannot send commit request txn %v to server %v: %v", c.request.TxnId, c.connection.GetDstAddr(), err)
+		if dstServerId, handled := utils.HandleError(err); handled {
+			c.dstServerId = dstServerId
+			c.Send()
+		} else {
+			logrus.Fatalf("cannot send commit request txn %v to server %v: %v", c.request.TxnId, conn.GetDstAddr(), err)
+		}
+	} else {
+		logrus.Infof("RECEIVE ACK Commit %v from server %v", c.request.TxnId, conn.GetDstAddr())
 	}
-
-	logrus.Infof("RECEIVE ACK Commit %v from server %v", c.request.TxnId, c.connection.GetDstAddr())
 }

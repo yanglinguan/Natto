@@ -2,6 +2,8 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"bytes"
+	"encoding/gob"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -13,6 +15,7 @@ type TwoPCInfo struct {
 	commitRequest     *CommitRequestOp
 	abortRequest      *AbortRequestOp
 	resultSent        bool
+	writeData         []*rpc.KeyValue
 }
 
 type Coordinator struct {
@@ -23,6 +26,7 @@ type Coordinator struct {
 	Wait2PCResultTxn chan *ReadAndPrepareOp
 	CommitRequest    chan *CommitRequestOp
 	AbortRequest     chan *AbortRequestOp
+	Replication      chan ReplicationMsg
 }
 
 func NewCoordinator(server *Server) *Coordinator {
@@ -34,6 +38,7 @@ func NewCoordinator(server *Server) *Coordinator {
 		Wait2PCResultTxn: make(chan *ReadAndPrepareOp, queueLen),
 		CommitRequest:    make(chan *CommitRequestOp, queueLen),
 		AbortRequest:     make(chan *AbortRequestOp, queueLen),
+		Replication:      make(chan ReplicationMsg, queueLen),
 	}
 
 	go c.run()
@@ -52,6 +57,8 @@ func (c *Coordinator) run() {
 			c.handleCommitRequest(com)
 		case abort := <-c.AbortRequest:
 			c.handleAbortRequest(abort)
+		case replicationMsg := <-c.Replication:
+			c.handleReplicationMsg(replicationMsg)
 		}
 	}
 }
@@ -66,6 +73,18 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 		}
 	}
 	return c.txnStore[txnId]
+}
+
+func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
+	switch msg.msgType {
+	case CommitResultMsg:
+		if c.server.IsLeader() {
+			c.sendToParticipantsAndClient(c.txnStore[msg.txnId])
+		} else {
+			c.txnStore[msg.txnId].status = msg.status
+			c.txnStore[msg.txnId].writeData = msg.writeData
+		}
+	}
 }
 
 func (c *Coordinator) handleReadAndPrepare(op *ReadAndPrepareOp) {
@@ -149,15 +168,42 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 	return true
 }
 
+func (c *Coordinator) convertReplicationMsgToByte(txnId string, msgType ReplicationMsgType) bytes.Buffer {
+	replicationMsg := ReplicationMsg{
+		txnId:             txnId,
+		status:            c.txnStore[txnId].status,
+		msgType:           msgType,
+		writeData:         c.txnStore[txnId].commitRequest.request.WriteKeyValList,
+		isFromCoordinator: true,
+	}
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
+		log.Errorf("replication encoding error: %v", err)
+	}
+	return buf
+}
+
+func (c *Coordinator) replicateCommitResult(txnId string) {
+	c.txnStore[txnId].resultSent = true
+	if !c.server.config.GetReplication() {
+		log.Debugf("txn %v config not replication", txnId)
+		c.sendToParticipantsAndClient(c.txnStore[txnId])
+		return
+	}
+	buf := c.convertReplicationMsgToByte(txnId, CommitResultMsg)
+	c.server.raft.raftInputChannel <- string(buf.Bytes())
+}
+
 func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
-		if info.readAndPrepareOp != nil {
+		if info.readAndPrepareOp != nil && !info.resultSent {
 			log.Infof("txn %v is aborted", info.txnId)
-			c.sendToParticipantsAndClient(info)
+			c.replicateCommitResult(info.txnId)
+			//c.sendToParticipantsAndClient(info)
 		}
 	} else {
-		if info.readAndPrepareOp != nil && info.commitRequest != nil {
-			if len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.preparedPartition) {
+		if info.readAndPrepareOp != nil && info.commitRequest != nil && !info.resultSent {
+			if len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.preparedPartition) && info.status == INIT {
 				if c.checkReadKeyVersion(info) {
 					log.Debugf("txn %v commit coordinator %v", info.txnId, info.preparedPartition)
 					info.status = COMMIT
@@ -166,24 +212,23 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 						info.txnId, info.preparedPartition)
 					info.status = ABORT
 				}
-				c.sendToParticipantsAndClient(info)
+				c.replicateCommitResult(info.txnId)
+				//c.sendToParticipantsAndClient(info)
 			} else {
-				log.Debugf("txn %v cannot commit yet required partitions %v, received partition %v",
+				log.Debugf("txn %v cannot commit yet required partitions %v, received partition %v, status %v",
 					info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds,
-					len(info.preparedPartition))
+					len(info.preparedPartition),
+					info.status)
 			}
 		} else {
-			log.Debugf("txn %v cannot commit yet, read and prepared request or commit request does not received from client", info.txnId)
+			log.Debugf("txn %v cannot commit yet, read and prepared request or commit request does not received from client already sent %v", info.txnId, info.resultSent)
 		}
 	}
 }
 
 func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
-	if info.resultSent {
-		log.Debugf("txn %v result is already sent", info.txnId)
-		return
-	}
-	info.resultSent = true
+	//info.resultSent = true
+	//c.replicateCommitResult(info.txnId)
 	switch info.status {
 	case ABORT:
 		if info.commitRequest != nil {

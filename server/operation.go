@@ -135,7 +135,7 @@ type AbortRequestOp struct {
 	abortRequest      *rpc.AbortRequest
 	request           *ReadAndPrepareOp
 	isFromCoordinator bool
-	sendToCoordinator bool
+	//sendToCoordinator bool
 }
 
 func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
@@ -144,7 +144,7 @@ func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
 		abortRequest:      abortRequest,
 		request:           request,
 		isFromCoordinator: fromCoordinator,
-		sendToCoordinator: false,
+		//sendToCoordinator: false,
 	}
 	return a
 }

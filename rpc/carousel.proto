@@ -12,6 +12,8 @@ service Carousel {
 
     // print final result
     rpc PrintStatus(PrintStatusRequest) returns (Empty) {}
+
+    rpc HeartBeat(Empty) returns (PrepareResultReply) {}
 }
 
 message Transaction {
@@ -48,7 +50,7 @@ message KeyValue {
 
 message ReadAndPrepareReply {
     repeated KeyValueVersion keyValVerList = 1;
-    string leaderAddr = 2; // partition leader's network address
+    int32 leaderId = 2; // partition leader's network address
     bool isRead = 3;
     bool isAbort = 4;
 }
@@ -62,7 +64,7 @@ message PrepareResultRequest {
 }
 
 message PrepareResultReply {
-    string leaderAddr = 1;
+    int32 leaderId = 1;
 }
 
 message CommitRequest {
@@ -75,7 +77,7 @@ message CommitRequest {
 
 message CommitReply {
     bool result = 1;
-    string leaderAddr = 2;
+    int32 leaderId = 2;
 }
 
 message AbortRequest {
@@ -84,7 +86,7 @@ message AbortRequest {
 }
 
 message AbortReply {
-    string leaderAddr = 1;
+    int32 leaderId = 1;
 }
 
 message PrintStatusRequest {

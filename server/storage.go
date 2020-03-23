@@ -2,7 +2,9 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"bytes"
 	"container/list"
+	"encoding/gob"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -25,10 +27,32 @@ const (
 	ABORT
 )
 
+type ReplicationMsgType int32
+
+// Message type
+const (
+	PrepareResultMsg ReplicationMsgType = iota
+	CommitResultMsg
+	//LeaderAbortMsg        = "4"
+	//CoordinatorAbortMsg   = "5"
+)
+
+type ReplicationMsg struct {
+	txnId             string
+	status            TxnStatus
+	msgType           ReplicationMsgType
+	writeData         []*rpc.KeyValue
+	isFromCoordinator bool
+	totalCommit       int
+}
+
 type TxnInfo struct {
 	readAndPrepareRequestOp *ReadAndPrepareOp
+	prepareResultOp         *PrepareResultOp
 	status                  TxnStatus
 	receiveFromCoordinator  bool
+	sendToClient            bool
+	sendToCoordinator       bool
 	commitOrder             int
 	waitingTxnKey           int
 	waitingTxnDep           int
@@ -54,6 +78,7 @@ type Storage interface {
 	LoadKeys(keys []string)
 	PrintStatus(op *PrintStatusRequestOp)
 	HasKey(key string) bool
+	ApplyReplicationMsg(msg *ReplicationMsg)
 }
 
 type AbstractMethod interface {
@@ -71,18 +96,17 @@ type AbstractStorage struct {
 	server                 *Server
 	txnStore               map[string]*TxnInfo
 	committed              int
-	waitPrintStatusRequest []*PrintStatusRequestOp
+	waitPrintStatusRequest *PrintStatusRequestOp
 	totalCommit            int
 }
 
 func NewAbstractStorage(server *Server) *AbstractStorage {
 	s := &AbstractStorage{
-		kvStore:                make(map[string]*KeyInfo),
-		server:                 server,
-		txnStore:               make(map[string]*TxnInfo),
-		committed:              0,
-		waitPrintStatusRequest: make([]*PrintStatusRequestOp, 0),
-		totalCommit:            0,
+		kvStore:     make(map[string]*KeyInfo),
+		server:      server,
+		txnStore:    make(map[string]*TxnInfo),
+		committed:   0,
+		totalCommit: 0,
 	}
 
 	return s
@@ -107,8 +131,8 @@ func (s *AbstractStorage) HasKey(key string) bool {
 }
 
 func (s *AbstractStorage) PrintStatus(op *PrintStatusRequestOp) {
-	s.waitPrintStatusRequest = append(s.waitPrintStatusRequest, op)
-	s.totalCommit += op.committedTxn
+	s.waitPrintStatusRequest = op
+	s.totalCommit = op.committedTxn
 	s.print()
 }
 
@@ -133,13 +157,11 @@ func (s *AbstractStorage) checkWaiting() {
 }
 
 func (s *AbstractStorage) print() {
-	if len(s.waitPrintStatusRequest) == s.server.config.GetTotalClient() && s.totalCommit == s.committed {
+	if s.waitPrintStatusRequest != nil && s.totalCommit == s.committed {
 		s.printCommitOrder()
 		s.printModifiedData()
 		s.checkWaiting()
-		for _, printOp := range s.waitPrintStatusRequest {
-			printOp.wait <- true
-		}
+		s.waitPrintStatusRequest.wait <- true
 	}
 }
 
@@ -150,8 +172,8 @@ func (s AbstractStorage) printCommitOrder() {
 			txnId[info.commitOrder] = info
 		}
 	}
-
-	file, err := os.Create(s.server.serverId + "_commitOrder.log")
+	fName := fmt.Sprintf("s%v_%v_commitOrder.log", s.server.serverId, s.server.IsLeader())
+	file, err := os.Create(fName)
 	if err != nil || file == nil {
 		log.Fatal("Fails to create log file: statistic.log")
 		return
@@ -179,7 +201,8 @@ func (s AbstractStorage) printCommitOrder() {
 }
 
 func (s AbstractStorage) printModifiedData() {
-	file, err := os.Create(s.server.serverId + "_db.log")
+	fName := fmt.Sprintf("s%v_%v_db.log", s.server.serverId, s.server.partitionId)
+	file, err := os.Create(fName)
 	if err != nil || file == nil {
 		log.Fatal("Fails to create log file: statistic.log")
 		return
@@ -226,6 +249,12 @@ func (s AbstractStorage) printModifiedData() {
 
 // set the read value, return back to client
 func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
+	if s.txnStore[op.request.Txn.TxnId].sendToClient {
+		log.Debugf("txn %v read result already sent to client", op.request.Txn.TxnId)
+		return
+	}
+	s.txnStore[op.request.Txn.TxnId].sendToClient = true
+
 	op.reply = &rpc.ReadAndPrepareReply{
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 		IsAbort:       s.txnStore[op.request.Txn.TxnId].status == ABORT,
@@ -246,8 +275,11 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 }
 
 // set prepared or abort result
-func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
+func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) *PrepareResultOp {
 	txnId := op.request.Txn.TxnId
+	if s.txnStore[txnId].prepareResultOp != nil {
+		return s.txnStore[txnId].prepareResultOp
+	}
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalln("txn %v txnInfo should be created, and INIT status", txnId)
 	}
@@ -283,12 +315,16 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 
 		op.sendToCoordinator = true
 	}
-
-	// ready to send the coordinator
-	s.server.executor.PrepareResult <- &PrepareResultOp{
+	return &PrepareResultOp{
 		Request:          op.prepareResult,
 		CoordPartitionId: int(op.request.Txn.CoordPartitionId),
 	}
+
+	// ready to send the coordinator
+	//s.server.executor.PrepareResult <- &PrepareResultOp{
+	//	Request:          op.prepareResult,
+	//	CoordPartitionId: int(op.request.Txn.CoordPartitionId),
+	//}
 }
 
 // add txn to the queue waiting for keys
@@ -409,10 +445,46 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	log.Debugf("PREPARED txn %v", op.request.Txn.TxnId)
 	s.removeFromQueue(op)
 	// record the prepared keys
-	s.txnStore[op.request.Txn.TxnId].status = PREPARED
+	txnId := op.request.Txn.TxnId
+	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
-	s.setReadResult(op)
-	s.setPrepareResult(op)
+	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
+	//if s.server.config.GetReplication() {
+	s.replicatePreparedResult(op.request.Txn.TxnId)
+	//} else {
+	//	s.setReadResult(op)
+	//	s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
+	//}
+}
+
+func (s *AbstractStorage) convertReplicationMsgToByte(txnId string, msgType ReplicationMsgType) bytes.Buffer {
+	replicationMsg := ReplicationMsg{
+		txnId:             txnId,
+		status:            s.txnStore[txnId].status,
+		msgType:           msgType,
+		isFromCoordinator: false,
+	}
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
+		log.Errorf("replication encoding error: %v", err)
+	}
+	return buf
+}
+
+func (s *AbstractStorage) replicatePreparedResult(txnId string) {
+	if s.server.config.GetReplication() {
+		log.Debugf("txn %v config no replication send result to coordinator", txnId)
+		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+		s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
+		return
+	}
+	//Replicates the prepare result to followers.
+
+	buf := s.convertReplicationMsgToByte(txnId, PrepareResultMsg)
+
+	log.Debugf("txn %s replicates the prepare result %v.", txnId, s.txnStore[txnId].status)
+
+	s.server.raft.raftInputChannel <- string(buf.Bytes())
 }
 
 // check if there is txn can be prepared when key is released
@@ -442,8 +514,8 @@ func (s *AbstractStorage) checkPrepare(key string) {
 	}
 }
 
-func (s *AbstractStorage) writeToDB(op *CommitRequestOp) {
-	for _, kv := range op.request.WriteKeyValList {
+func (s *AbstractStorage) writeToDB(op []*rpc.KeyValue) {
+	for _, kv := range op {
 		s.kvStore[kv.Key].Value = kv.Value
 		s.kvStore[kv.Key].Version++
 	}
@@ -453,11 +525,32 @@ func (s *AbstractStorage) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
 	} else {
-		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-		if op.sendToCoordinator {
-			s.setPrepareResult(op.request)
-		}
+		txnId := op.request.request.Txn.TxnId
+		s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op.request)
+		s.replicatePreparedResult(txnId)
 	}
+}
+
+func (s *AbstractStorage) readyToSendPrepareResultToCoordinator(op *PrepareResultOp) {
+	txnId := op.Request.TxnId
+	if s.txnStore[txnId].receiveFromCoordinator || s.txnStore[txnId].sendToCoordinator {
+		log.Debugf("txn %v already receive from coordinator %v or send to coordinator %v",
+			txnId, s.txnStore[txnId].receiveFromCoordinator, s.txnStore[txnId].sendToCoordinator)
+		return
+	}
+	s.txnStore[txnId].sendToCoordinator = true
+	log.Debugf("txn %v send prepare result to coordinator %v", txnId, op.CoordPartitionId)
+	s.server.executor.PrepareResult <- s.txnStore[txnId].prepareResultOp
+}
+
+func (s *AbstractStorage) replicateCommitResult(txnId string) {
+	if !s.server.config.GetReplication() {
+		log.Debugf("txn %v config no replication", txnId)
+		return
+	}
+	log.Debugf("txn %v replicate commit result %v", txnId, s.txnStore[txnId].status)
+	buf := s.convertReplicationMsgToByte(txnId, CommitResultMsg)
+	s.server.raft.raftInputChannel <- string(buf.Bytes())
 }
 
 func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
@@ -491,5 +584,63 @@ func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			status:                  ABORT,
 			receiveFromCoordinator:  true,
 		}
+		s.replicateCommitResult(txnId)
+	}
+}
+
+func (s *AbstractStorage) initTxnIfNotExist(txnId string) {
+	if _, exist := s.txnStore[txnId]; !exist {
+		s.txnStore[txnId] = &TxnInfo{
+			readAndPrepareRequestOp: nil,
+			prepareResultOp:         nil,
+			status:                  INIT,
+			receiveFromCoordinator:  false,
+			sendToClient:            false,
+			sendToCoordinator:       false,
+			commitOrder:             0,
+			waitingTxnKey:           0,
+			waitingTxnDep:           0,
+			startTime:               time.Time{},
+			preparedTime:            time.Time{},
+			commitTime:              time.Time{},
+			canReorder:              0,
+		}
+	}
+}
+
+func (s *AbstractStorage) ApplyReplicationMsg(msg *ReplicationMsg) {
+	switch msg.msgType {
+	case PrepareResultMsg:
+		if s.server.IsLeader() {
+			s.setReadResult(s.txnStore[msg.txnId].readAndPrepareRequestOp)
+			s.readyToSendPrepareResultToCoordinator(s.txnStore[msg.txnId].prepareResultOp)
+		} else {
+			s.initTxnIfNotExist(msg.txnId)
+			if s.txnStore[msg.txnId].status != INIT {
+				log.Fatalf("txn %v in follower should be INIT but it is %v", msg.txnId, s.txnStore[msg.txnId].status)
+			}
+			s.txnStore[msg.txnId].status = msg.status
+		}
+		break
+	case CommitResultMsg:
+		if s.server.IsLeader() {
+			break
+		}
+		log.Debugf("txn %v follower apply commit result %v", msg.txnId, msg.status)
+		s.initTxnIfNotExist(msg.txnId)
+		s.txnStore[msg.txnId].status = msg.status
+
+		if msg.status == COMMIT {
+			s.txnStore[msg.txnId].commitOrder = s.committed
+			s.committed++
+			s.txnStore[msg.txnId].commitTime = time.Now()
+			s.writeToDB(msg.writeData)
+			s.print()
+		}
+
+		break
+	default:
+		log.Fatalf("invalid msg type %v", msg.status)
+		break
 	}
 }

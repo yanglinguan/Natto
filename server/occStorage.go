@@ -21,7 +21,8 @@ func NewOccStorage(server *Server) *OccStorage {
 func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
 	s.txnStore[op.request.Txn.TxnId].status = PREPARED
 	s.recordPrepared(op)
-	s.setPrepareResult(op)
+	s.replicatePreparedResult(op.request.Txn.TxnId)
+	//s.setPrepareResult(op)
 }
 
 func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
@@ -53,9 +54,11 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 func (s *OccStorage) Commit(op *CommitRequestOp) {
 	txnId := op.request.TxnId
 	log.Infof("COMMIT %v", txnId)
-	s.release(txnId)
-	s.writeToDB(op)
 	s.txnStore[txnId].status = COMMIT
+	s.replicateCommitResult(txnId)
+	s.release(txnId)
+	s.writeToDB(op.request.WriteKeyValList)
+
 	s.txnStore[txnId].receiveFromCoordinator = true
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
@@ -68,8 +71,9 @@ func (s *OccStorage) abortProcessedTxn(txnId string) {
 	switch s.txnStore[txnId].status {
 	case PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
-		s.release(txnId)
 		s.txnStore[txnId].status = ABORT
+		s.replicateCommitResult(txnId)
+		s.release(txnId)
 		break
 	default:
 		log.Fatalf("txn %v should be in statue prepared, but status is %v",

@@ -31,13 +31,16 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 
 	op.wait <- true
 
+	s.txnStore[txnId].status = COMMIT
+
+	s.replicateCommitResult(txnId)
+
 	s.txnStore[txnId].commitTime = time.Now()
 
 	s.release(txnId)
 
-	s.writeToDB(op)
+	s.writeToDB(op.request.WriteKeyValList)
 
-	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].receiveFromCoordinator = true
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
@@ -49,12 +52,14 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 	case PREPARED:
 		log.Infof("ABORT: %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
+		s.replicateCommitResult(txnId)
 		s.release(txnId)
 		break
 	case INIT:
 		log.Infof("ABORT: %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+		s.replicateCommitResult(txnId)
 		s.release(txnId)
 		break
 	default:
@@ -109,7 +114,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 			s.addToQueue(op.keyMap, op)
 		} else {
 			s.txnStore[txnId].status = ABORT
-			s.setReadResult(op)
+			//s.setReadResult(op)
 			s.selfAbort(op)
 		}
 	}

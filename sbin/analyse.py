@@ -69,7 +69,7 @@ def load_statistic():
     lists = os.listdir(path)
     min_start = sys.maxsize
     for f in lists:
-        if f.endswith("_statistic.log"):
+        if f.endswith(".statistic"):
             lines = open(os.path.join(path, f), "r").readlines()
             for line in lines:
                 if line.startswith("#"):

@@ -14,17 +14,20 @@ type Executor struct {
 	PrepareResult chan *PrepareResultOp
 
 	PrintStatus chan *PrintStatusRequestOp
+
+	ReplicationTxn chan *ReplicationMsg
 }
 
 func NewExecutor(server *Server) *Executor {
 	queueLen := server.config.GetQueueLen()
 	e := &Executor{
-		server:        server,
-		PrepareTxn:    make(chan *ReadAndPrepareOp, queueLen),
-		AbortTxn:      make(chan *AbortRequestOp, queueLen),
-		CommitTxn:     make(chan *CommitRequestOp, queueLen),
-		PrepareResult: make(chan *PrepareResultOp, queueLen),
-		PrintStatus:   make(chan *PrintStatusRequestOp, 1),
+		server:         server,
+		PrepareTxn:     make(chan *ReadAndPrepareOp, queueLen),
+		AbortTxn:       make(chan *AbortRequestOp, queueLen),
+		CommitTxn:      make(chan *CommitRequestOp, queueLen),
+		PrepareResult:  make(chan *PrepareResultOp, queueLen),
+		PrintStatus:    make(chan *PrintStatusRequestOp, 1),
+		ReplicationTxn: make(chan *ReplicationMsg, queueLen),
 	}
 
 	go e.run()
@@ -43,6 +46,8 @@ func (e *Executor) run() {
 			e.server.storage.Commit(op)
 		case op := <-e.PrintStatus:
 			e.server.storage.PrintStatus(op)
+		case msg := <-e.ReplicationTxn:
+			e.server.storage.ApplyReplicationMsg(msg)
 		}
 	}
 }

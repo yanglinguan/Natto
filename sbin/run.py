@@ -28,14 +28,22 @@ binPath = "$HOME/Projects/go/bin/"
 
 server_cmd = binPath + "/carousel-server "
 client_cmd = binPath + "/client "
+check_server_status_cmd = binPath + "/checkServerStatus"
+enforce_leader_cmd = binPath + "/enforce-leader"
+
 if args.debug:
     server_cmd = server_cmd + "-d "
     client_cmd = client_cmd + "-d "
+    check_server_status_cmd = check_server_status_cmd + "-d "
+    enforce_leader_cmd = enforce_leader_cmd + "-d "
 
 src_path = "$HOME/Projects/go/src/Carousel-GTS/"
 server_path = src_path + "carousel-server/"
 client_path = src_path + "benchmark/client/"
 rpc_path = src_path + "rpc/"
+tool_path = src_path + "tools/"
+check_server_status_path = tool_path + "checkServerStatus/"
+enforce_leader_path = tool_path + "enforce-leader/"
 
 
 def ssh_exec_thread(ssh_client, command, server):
@@ -46,21 +54,31 @@ def ssh_exec_thread(ssh_client, command, server):
 
 
 def start_servers():
-    for serverId, info in config["servers"].items():
-        ip = info["ip"]
-        print(ip)
+    server_nums = config["servers"]["nums"]
+    machines = config["servers"]["machines"]
+    server_machine = [[] for i in range(len(machines))]
+    for server_id in range(server_nums):
+        idx = server_id % len(machines)
+        server_machine[idx].append(str(server_id))
+    for mId in range(len(server_machine)):
+        if len(server_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        cmd += "cd " + path + ";" + server_cmd + "-i " + \
-               serverId + " -c " + args.config + " > " + serverId + ".log &"
-        print(cmd)
+        cmd += "cd " + path + ";"
+        exe = server_cmd + "-i $id" + " -c " + args.config + " > " + " s$id.log &"
+        loop = "for id in " + ' '.join(server_machine[mId]) + "; do " + exe + " done; wait"
+        cmd += loop
+        print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
         print(stderr.read())
-        print("server " + serverId + " is running on machine " + ip)
+        print("server " + ' '.join(server_machine[mId]) + " is running on machine " + ip)
 
 
 def start_clients():
@@ -83,7 +101,8 @@ def start_clients():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         cmd += "cd " + path + ";"
-        exe = client_cmd + "-i $id" + " -c " + args.config + " > " + " $id.log &"
+        exe = client_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 & " + \
+              "echo \\$! > " + "server-$id.pid "
         loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
@@ -93,6 +112,16 @@ def start_clients():
 
     for thread in threads:
         thread.join()
+
+
+def print_server_status():
+    cmd = check_server_status_cmd + "-c " + args.config
+    subprocess.call(cmd, shell=True)
+
+
+def enforce_leader():
+    cmd = enforce_leader_cmd + "-c " + args.config
+    subprocess.call(cmd, shell=True)
 
 
 def stop_servers():
@@ -126,6 +155,7 @@ def remove_log(dir_path):
     for f in lists:
         if f.endswith(".log"):
             os.remove(os.path.join(dir_path, f))
+    subprocess.call("rm -r raft-*-snap raft-*-wal", shell=True)
 
 
 def build():
@@ -135,6 +165,10 @@ def build():
         subprocess.call("cd " + server_path + "; go install", shell=True)
         print("build client at " + client_path)
         subprocess.call("cd " + client_path + "; go install", shell=True)
+        print("build tool check server status at " + check_server_status_path)
+        subprocess.call("cd " + check_server_status_path + "; go install", shell=True)
+        print("build tool enforce leader at " + enforce_leader_path)
+        subprocess.call("cd " + enforce_leader_path + "; go install", shell=True)
         subprocess.call("cd " + path, shell=True)
     except subprocess.CalledProcessError:
         print("build error")
@@ -144,8 +178,10 @@ def main():
     remove_log(path)
     build()
     start_servers()
-    time.sleep(2)
+    enforce_leader()
+    time.sleep(5)
     start_clients()
+    print_server_status()
     stop_clients()
     stop_servers()
 

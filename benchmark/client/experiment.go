@@ -28,6 +28,7 @@ func NewOpenLoopExperiment(client *client.Client, workload workload.Workload) *O
 }
 
 func (o *OpenLoopExperiment) Execute() {
+	o.client.Start()
 	txnRate := o.client.Config.GetTxnRate()
 	interval := time.Duration(int64(time.Second) / int64(txnRate))
 	expDuration := o.client.Config.GetExpDuration()
@@ -91,6 +92,7 @@ func NewCloseLoopExperiment(client *client.Client, workload workload.Workload) *
 }
 
 func (e *CloseLoopExperiment) Execute() {
+	e.client.Start()
 	expDuration := e.client.Config.GetExpDuration()
 	totalTxn := e.client.Config.GetTotalTxn()
 	s := time.Now()

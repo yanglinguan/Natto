@@ -76,7 +76,7 @@ type Client struct {
 	Config             configuration.Configuration
 	clientDataCenterId string
 
-	connections map[string]connection.Connection
+	connections []connection.Connection
 
 	sendTxnRequest   chan *SendOp
 	commitTxnRequest chan *CommitOp
@@ -94,7 +94,7 @@ func NewClient(clientId int, configFile string) *Client {
 		clientId:           clientId,
 		Config:             config,
 		clientDataCenterId: "",
-		connections:        make(map[string]connection.Connection),
+		connections:        make([]connection.Connection, len(config.GetServerAddress())),
 		sendTxnRequest:     make(chan *SendOp, queueLen),
 		commitTxnRequest:   make(chan *CommitOp, queueLen),
 		txnStore:           make(map[string]*Transaction),
@@ -104,18 +104,21 @@ func NewClient(clientId int, configFile string) *Client {
 
 	c.clientDataCenterId = c.Config.GetDataCenterIdByClientId(clientId)
 	if c.Config.GetConnectionPoolSize() == 0 {
-		for sId, addr := range c.Config.GetServerAddressMap() {
+		for sId, addr := range c.Config.GetServerAddress() {
 			c.connections[sId] = connection.NewSingleConnect(addr)
 		}
 	} else {
-		for sId, addr := range c.Config.GetServerAddressMap() {
+		for sId, addr := range c.Config.GetServerAddress() {
 			c.connections[sId] = connection.NewPoolConnection(addr, c.Config.GetConnectionPoolSize())
 		}
 	}
 
+	return c
+}
+
+func (c *Client) Start() {
 	go c.sendReadAndPrepareRequest()
 	go c.sendCommitRequest()
-	return c
 }
 
 func (c *Client) sendReadAndPrepareRequest() {
@@ -323,7 +326,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		}
 
 		sId := c.Config.GetServerIdByPartitionId(pId)
-		sender := NewReadAndPrepareSender(request, execution, c.connections[sId])
+		sender := NewReadAndPrepareSender(request, execution, sId, c)
 
 		go sender.Send()
 	}
@@ -420,38 +423,52 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	}
 
 	coordinatorId := c.Config.GetServerIdByPartitionId(int(execution.rpcTxn.CoordPartitionId))
-	sender := NewCommitRequestSender(request, ongoingTxn, c.connections[coordinatorId])
+	sender := NewCommitRequestSender(request, ongoingTxn, coordinatorId, c)
 
 	go sender.Send()
 
 	go c.waitCommitReply(op, ongoingTxn)
 }
 
-func (c *Client) getCommitTxn() map[int]int {
-	commitTxn := make(map[int]int)
-	for _, txn := range c.txnStore {
-		if txn.commitResult == 1 {
-			for _, pId := range txn.executions[0].rpcTxn.ParticipatedPartitionIds {
-				commitTxn[int(pId)]++
-			}
-		}
-	}
-	return commitTxn
-}
-
-func (c *Client) PrintTxnStatisticData() {
-	commitTxn := c.getCommitTxn()
-	for sId, conn := range c.connections {
+//func (c *Client) getCommitTxn() map[int]int {
+//	commitTxn := make(map[int]int)
+//	for _, txn := range c.txnStore {
+//		if txn.commitResult == 1 {
+//			for _, pId := range txn.executions[0].rpcTxn.ParticipatedPartitionIds {
+//				commitTxn[int(pId)]++
+//			}
+//		}
+//	}
+//	return commitTxn
+//}
+func (c *Client) PrintServerStatus(commitTxn []int) {
+	var wg sync.WaitGroup
+	for sId := range c.connections {
 		pId := c.Config.GetPartitionIdByServerId(sId)
 		committed := commitTxn[pId]
 		request := &rpc.PrintStatusRequest{
 			CommittedTxn: int32(committed),
 		}
-		sender := NewPrintStatusRequestSender(request, conn)
-		go sender.Send()
+		sender := NewPrintStatusRequestSender(request, sId, c)
+		wg.Add(1)
+		go sender.Send(wg)
 	}
+	wg.Wait()
+}
 
-	file, err := os.Create("c" + strconv.Itoa(c.clientId) + "_statistic.log")
+func (c *Client) PrintTxnStatisticData() {
+	//commitTxn := c.getCommitTxn()
+	//for sId := range c.connections {
+	//	pId := c.Config.GetPartitionIdByServerId(sId)
+	//	committed := commitTxn[pId]
+	//	request := &rpc.PrintStatusRequest{
+	//		CommittedTxn: int32(committed),
+	//	}
+	//	sender := NewPrintStatusRequestSender(request, sId, c)
+	//	go sender.Send()
+	//}
+
+	file, err := os.Create("c" + strconv.Itoa(c.clientId) + ".statistic")
 	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
 		return
@@ -488,4 +505,9 @@ func (c *Client) PrintTxnStatisticData() {
 	if err != nil {
 		logrus.Fatalf("cannot close file %v", err)
 	}
+}
+
+func (c *Client) HeartBeat(dstServerId int) int {
+	sender := NewHeartBeatSender(dstServerId, c)
+	return sender.Send()
 }

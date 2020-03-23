@@ -1,35 +1,33 @@
 {
   "servers": {
-    "1": {
-      "ip": "localhost",
-      "port": "10001",
-      "dataCenterId": "D1"
-    },
-    "2": {
-      "ip": "localhost",
-      "port": "10002",
-      "dataCenterId": "D1"
-    },
-    "3": {
-      "ip": "localhost",
-      "port": "10003",
-      "dataCenterId": "D1"
-    }
+    "nums": 3,
+    "partitions": 3,
+    "raftPortBase": 20000,
+    "rpcPortBase": 10000,
+    "machines": [
+      {
+        "ip": "localhost",
+        "dataCenterId": "D1"
+      },
+      {
+        "ip": "localhost",
+        "dataCenterId": "D2"
+      },
+      {
+        "ip": "localhost",
+        "dataCenterId": "D3"
+      }
+    ]
   },
   "clients": {
     "nums": 16,
-    "machine": [
+    "machines": [
       {
         "ip": "localhost",
         "dataCenterId": "D1"
       }
     ]
   },
-  "partitions": [
-    ["1"],
-    ["2"],
-    ["3"]
-  ],
   "experiment": {
     "mode": "occ",
     "replication": false,
@@ -64,6 +62,10 @@
       "D1": {"D2": "50ms", "D3": "100ms"},
       "D2": {"D1": "50ms", "D3": "80ms"},
       "D3": {"D1": "100ms", "D2": "80ms"}
+    },
+    "ssh": {
+      "username": "l69yang",
+      "identity": ""
     }
   }
 }
