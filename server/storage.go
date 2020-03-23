@@ -78,7 +78,7 @@ type Storage interface {
 	LoadKeys(keys []string)
 	PrintStatus(op *PrintStatusRequestOp)
 	HasKey(key string) bool
-	ApplyReplicationMsg(msg *ReplicationMsg)
+	ApplyReplicationMsg(msg ReplicationMsg)
 }
 
 type AbstractMethod interface {
@@ -608,7 +608,7 @@ func (s *AbstractStorage) initTxnIfNotExist(txnId string) {
 	}
 }
 
-func (s *AbstractStorage) ApplyReplicationMsg(msg *ReplicationMsg) {
+func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 	switch msg.msgType {
 	case PrepareResultMsg:
 		if s.server.IsLeader() {

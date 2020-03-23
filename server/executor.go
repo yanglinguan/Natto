@@ -15,7 +15,7 @@ type Executor struct {
 
 	PrintStatus chan *PrintStatusRequestOp
 
-	ReplicationTxn chan *ReplicationMsg
+	ReplicationTxn chan ReplicationMsg
 }
 
 func NewExecutor(server *Server) *Executor {
@@ -27,7 +27,7 @@ func NewExecutor(server *Server) *Executor {
 		CommitTxn:      make(chan *CommitRequestOp, queueLen),
 		PrepareResult:  make(chan *PrepareResultOp, queueLen),
 		PrintStatus:    make(chan *PrintStatusRequestOp, 1),
-		ReplicationTxn: make(chan *ReplicationMsg, queueLen),
+		ReplicationTxn: make(chan ReplicationMsg, queueLen),
 	}
 
 	go e.run()
@@ -60,8 +60,7 @@ func (e *Executor) sendPreparedResultToCoordinator() {
 			e.server.coordinator.PrepareResult <- op
 		} else {
 			coordinatorId := e.server.config.GetServerIdByPartitionId(op.CoordPartitionId)
-			connection := e.server.connections[coordinatorId]
-			sender := NewPrepareResultSender(op.Request, connection)
+			sender := NewPrepareResultSender(op.Request, coordinatorId, e.server)
 			go sender.Send()
 		}
 	}
