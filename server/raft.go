@@ -49,7 +49,7 @@ func (r *Raft) handleReplicatedOp(data *string) {
 	if err := decoder.Decode(&replicationMsg); err != nil {
 		logrus.Errorf("Decoding error %v", err)
 	}
-	if replicationMsg.isFromCoordinator {
+	if replicationMsg.IsFromCoordinator {
 		r.server.coordinator.Replication <- replicationMsg
 	} else {
 		r.server.executor.ReplicationTxn <- replicationMsg
