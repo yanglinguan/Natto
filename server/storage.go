@@ -38,12 +38,12 @@ const (
 )
 
 type ReplicationMsg struct {
-	txnId             string
-	status            TxnStatus
-	msgType           ReplicationMsgType
-	writeData         []*rpc.KeyValue
-	isFromCoordinator bool
-	totalCommit       int
+	TxnId             string
+	Status            TxnStatus
+	MsgType           ReplicationMsgType
+	WriteData         []*rpc.KeyValue
+	IsFromCoordinator bool
+	TotalCommit       int
 }
 
 type TxnInfo struct {
@@ -463,10 +463,10 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 
 func (s *AbstractStorage) convertReplicationMsgToByte(txnId string, msgType ReplicationMsgType) bytes.Buffer {
 	replicationMsg := ReplicationMsg{
-		txnId:             txnId,
-		status:            s.txnStore[txnId].status,
-		msgType:           msgType,
-		isFromCoordinator: false,
+		TxnId:             txnId,
+		Status:            s.txnStore[txnId].status,
+		MsgType:           msgType,
+		IsFromCoordinator: false,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
@@ -613,38 +613,38 @@ func (s *AbstractStorage) initTxnIfNotExist(txnId string) {
 }
 
 func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
-	switch msg.msgType {
+	switch msg.MsgType {
 	case PrepareResultMsg:
 		if s.server.IsLeader() {
-			s.setReadResult(s.txnStore[msg.txnId].readAndPrepareRequestOp)
-			s.readyToSendPrepareResultToCoordinator(s.txnStore[msg.txnId].prepareResultOp)
+			s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+			s.readyToSendPrepareResultToCoordinator(s.txnStore[msg.TxnId].prepareResultOp)
 		} else {
-			s.initTxnIfNotExist(msg.txnId)
-			if s.txnStore[msg.txnId].status != INIT {
-				log.Fatalf("txn %v in follower should be INIT but it is %v", msg.txnId, s.txnStore[msg.txnId].status)
+			s.initTxnIfNotExist(msg.TxnId)
+			if s.txnStore[msg.TxnId].status != INIT {
+				log.Fatalf("txn %v in follower should be INIT but it is %v", msg.TxnId, s.txnStore[msg.TxnId].status)
 			}
-			s.txnStore[msg.txnId].status = msg.status
+			s.txnStore[msg.TxnId].status = msg.Status
 		}
 		break
 	case CommitResultMsg:
 		if s.server.IsLeader() {
 			break
 		}
-		log.Debugf("txn %v follower apply commit result %v", msg.txnId, msg.status)
-		s.initTxnIfNotExist(msg.txnId)
-		s.txnStore[msg.txnId].status = msg.status
+		log.Debugf("txn %v follower apply commit result %v", msg.TxnId, msg.Status)
+		s.initTxnIfNotExist(msg.TxnId)
+		s.txnStore[msg.TxnId].status = msg.Status
 
-		if msg.status == COMMIT {
-			s.txnStore[msg.txnId].commitOrder = s.committed
+		if msg.Status == COMMIT {
+			s.txnStore[msg.TxnId].commitOrder = s.committed
 			s.committed++
-			s.txnStore[msg.txnId].commitTime = time.Now()
-			s.writeToDB(msg.writeData)
+			s.txnStore[msg.TxnId].commitTime = time.Now()
+			s.writeToDB(msg.WriteData)
 			s.print()
 		}
 
 		break
 	default:
-		log.Fatalf("invalid msg type %v", msg.status)
+		log.Fatalf("invalid msg type %v", msg.Status)
 		break
 	}
 }

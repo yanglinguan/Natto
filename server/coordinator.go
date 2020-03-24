@@ -76,13 +76,13 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 }
 
 func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
-	switch msg.msgType {
+	switch msg.MsgType {
 	case CommitResultMsg:
 		if c.server.IsLeader() {
-			c.sendToParticipantsAndClient(c.txnStore[msg.txnId])
+			c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
 		} else {
-			c.txnStore[msg.txnId].status = msg.status
-			c.txnStore[msg.txnId].writeData = msg.writeData
+			c.txnStore[msg.TxnId].status = msg.Status
+			c.txnStore[msg.TxnId].writeData = msg.WriteData
 		}
 	}
 }
@@ -170,11 +170,11 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 
 func (c *Coordinator) convertReplicationMsgToByte(txnId string, msgType ReplicationMsgType) bytes.Buffer {
 	replicationMsg := ReplicationMsg{
-		txnId:             txnId,
-		status:            c.txnStore[txnId].status,
-		msgType:           msgType,
-		writeData:         c.txnStore[txnId].commitRequest.request.WriteKeyValList,
-		isFromCoordinator: true,
+		TxnId:             txnId,
+		Status:            c.txnStore[txnId].status,
+		MsgType:           msgType,
+		WriteData:         c.txnStore[txnId].commitRequest.request.WriteKeyValList,
+		IsFromCoordinator: true,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
