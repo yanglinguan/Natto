@@ -72,7 +72,7 @@ def start_servers():
         cmd += "ulimit -n 100000;"
         cmd += "cd " + path + ";"
         exe = server_cmd + "-i $id" + " -c " + args.config + " > " + " s$id.log &"
-        loop = "for id in " + ' '.join(server_machine[mId]) + "; do " + exe + " done; wait"
+        loop = "for id in " + ' '.join(server_machine[mId]) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
@@ -103,7 +103,7 @@ def start_clients():
         cmd += "cd " + path + ";"
         exe = client_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 & " + \
               "echo \\$! > " + "server-$id.pid "
-        loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done"
+        loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
