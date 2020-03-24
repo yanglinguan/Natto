@@ -140,6 +140,10 @@ func (server *Server) Start() {
 
 func (server *Server) GetLeaderServerId() int {
 	// Member id is the index of the network address in the RpcPeerList
+	if !server.config.GetReplication() {
+		return server.serverId
+	}
+
 	id := server.getLeaderId()
 	if id == 0 {
 		return -1
@@ -149,6 +153,10 @@ func (server *Server) GetLeaderServerId() int {
 }
 
 func (server *Server) IsLeader() bool {
+	if !server.config.GetReplication() {
+		log.Fatal("without replication should not call this func")
+		return true
+	}
 	leaderId := server.GetLeaderServerId()
 	return leaderId == server.serverId
 }
