@@ -18,7 +18,7 @@ config_file.close()
 
 
 def stop_servers():
-    for serverId, info in config["servers"].items():
+    for info in config["servers"]["machines"]:
         ip = info["ip"]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
