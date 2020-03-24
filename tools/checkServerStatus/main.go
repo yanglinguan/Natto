@@ -32,10 +32,10 @@ func parseClientLog(client *client.Client) []int {
 	}
 
 	var files []string
-	_ = filepath.Walk(root, func(path string, f os.FileInfo, _ error) error {
+	_ = filepath.Walk(root+"/client", func(path string, f os.FileInfo, _ error) error {
 		if !f.IsDir() {
 			logrus.Debugf("path %v file %v", path, f.Name())
-			if filepath.Ext(path) == ".statistic" {
+			if filepath.Ext(f.Name()) == ".statistic" {
 				files = append(files, f.Name())
 			}
 		}

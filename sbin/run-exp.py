@@ -54,6 +54,7 @@ def move_log(dir_name):
         os.mkdir(new_dir)
     subprocess.call("mv server-*/*.log " + new_dir, shell=True)
     subprocess.call("mv client/*.log " + new_dir, shell=True)
+    subprocess.call("mv client/*.statistic " + new_dir, shell=True)
     subprocess.call("rm -r server-*/*", shell=True)
     for f in lists:
         if f.endswith(".log"):
