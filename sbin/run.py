@@ -152,11 +152,8 @@ def stop_clients():
 
 
 def remove_log(dir_path):
-    lists = os.listdir(dir_path)
-    for f in lists:
-        if f.endswith(".log"):
-            os.remove(os.path.join(dir_path, f))
-    subprocess.call("rm -r raft-*-", shell=True)
+    subprocess.call("rm -r server-*/*", shell=True)
+    subprocess.call("rm client/*", shell=True)
 
 
 def build():
