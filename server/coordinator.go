@@ -81,6 +81,7 @@ func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
 		if c.server.IsLeader() {
 			c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
 		} else {
+			c.initTwoPCInfoIfNotExist(msg.TxnId)
 			c.txnStore[msg.TxnId].status = msg.Status
 			c.txnStore[msg.TxnId].writeData = msg.WriteData
 		}

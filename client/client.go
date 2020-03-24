@@ -300,6 +300,8 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		CoordPartitionId:         int32(coordinatorPartitionId),
 	}
 
+	logrus.Debugf("txn %v potential coordinator %v, selected coordinator %v", t.TxnId, leaderIdList, t.CoordPartitionId)
+
 	c.addTxnIfNotExist(op.txnId, t)
 
 	_, execution := c.getTxnAndExecution(op.txnId)
