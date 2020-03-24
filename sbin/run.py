@@ -71,7 +71,7 @@ def start_servers():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         cmd += "cd " + path + ";"
-        exe = "cd " + path + "; mkdir -p server-$id; cd server-$id; cp" + path + "/" + args.config + " ./; " + \
+        exe = "cd " + path + "; mkdir -p server-$id; cd server-$id; cp " + path + "/" + args.config + " ./; " + \
               server_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(server_machine[mId]) + "; do " + exe + " done"
         cmd += loop
