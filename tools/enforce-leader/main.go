@@ -233,7 +233,7 @@ func getLocalPid(serverId int) string {
 func getRemotePid(serverId int, config configuration.Configuration) string {
 	//serverInfo := serverAddrToInfoTable[serverAddr]
 	//serverId := serverInfo.id
-	cmd := "pgrep -f " + "\"" + carouselServerCmd + strconv.Itoa(serverId) + "\""
+	cmd := "pgrep -f " + "\\\"" + carouselServerCmd + strconv.Itoa(serverId) + "\\\""
 	sshCmd := buildSshCmd(config, serverId, cmd)
 	pid := execBashCmd(sshCmd)
 	if len(pid) == 0 {
