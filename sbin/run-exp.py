@@ -31,9 +31,9 @@ def run_exp(i):
 def run(i, f):
     # print("run " + f + " " + str(i))
     if args.debug:
-        subprocess.call([bin_path + "run.py", "-d", "-c", f, "-r", i])
+        subprocess.call([bin_path + "run.py", "-d", "-c", f, "-r", str(i)])
     else:
-        subprocess.call([bin_path + "run.py", "-c", f, "-r", i])
+        subprocess.call([bin_path + "run.py", "-c", f, "-r", str(i)])
 
 
 def remove_log(dir_path):
