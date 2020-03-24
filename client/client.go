@@ -4,6 +4,7 @@ import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/connection"
 	"Carousel-GTS/rpc"
+	"Carousel-GTS/utils"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"math"
@@ -481,19 +482,30 @@ func (c *Client) PrintTxnStatisticData() {
 	}
 
 	for _, txn := range c.txnStore {
-		key := make([]int, len(txn.executions[0].rpcTxn.ReadKeyList))
-		for i, ks := range txn.executions[0].rpcTxn.ReadKeyList {
-			var k int
-			_, err = fmt.Sscan(ks, &k)
-			key[i] = k
+		key := make(map[int64]bool)
+		for _, ks := range txn.executions[0].rpcTxn.ReadKeyList {
+			k := utils.ConvertToInt(ks)
+			key[k] = true
 		}
+
+		for _, ks := range txn.executions[0].rpcTxn.WriteKeyList {
+			k := utils.ConvertToInt(ks)
+			key[k] = true
+		}
+		keyList := make([]int64, len(key))
+		i := 0
+		for k := range key {
+			keyList[i] = k
+			i++
+		}
+
 		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v\n",
 			txn.txnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
 			txn.endTime.UnixNano(),
-			key,
+			keyList,
 			txn.execCount)
 		_, err = file.WriteString(s)
 		if err != nil {
