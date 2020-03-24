@@ -249,13 +249,13 @@ def main():
     deploy()
 
 
-#    start_servers()
-#    time.sleep(15)
-#    enforce_leader()
-#    start_clients()
-#    print_server_status()
-#    stop_clients()
-#    stop_servers()
+    start_servers()
+    time.sleep(15)
+    enforce_leader()
+    start_clients()
+    print_server_status()
+    stop_clients()
+    stop_servers()
 
 
 if __name__ == "__main__":
