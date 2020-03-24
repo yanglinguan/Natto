@@ -50,6 +50,21 @@ if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0
     path = config["experiment"]["runDir"]
 
 
+def scp_server_exec(ssh, scp, server_machine, mid):
+    for sId in server_machine[mid]:
+        server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
+        ssh.exec_command("mkdir -p " + server_dir)
+        scp.put(os.getcwd() + "/" + args.config, server_dir)
+        scp.put(binPath + "carousel-server", server_dir)
+
+
+def scp_client_exec(ssh, scp):
+    client_dir = config["experiment"]["runDir"] + "/client"
+    ssh.exec_command("mkdir -p " + client_dir)
+    scp.put(os.getcwd() + "/" + args.config, client_dir)
+    scp.put(binPath + "client", client_dir)
+
+
 def deploy():
     if "runDir" not in config["experiment"] or len(config["experiment"]["runDir"]) == 0:
         return
@@ -61,6 +76,7 @@ def deploy():
         idx = server_id % len(machines)
         server_machine[idx].append(str(server_id))
 
+    threads = []
     for mId in range(len(server_machine)):
         if len(server_machine[mId]) == 0:
             continue
@@ -70,11 +86,9 @@ def deploy():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        for sId in server_machine[mId]:
-            server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
-            ssh.exec_command("mkdir -p " + server_dir)
-            scp.put(os.getcwd() + "/" + args.config, server_dir)
-            scp.put(binPath + "carousel-server", server_dir)
+        thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, server_machine, mId))
+        threads.append(thread)
+        thread.start()
 
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
@@ -92,10 +106,12 @@ def deploy():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        client_dir = config["experiment"]["runDir"] + "/client"
-        ssh.exec_command("mkdir -p " + client_dir)
-        scp.put(os.getcwd() + "/" + args.config, client_dir)
-        scp.put(binPath + "client", client_dir)
+        thread = threading.Thread(target=scp_client_exec, args=(ssh, scp))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
 
 def ssh_exec_thread(ssh_client, command, server):
@@ -229,6 +245,8 @@ def main():
     remove_log(path)
     build()
     deploy()
+
+
 #    start_servers()
 #    time.sleep(15)
 #    enforce_leader()

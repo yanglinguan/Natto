@@ -83,6 +83,7 @@ type Configuration interface {
 
 	GetSSHIdentity() string
 	GetSSHUsername() string
+	GetRunDir() string
 }
 
 type FileConfiguration struct {
@@ -141,6 +142,7 @@ type FileConfiguration struct {
 
 	username string
 	identity string
+	runDir   string
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -361,6 +363,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			items := v.(map[string]interface{})
 			f.username = items["username"].(string)
 			f.identity = items["identity"].(string)
+		} else if key == "runDir" {
+			f.runDir = v.(string)
 		}
 	}
 }
@@ -623,4 +627,8 @@ func (f *FileConfiguration) GetSSHIdentity() string {
 
 func (f *FileConfiguration) GetSSHUsername() string {
 	return f.username
+}
+
+func (f *FileConfiguration) GetRunDir() string {
+	return f.runDir
 }

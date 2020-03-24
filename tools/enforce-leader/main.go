@@ -6,7 +6,6 @@ import (
 	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -16,8 +15,7 @@ import (
 
 var carouselClient *client.Client
 var wg sync.WaitGroup
-var binPath = "$HOME/Projects/go/bin/"
-var carouselServerCmd = binPath + "carousel-server "
+var carouselServerCmd = "./carousel-server "
 
 var IsDebug bool
 var ConfigFile string
@@ -99,7 +97,7 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 		logrus.Debugf("Killing the current leader, server id %v expect leaderId %v", curLeaderId, expectedLeaderServerId)
 
 		if isLocalMode {
-			StopLocalServer(curLeaderId)
+			StopLocalServer(curLeaderId, config)
 		} else {
 			StopRemoteServer(curLeaderId, config)
 		}
@@ -122,7 +120,7 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 }
 
 // Stops a server that runs on the local machine
-func StopLocalServer(serverId int) {
+func StopLocalServer(serverId int, config configuration.Configuration) {
 	//serverInfo := serverAddrToInfoTable[serverAddr]
 	//serverId := serverInfo.id
 	pid := getLocalPid(serverId)
@@ -130,10 +128,8 @@ func StopLocalServer(serverId int) {
 		logrus.Fatalf("Cannot stop server id = %v due to failing to locate the process on the local machine", serverId)
 	}
 
-	serverDir, err := os.Getwd()
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	serverDir := config.GetRunDir() + "/server-" + strconv.Itoa(serverId)
+
 	serverLogFile := "server-" + strconv.Itoa(serverId) + ".log"
 	cmd := "cd " + serverDir + "; " +
 		"kill " + pid + "; " +
@@ -149,10 +145,8 @@ func StopRemoteServer(serverId int, config configuration.Configuration) {
 	//serverId := serverInfo.id
 	sIdStr := strconv.Itoa(serverId)
 	pid := getRemotePid(serverId, config)
-	serverDir, err := os.Getwd()
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	serverDir := config.GetRunDir() + "/server-" + sIdStr
+
 	serverLogFile := "server-" + sIdStr + ".log"
 	cmd := "cd " + serverDir + "; " +
 		"kill " + pid + "; " +
@@ -177,16 +171,12 @@ func StopRemoteServer(serverId int, config configuration.Configuration) {
 // Starts a carousel server
 func StartServer(config configuration.Configuration, serverId int) {
 	sIdStr := strconv.Itoa(serverId)
-	serverDir, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("cannot get pwd %v", err)
-	}
-	serverPidFile := "server-" + sIdStr + ".pid"
+	serverDir := config.GetRunDir() + "/server-" + sIdStr
+
 	serverLogFile := "server-" + sIdStr + ".log"
 
 	cmd := "cd " + serverDir + "; " + carouselServerCmd + sIdStr + " -c " + ConfigFile +
-		" > " + serverLogFile + " 2>&1 & " +
-		"echo \\$! > " + serverPidFile
+		" > " + serverLogFile + " 2>&1 & "
 
 	sshCmd := buildSshCmd(config, serverId, cmd)
 	execBashCmd(sshCmd)
@@ -243,7 +233,7 @@ func getLocalPid(serverId int) string {
 func getRemotePid(serverId int, config configuration.Configuration) string {
 	//serverInfo := serverAddrToInfoTable[serverAddr]
 	//serverId := serverInfo.id
-	cmd := "pgrep -f " + carouselServerCmd + strconv.Itoa(serverId)
+	cmd := "pgrep -f " + "\"" + carouselServerCmd + strconv.Itoa(serverId) + "\""
 	sshCmd := buildSshCmd(config, serverId, cmd)
 	pid := execBashCmd(sshCmd)
 	if len(pid) == 0 {
