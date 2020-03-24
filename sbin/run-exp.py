@@ -43,6 +43,7 @@ def remove_log(dir_path):
     for f in lists:
         if f.endswith(".log"):
             os.remove(os.path.join(dir_path, f))
+    subprocess.call("rm -r raft-*-snap raft-*-wal", shell=True)
 
 
 def move_log(dir_name):

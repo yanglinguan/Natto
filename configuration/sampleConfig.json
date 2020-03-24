@@ -66,6 +66,7 @@
     "ssh": {
       "username": "l69yang",
       "identity": ""
-    }
+    },
+    "runDir": "./"
   }
 }
