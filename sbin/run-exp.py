@@ -78,7 +78,10 @@ def move_log(dir_name, f):
         scp = SCPClient(ssh.get_transport())
         for sId in server_machine[mId]:
             server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
-            scp.get(server_dir + "/*.log", new_dir)
+            stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
+            log_files = stdout.read().split()
+            for log in log_files:
+                scp.get(log, new_dir)
             ssh.exec_command("rm -r " + server_dir + "/*")
 
     client_nums = config["clients"]["nums"]
@@ -96,10 +99,12 @@ def move_log(dir_name, f):
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        client_dir = config["experiment"]["runDir"] + "/client"
         scp = SCPClient(ssh.get_transport())
-        scp.get(client_dir + "/*.log", new_dir)
-        scp.get(client_dir + "/*.statistic", new_dir)
+        client_dir = config["experiment"]["runDir"] + "/client"
+        stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
+        log_files = stdout.read().split()
+        for log in log_files:
+            scp.get(log, new_dir)
         ssh.exec_command("rm " + client_dir + "/*")
 
 
