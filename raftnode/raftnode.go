@@ -57,7 +57,7 @@ type RaftNode struct {
 	httpdonec chan struct{} // signals http server shutdown complete
 }
 
-var defaultSnapCount uint64 = 10000
+var defaultSnapCount uint64 = 1000000000
 
 // newRaftNode initiates a raft instance and returns a committed log entry
 // channel and error channel. Proposals for log updates are sent over the
@@ -266,7 +266,7 @@ func (rc *RaftNode) startRaft() {
 	c := &raft.Config{
 		ID:              uint64(rc.id),
 		ElectionTick:    60,
-		HeartbeatTick:   1,
+		HeartbeatTick:   2,
 		Storage:         rc.raftStorage,
 		MaxSizePerMsg:   1024 * 1024,
 		MaxInflightMsgs: 256,
