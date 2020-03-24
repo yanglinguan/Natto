@@ -72,7 +72,7 @@ def deploy():
         for sId in server_machine[mId]:
             server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
             ssh.exec_command("mkdir -p " + server_dir)
-            ftp_client.put(path + "/" + args.config, server_dir)
+            ftp_client.put(os.getcwd() + "/" + args.config, server_dir)
             ftp_client.put(binPath + "carousel-server", server_dir)
         ftp_client.close()
 
@@ -94,7 +94,7 @@ def deploy():
         client_dir = config["experiment"]["runDir"] + "/client"
         ssh.exec_command("mkdir -p " + client_dir)
         ftp_client = ssh.open_sftp()
-        ftp_client.put(path + "/" + args.config, client_dir)
+        ftp_client.put(os.getcwd() + "/" + args.config, client_dir)
         ftp_client.put(binPath + "client", client_dir)
         ftp_client.close()
 
@@ -230,13 +230,13 @@ def main():
     remove_log(path)
     build()
     deploy()
-    start_servers()
-    time.sleep(15)
-    enforce_leader()
-    start_clients()
-    print_server_status()
-    stop_clients()
-    stop_servers()
+#    start_servers()
+#    time.sleep(15)
+#    enforce_leader()
+#    start_clients()
+#    print_server_status()
+#    stop_clients()
+#    stop_servers()
 
 
 if __name__ == "__main__":
