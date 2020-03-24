@@ -45,16 +45,14 @@ func parseClientLog(client *client.Client) []int {
 	result := make([]int, client.Config.GetTotalPartition())
 	for _, fName := range files {
 		lines := readFile(fName)
+		logrus.Debugf("file %v lines %v", fName, len(lines))
 		for _, line := range lines {
-			if strings.HasPrefix(line, "#") {
-				continue
-			}
 			items := strings.Split(line, ",")
 			commitResult := items[1]
 			if commitResult != "1" {
 				continue
 			}
-			keys := strings.Split(items[5][1:len(items[5])-1], ",")
+			keys := strings.Split(items[5][1:len(items[5])-1], " ")
 			partitionSet := make(map[int]bool)
 			for _, key := range keys {
 				pId := client.Config.GetPartitionIdByKey(key)
