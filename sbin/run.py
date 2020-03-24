@@ -101,8 +101,9 @@ def start_clients():
         ssh.connect(ip)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        cmd += "cd " + path + ";"
-        exe = client_cmd + "-i $id" + " -c " + args.config + " > " + "client-$id.log " + "2>&1 &"
+        cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " ./; "
+        exe = "cd " + path + "/client;" + \
+              client_cmd + "-i $id" + " -c " + args.config + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)

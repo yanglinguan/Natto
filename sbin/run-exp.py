@@ -43,7 +43,6 @@ def remove_log(dir_path):
     for f in lists:
         if f.endswith(".log"):
             os.remove(os.path.join(dir_path, f))
-    subprocess.call("rm -r raft-*-snap raft-*-wal", shell=True)
 
 
 def move_log(dir_name):
@@ -53,6 +52,9 @@ def move_log(dir_name):
         remove_log(new_dir)
     else:
         os.mkdir(new_dir)
+    subprocess.call("mv server-*/*.log " + new_dir, shell=True)
+    subprocess.call("mv client/*.log " + new_dir, shell=True)
+    subprocess.call("rm -r server-*/raft-*-", shell=True)
     for f in lists:
         if f.endswith(".log"):
             os.rename(os.path.join(path, f), os.path.join(new_dir, f))
