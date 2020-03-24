@@ -154,7 +154,6 @@ func (server *Server) GetLeaderServerId() int {
 
 func (server *Server) IsLeader() bool {
 	if !server.config.GetReplication() {
-		log.Fatal("without replication should not call this func")
 		return true
 	}
 	leaderId := server.GetLeaderServerId()
