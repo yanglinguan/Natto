@@ -28,7 +28,7 @@ func NewRaft(server *Server, snapshotter *snap.Snapshotter,
 		raftErrorChannel:  raftErrorChannel,
 		raftSnapshotter:   snapshotter,
 	}
-
+	go r.run()
 	return r
 }
 
@@ -47,8 +47,9 @@ func (r *Raft) handleReplicatedOp(data *string) {
 	decoder := gob.NewDecoder(bytes.NewBufferString(*data))
 	var replicationMsg ReplicationMsg
 	if err := decoder.Decode(&replicationMsg); err != nil {
-		logrus.Errorf("Decoding error %v", err)
+		logrus.Fatalf("Decoding error %v", err)
 	}
+	logrus.Debugf("get replicated msg txn %v msg %v", replicationMsg.TxnId, replicationMsg.Status)
 	if replicationMsg.IsFromCoordinator {
 		r.server.coordinator.Replication <- replicationMsg
 	} else {

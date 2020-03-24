@@ -615,6 +615,7 @@ func (s *AbstractStorage) initTxnIfNotExist(txnId string) {
 func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 	switch msg.MsgType {
 	case PrepareResultMsg:
+		log.Debugf("txn %v apply prepare result %v", msg.TxnId, msg.Status)
 		if s.server.IsLeader() {
 			s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 			s.readyToSendPrepareResultToCoordinator(s.txnStore[msg.TxnId].prepareResultOp)
@@ -627,10 +628,10 @@ func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 		}
 		break
 	case CommitResultMsg:
+		log.Debugf("txn %v apply commit result %v", msg.TxnId, msg.Status)
 		if s.server.IsLeader() {
 			break
 		}
-		log.Debugf("txn %v follower apply commit result %v", msg.TxnId, msg.Status)
 		s.initTxnIfNotExist(msg.TxnId)
 		s.txnStore[msg.TxnId].status = msg.Status
 
