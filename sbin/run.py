@@ -7,6 +7,7 @@ import os
 import subprocess
 
 from paramiko import SSHClient, AutoAddPolicy
+from scp import SCPClient
 
 arg_parser = argparse.ArgumentParser(description="run exp.")
 
@@ -68,13 +69,12 @@ def deploy():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        ftp_client = ssh.open_sftp()
+        scp = SCPClient(ssh.get_transport())
         for sId in server_machine[mId]:
             server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
             ssh.exec_command("mkdir -p " + server_dir)
-            ftp_client.put(os.getcwd() + "/" + args.config, server_dir)
-            ftp_client.put(binPath + "carousel-server", server_dir)
-        ftp_client.close()
+            scp.put(os.getcwd() + "/" + args.config, server_dir)
+            scp.put(binPath + "carousel-server", server_dir)
 
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
@@ -91,12 +91,11 @@ def deploy():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
+        scp = SCPClient(ssh.get_transport())
         client_dir = config["experiment"]["runDir"] + "/client"
         ssh.exec_command("mkdir -p " + client_dir)
-        ftp_client = ssh.open_sftp()
-        ftp_client.put(os.getcwd() + "/" + args.config, client_dir)
-        ftp_client.put(binPath + "client", client_dir)
-        ftp_client.close()
+        scp.put(os.getcwd() + "/" + args.config, client_dir)
+        scp.put(binPath + "client", client_dir)
 
 
 def ssh_exec_thread(ssh_client, command, server):

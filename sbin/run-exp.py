@@ -5,6 +5,7 @@ import os
 import argparse
 
 from paramiko import SSHClient, AutoAddPolicy
+from scp import SCPClient
 
 path = os.getcwd()
 
@@ -74,12 +75,11 @@ def move_log(dir_name, f):
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        ftp_client = ssh.open_sftp()
+        scp = SCPClient(ssh.get_transport())
         for sId in server_machine[mId]:
             server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
-            ftp_client.get(server_dir + "/*.log", new_dir)
+            scp.get(server_dir + "/*.log", new_dir)
             ssh.exec_command("rm -r " + server_dir + "/*")
-        ftp_client.close()
 
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
@@ -97,11 +97,10 @@ def move_log(dir_name, f):
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         client_dir = config["experiment"]["runDir"] + "/client"
-        ftp_client = ssh.open_sftp()
-        ftp_client.get(client_dir + "/*.log", new_dir)
-        ftp_client.get(client_dir + "/*.statistic", new_dir)
+        scp = SCPClient(ssh.get_transport())
+        scp.get(client_dir + "/*.log", new_dir)
+        scp.get(client_dir + "/*.statistic", new_dir)
         ssh.exec_command("rm " + client_dir + "/*")
-        ftp_client.close()
 
 
 def main():
