@@ -83,7 +83,7 @@ def collect_client_log():
             scp.get(log, new_dir)
         ssh.exec_command("rm " + client_dir + "/*.log")
         ssh.exec_command("rm " + client_dir + "/*.statistic")
-
+        print("collect client log from " + ip)
     return new_dir
 
 
@@ -112,6 +112,7 @@ def collect_server_log(new_dir):
                 scp.get(log, new_dir)
             ssh.exec_command("rm -r " + server_dir + "/raft-*")
             ssh.exec_command("rm -r " + server_dir + "/*.log")
+            print("collect server log " + sId + " from " + ip)
 
 
 def scp_server_exec(ssh, scp, server_machine, mid, ip):
@@ -250,7 +251,7 @@ def start_clients():
 
 
 def print_server_status(dir_name):
-    cmd = check_server_status_cmd + "-c " + args.config + " -d " + dir_name
+    cmd = check_server_status_cmd + "-c " + args.config + " -r " + dir_name
     subprocess.call(cmd, shell=True)
 
 

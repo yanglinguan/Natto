@@ -102,7 +102,7 @@ func parseArgs() {
 	)
 	flag.StringVar(
 		&dirPath,
-		"d",
+		"r",
 		"",
 		"dir path",
 	)
