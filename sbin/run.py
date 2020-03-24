@@ -54,7 +54,7 @@ if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0
 
 def collect_client_log():
     dir_name = args.config.split('.')[0] + "-" + args.runCount
-    new_dir = os.path.join(path, dir_name)
+    new_dir = os.path.join(os.getcwd(), dir_name)
     if os.path.isdir(new_dir):
         remove_log(new_dir)
     else:
