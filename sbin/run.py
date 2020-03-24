@@ -16,6 +16,8 @@ arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
                         help='configuration file', required=True)
 arg_parser.add_argument('-d', '--debug', help="turn on debug",
                         action='store_true')
+arg_parser.add_argument('-r', '--runCount', dest='runCount', nargs='?',
+                        help='runCount', required=True)
 
 args = arg_parser.parse_args()
 
@@ -48,6 +50,68 @@ enforce_leader_path = tool_path + "enforce-leader/"
 
 if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0:
     path = config["experiment"]["runDir"]
+
+
+def collect_client_log():
+    dir_name = args.config.split('.')[0] + "-" + args.runCount
+    new_dir = os.path.join(path, dir_name)
+    if os.path.isdir(new_dir):
+        remove_log(new_dir)
+    else:
+        os.mkdir(new_dir)
+
+    client_nums = config["clients"]["nums"]
+    machines = config["clients"]["machines"]
+    client_machine = [[] for i in range(len(machines))]
+    for clientId in range(client_nums):
+        idx = clientId % len(machines)
+        client_machine[idx].append(str(clientId))
+
+    for mId in range(len(client_machine)):
+        if len(client_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        scp = SCPClient(ssh.get_transport())
+        client_dir = config["experiment"]["runDir"] + "/client"
+        stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
+        log_files = stdout.read().split()
+        for log in log_files:
+            scp.get(log, new_dir)
+        ssh.exec_command("rm " + client_dir + "/*.log")
+        ssh.exec_command("rm " + client_dir + "/*.statistic")
+
+    return new_dir
+
+
+def collect_server_log(new_dir):
+    server_nums = config["servers"]["nums"]
+    machines = config["servers"]["machines"]
+    server_machine = [[] for i in range(len(machines))]
+    for server_id in range(server_nums):
+        idx = server_id % len(machines)
+        server_machine[idx].append(str(server_id))
+
+    for mId in range(len(server_machine)):
+        if len(server_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        scp = SCPClient(ssh.get_transport())
+        for sId in server_machine[mId]:
+            server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
+            stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
+            log_files = stdout.read().split()
+            for log in log_files:
+                scp.get(log, new_dir)
+            ssh.exec_command("rm -r " + server_dir + "/raft-*")
+            ssh.exec_command("rm -r " + server_dir + "/*.log")
 
 
 def scp_server_exec(ssh, scp, server_machine, mid, ip):
@@ -185,8 +249,8 @@ def start_clients():
         thread.join()
 
 
-def print_server_status():
-    cmd = check_server_status_cmd + "-c " + args.config
+def print_server_status(dir_name):
+    cmd = check_server_status_cmd + "-c " + args.config + " -d " + dir_name
     subprocess.call(cmd, shell=True)
 
 
@@ -248,12 +312,13 @@ def main():
     build()
     deploy()
 
-
     start_servers()
     time.sleep(15)
     enforce_leader()
     start_clients()
-    print_server_status()
+    dir_name = collect_client_log()
+    print_server_status(dir_name)
+    collect_server_log(dir_name)
     stop_clients()
     stop_servers()
 

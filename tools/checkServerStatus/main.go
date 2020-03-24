@@ -13,6 +13,7 @@ import (
 
 var isDebug = false
 var configFile = ""
+var dirPath = ""
 
 func main() {
 	parseArgs()
@@ -26,13 +27,8 @@ func main() {
 }
 
 func parseClientLog(client *client.Client) []int {
-	root, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("cannot get path %v", err)
-	}
-
 	var files []string
-	_ = filepath.Walk(root+"/client", func(path string, f os.FileInfo, _ error) error {
+	_ = filepath.Walk(dirPath, func(path string, f os.FileInfo, _ error) error {
 		if !f.IsDir() {
 			if filepath.Ext(f.Name()) == ".statistic" {
 				logrus.Debugf("path %v file %v", path, f.Name())
@@ -104,9 +100,15 @@ func parseArgs() {
 		"",
 		"client configuration file",
 	)
+	flag.StringVar(
+		&dirPath,
+		"d",
+		"",
+		"dir path",
+	)
 
 	flag.Parse()
-	if configFile == "" {
+	if configFile == "" || dirPath == "" {
 		flag.Usage()
 		logrus.Fatal("Invalid configuration file.")
 	}
