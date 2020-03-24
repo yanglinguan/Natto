@@ -1,7 +1,10 @@
 #!/usr/bin/python
+import json
 import subprocess
 import os
 import argparse
+
+from paramiko import SSHClient, AutoAddPolicy
 
 path = os.getcwd()
 
@@ -35,7 +38,7 @@ def run(i, f):
     else:
         subprocess.call([bin_path + "run.py", "-c", f])
     dir_name = f.split('.')[0] + "-" + str(i)
-    move_log(dir_name)
+    move_log(dir_name, f)
 
 
 def remove_log(dir_path):
@@ -45,20 +48,60 @@ def remove_log(dir_path):
             os.remove(os.path.join(dir_path, f))
 
 
-def move_log(dir_name):
-    lists = os.listdir(path)
+def move_log(dir_name, f):
+    config_file = open(os.path.join(path, f), "r")
+    config = json.load(config_file)
+    config_file.close()
+
     new_dir = os.path.join(path, dir_name)
     if os.path.isdir(new_dir):
         remove_log(new_dir)
     else:
         os.mkdir(new_dir)
-    subprocess.call("mv server-*/*.log " + new_dir, shell=True)
-    subprocess.call("mv client/*.log " + new_dir, shell=True)
-    subprocess.call("mv client/*.statistic " + new_dir, shell=True)
-    subprocess.call("rm -r server-*/*", shell=True)
-    for f in lists:
-        if f.endswith(".log"):
-            os.rename(os.path.join(path, f), os.path.join(new_dir, f))
+
+    server_nums = config["servers"]["nums"]
+    machines = config["servers"]["machines"]
+    server_machine = [[] for i in range(len(machines))]
+    for server_id in range(server_nums):
+        idx = server_id % len(machines)
+        server_machine[idx].append(str(server_id))
+
+    for mId in range(len(server_machine)):
+        if len(server_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        ftp_client = ssh.open_sftp()
+        for sId in server_machine[mId]:
+            server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
+            ftp_client.get(server_dir + "/*.log", new_dir)
+            ssh.exec_command("rm -r " + server_dir + "/*")
+        ftp_client.close()
+
+    client_nums = config["clients"]["nums"]
+    machines = config["clients"]["machines"]
+    client_machine = [[] for i in range(len(machines))]
+    for clientId in range(client_nums):
+        idx = clientId % len(machines)
+        client_machine[idx].append(str(clientId))
+
+    for mId in range(len(client_machine)):
+        if len(client_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        client_dir = config["experiment"]["runDir"] + "/client"
+        ftp_client = ssh.open_sftp()
+        ftp_client.get(client_dir + "/*.log", new_dir)
+        ftp_client.get(client_dir + "/*.statistic", new_dir)
+        ssh.exec_command("rm " + client_dir + "/*")
+        ftp_client.close()
 
 
 def main():

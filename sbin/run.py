@@ -26,8 +26,8 @@ config_file.close()
 path = os.getcwd()
 binPath = "$HOME/Projects/go/bin/"
 
-server_cmd = binPath + "/carousel-server "
-client_cmd = binPath + "/client "
+server_cmd = "./carousel-server "
+client_cmd = "./client "
 check_server_status_cmd = binPath + "/checkServerStatus "
 enforce_leader_cmd = binPath + "/enforce-leader "
 
@@ -44,6 +44,59 @@ rpc_path = src_path + "rpc/"
 tool_path = src_path + "tools/"
 check_server_status_path = tool_path + "checkServerStatus/"
 enforce_leader_path = tool_path + "enforce-leader/"
+
+if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0:
+    path = config["experiment"]["runDir"]
+
+
+def deploy():
+    if "runDir" not in config["experiment"] or len(config["experiment"]["runDir"]) == 0:
+        return
+
+    server_nums = config["servers"]["nums"]
+    machines = config["servers"]["machines"]
+    server_machine = [[] for i in range(len(machines))]
+    for server_id in range(server_nums):
+        idx = server_id % len(machines)
+        server_machine[idx].append(str(server_id))
+
+    for mId in range(len(server_machine)):
+        if len(server_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        ftp_client = ssh.open_sftp()
+        for sId in server_machine[mId]:
+            server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
+            ssh.exec_command("mkdir -p " + server_dir)
+            ftp_client.put(path + "/" + args.config, server_dir)
+            ftp_client.put(binPath + "carousel-server", server_dir)
+        ftp_client.close()
+
+    client_nums = config["clients"]["nums"]
+    machines = config["clients"]["machines"]
+    client_machine = [[] for i in range(len(machines))]
+    for clientId in range(client_nums):
+        idx = clientId % len(machines)
+        client_machine[idx].append(str(clientId))
+
+    for mId in range(len(client_machine)):
+        if len(client_machine[mId]) == 0:
+            continue
+        m = machines[mId]
+        ip = m["ip"]
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        client_dir = config["experiment"]["runDir"] + "/client"
+        ssh.exec_command("mkdir -p " + client_dir)
+        ftp_client = ssh.open_sftp()
+        ftp_client.put(path + "/" + args.config, client_dir)
+        ftp_client.put(binPath + "client", client_dir)
+        ftp_client.close()
 
 
 def ssh_exec_thread(ssh_client, command, server):
@@ -70,8 +123,8 @@ def start_servers():
         ssh.connect(ip)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        cmd += "cd " + path + ";"
-        exe = "cd " + path + "; mkdir -p server-$id; cd server-$id; cp " + path + "/" + args.config + " ./; " + \
+        # cmd += "cd " + path + ";"
+        exe = "cd " + path + "/server-$id; " + \
               server_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(server_machine[mId]) + "; do " + exe + " done"
         cmd += loop
@@ -101,7 +154,7 @@ def start_clients():
         ssh.connect(ip)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
+        # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
         exe = "cd " + path + "/client;" + \
               client_cmd + "-i $id" + " -c " + args.config + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
@@ -176,6 +229,7 @@ def build():
 def main():
     remove_log(path)
     build()
+    deploy()
     start_servers()
     time.sleep(15)
     enforce_leader()
