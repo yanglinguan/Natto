@@ -82,7 +82,8 @@ def move_log(dir_name, f):
             log_files = stdout.read().split()
             for log in log_files:
                 scp.get(log, new_dir)
-            ssh.exec_command("rm -r " + server_dir + "/*")
+            ssh.exec_command("rm -r " + server_dir + "/raft-*")
+            ssh.exec_command("rm -r " + server_dir + "/*.log")
 
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
@@ -105,7 +106,8 @@ def move_log(dir_name, f):
         log_files = stdout.read().split()
         for log in log_files:
             scp.get(log, new_dir)
-        ssh.exec_command("rm " + client_dir + "/*")
+        ssh.exec_command("rm " + client_dir + "/*.log")
+        ssh.exec_command("rm " + client_dir + "/*.statistic")
 
 
 def main():
