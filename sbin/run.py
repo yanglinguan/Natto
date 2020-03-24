@@ -125,8 +125,8 @@ def enforce_leader():
 
 
 def stop_servers():
-    for serverId, info in config["servers"].items():
-        ip = info["ip"]
+    for machine in config["servers"]["machines"]:
+        ip = machine["ip"]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
