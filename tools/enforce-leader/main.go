@@ -1,7 +1,9 @@
 package main
 
 import (
+	"Carousel-GTS/client"
 	"Carousel-GTS/configuration"
+	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -10,11 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"Carousel-GTS/client"
-	"carousel/common"
 )
-
 
 var carouselClient *client.Client
 var wg sync.WaitGroup
@@ -29,7 +27,7 @@ var waitTime = 10
 func main() {
 
 	ParseArgs()
-	common.ConfigLogger(IsDebug)
+	utils.ConfigLogger(IsDebug)
 	//ParseExpSettingFile(ExpSettingFile)
 	//ParseServerConfig(ServerLocationConfigFile)
 	if IsDebug {
@@ -69,8 +67,7 @@ func ParseArgs() {
 		"local",
 		false,
 		"run server on local machine",
-
-		)
+	)
 
 	flag.Parse()
 
@@ -187,7 +184,7 @@ func StartServer(config configuration.Configuration, serverId int) {
 	serverPidFile := "server-" + sIdStr + ".pid"
 	serverLogFile := "server-" + sIdStr + ".log"
 
-	cmd := "cd " + serverDir + "; " + carouselServerCmd + sIdStr +" -c " + ConfigFile +
+	cmd := "cd " + serverDir + "; " + carouselServerCmd + sIdStr + " -c " + ConfigFile +
 		" > " + serverLogFile + " 2>&1 & " +
 		"echo \\$! > " + serverPidFile
 
@@ -226,7 +223,7 @@ func execBashCmd(cmd string) string {
 }
 
 func getLocalPid(serverId int) string {
-	cmd := exec.Command("pgrep", "-f", carouselServerCmd + strconv.Itoa(serverId))
+	cmd := exec.Command("pgrep", "-f", carouselServerCmd+strconv.Itoa(serverId))
 	pid := ""
 	if stdout, err := cmd.Output(); err != nil {
 		logrus.Errorf("Failed to get process pid for server id = %s, error = %s", serverId, err)
