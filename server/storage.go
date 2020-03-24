@@ -472,7 +472,7 @@ func (s *AbstractStorage) convertReplicationMsgToByte(txnId string, msgType Repl
 }
 
 func (s *AbstractStorage) replicatePreparedResult(txnId string) {
-	if s.server.config.GetReplication() {
+	if !s.server.config.GetReplication() {
 		log.Debugf("txn %v config no replication send result to coordinator", txnId)
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
 		s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
