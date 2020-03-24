@@ -452,7 +452,7 @@ func (c *Client) PrintServerStatus(commitTxn []int) {
 		}
 		sender := NewPrintStatusRequestSender(request, sId, c)
 		wg.Add(1)
-		go sender.Send(wg)
+		go sender.Send(&wg)
 	}
 	wg.Wait()
 }

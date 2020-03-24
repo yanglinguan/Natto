@@ -112,7 +112,7 @@ func NewPrintStatusRequestSender(request *rpc.PrintStatusRequest, dstServerId in
 	return p
 }
 
-func (p *PrintStatusRequestSender) Send(wg sync.WaitGroup) {
+func (p *PrintStatusRequestSender) Send(wg *sync.WaitGroup) {
 	conn := p.client.connections[p.dstServerId]
 	clientConn := conn.GetConn()
 	if conn.GetPoolSize() > 0 {
@@ -125,6 +125,7 @@ func (p *PrintStatusRequestSender) Send(wg sync.WaitGroup) {
 	if err != nil {
 		logrus.Fatalf("cannot sent print status request to server %v: %v", conn.GetDstAddr(), err)
 	}
+	logrus.Infof("RECEIVE PrintStatus reply from %v", conn.GetDstAddr())
 	wg.Done()
 }
 
