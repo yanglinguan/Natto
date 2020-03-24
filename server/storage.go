@@ -361,13 +361,16 @@ func (s *AbstractStorage) release(txnId string) {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
 			// if in the queue, then remove from the queue
 			log.Debugf("remove txn %v from key %v queue", txnId, key)
+			isTop := s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).request.Txn.TxnId == txnId
 			s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 			delete(s.kvStore[key].WaitingItem, txnId)
-		} else {
-			// otherwise, check if the top of the queue can prepare
-			log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
-			s.checkPrepare(key)
+			if !isTop {
+				continue
+			}
 		}
+		// otherwise, check if the top of the queue can prepare
+		log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
+		s.checkPrepare(key)
 	}
 }
 
