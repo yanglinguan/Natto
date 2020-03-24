@@ -50,19 +50,21 @@ if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0
     path = config["experiment"]["runDir"]
 
 
-def scp_server_exec(ssh, scp, server_machine, mid):
+def scp_server_exec(ssh, scp, server_machine, mid, ip):
     for sId in server_machine[mid]:
         server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
         ssh.exec_command("mkdir -p " + server_dir)
         scp.put(os.getcwd() + "/" + args.config, server_dir)
         scp.put(binPath + "carousel-server", server_dir)
+        print("deploy config and server " + str(sId) + " at " + ip)
 
 
-def scp_client_exec(ssh, scp):
+def scp_client_exec(ssh, scp, ip):
     client_dir = config["experiment"]["runDir"] + "/client"
     ssh.exec_command("mkdir -p " + client_dir)
     scp.put(os.getcwd() + "/" + args.config, client_dir)
     scp.put(binPath + "client", client_dir)
+    print("deploy config and client at " + ip)
 
 
 def deploy():
@@ -86,7 +88,7 @@ def deploy():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, server_machine, mId))
+        thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, server_machine, mId, ip))
         threads.append(thread)
         thread.start()
 
@@ -106,7 +108,7 @@ def deploy():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_client_exec, args=(ssh, scp))
+        thread = threading.Thread(target=scp_client_exec, args=(ssh, scp, ip))
         threads.append(thread)
         thread.start()
 
@@ -236,7 +238,7 @@ def build():
         subprocess.call("cd " + check_server_status_path + "; go install", shell=True)
         print("build tool enforce leader at " + enforce_leader_path)
         subprocess.call("cd " + enforce_leader_path + "; go install", shell=True)
-        subprocess.call("cd " + path, shell=True)
+        subprocess.call("cd " + os.getcwd(), shell=True)
     except subprocess.CalledProcessError:
         print("build error")
 
