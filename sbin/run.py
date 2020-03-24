@@ -28,8 +28,8 @@ binPath = "$HOME/Projects/go/bin/"
 
 server_cmd = binPath + "/carousel-server "
 client_cmd = binPath + "/client "
-check_server_status_cmd = binPath + "/checkServerStatus"
-enforce_leader_cmd = binPath + "/enforce-leader"
+check_server_status_cmd = binPath + "/checkServerStatus "
+enforce_leader_cmd = binPath + "/enforce-leader "
 
 if args.debug:
     server_cmd = server_cmd + "-d "
@@ -103,7 +103,7 @@ def start_clients():
         cmd += "cd " + path + ";"
         exe = client_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 & " + \
               "echo \\$! > " + "server-$id.pid "
-        loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
+        loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
