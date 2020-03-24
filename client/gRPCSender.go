@@ -120,7 +120,7 @@ func (p *PrintStatusRequestSender) Send(wg *sync.WaitGroup) {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	logrus.Infof("SEND PrintStatus to %v ", conn.GetDstAddr())
+	logrus.Infof("SEND PrintStatus to %v %v", conn.GetDstAddr(), p.request.CommittedTxn)
 	_, err := client.PrintStatus(context.Background(), p.request)
 	if err != nil {
 		logrus.Fatalf("cannot sent print status request to server %v: %v", conn.GetDstAddr(), err)
