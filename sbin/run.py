@@ -177,7 +177,7 @@ def main():
     remove_log(path)
     build()
     start_servers()
-    time.sleep(5)
+    time.sleep(15)
     enforce_leader()
     start_clients()
     print_server_status()
