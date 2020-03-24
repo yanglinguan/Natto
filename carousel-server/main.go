@@ -8,7 +8,7 @@ import (
 )
 
 var isDebug = false
-var serverId = ""
+var serverId = -1
 var configFile = ""
 
 func main() {
@@ -28,10 +28,10 @@ func parseArgs() {
 		"debug mode",
 	)
 
-	flag.StringVar(
+	flag.IntVar(
 		&serverId,
 		"i",
-		"",
+		-1,
 		"server id",
 	)
 
@@ -44,7 +44,7 @@ func parseArgs() {
 
 	flag.Parse()
 
-	if serverId == "" {
+	if serverId == -1 {
 		flag.Usage()
 		logrus.Fatal("Invalid server id.")
 	}
