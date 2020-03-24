@@ -87,13 +87,13 @@ type Configuration interface {
 
 type FileConfiguration struct {
 	// serverId -> server Address (ip:port)
-	servers                []string
-	clients                int
-	partitions             [][]int
-	raftPeers              [][]string
-	raftToServerId         [][]int
-	expectPartitionLeaders []int
-	dataCenterIdToLeaderId map[string][]int
+	servers                    []string
+	clients                    int
+	partitions                 [][]int
+	raftPeers                  [][]string
+	raftToServerId             [][]int
+	expectPartitionLeaders     []int
+	dataCenterIdToLeaderIdList map[string][]int
 
 	serverToRaftId   []int
 	serverToRaftPort []string
@@ -154,6 +154,7 @@ func NewFileConfiguration(filePath string) *FileConfiguration {
 		dataCenterDistance:         make(map[string]map[string]time.Duration),
 		serverToDataCenterId:       nil,
 		dataCenterIdToServerIdList: make(map[string][]int),
+		dataCenterIdToLeaderIdList: make(map[string][]int),
 		clientToDataCenterId:       nil,
 	}
 	c.loadFile(filePath)
@@ -222,10 +223,10 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		if f.expectPartitionLeaders[pId] == -1 {
 			f.expectPartitionLeaders[pId] = sId
 
-			if _, exist := f.dataCenterIdToLeaderId[dcId]; !exist {
-				f.dataCenterIdToLeaderId[dcId] = make([]int, 0)
+			if _, exist := f.dataCenterIdToLeaderIdList[dcId]; !exist {
+				f.dataCenterIdToLeaderIdList[dcId] = make([]int, 0)
 			}
-			f.dataCenterIdToLeaderId[dcId] = append(f.dataCenterIdToLeaderId[dcId], sId)
+			f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], sId)
 		}
 
 		if _, exist := f.dataCenterIdToServerIdList[dcId]; !exist {
@@ -470,12 +471,12 @@ func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId string) []i
 }
 
 func (f *FileConfiguration) GetLeaderIdListByDataCenterId(dataCenterId string) []int {
-	if _, exist := f.dataCenterIdToLeaderId[dataCenterId]; !exist {
+	if _, exist := f.dataCenterIdToLeaderIdList[dataCenterId]; !exist {
 		log.Fatalf("dataCenter ID %v does not exist", dataCenterId)
 		return make([]int, 0)
 	}
 
-	return f.dataCenterIdToLeaderId[dataCenterId]
+	return f.dataCenterIdToLeaderIdList[dataCenterId]
 }
 
 func (f *FileConfiguration) GetKeyNum() int64 {
