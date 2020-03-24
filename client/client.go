@@ -285,9 +285,9 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		i++
 	}
 
-	serverList := c.Config.GetServerListByDataCenterId(c.clientDataCenterId)
+	leaderIdList := c.Config.GetLeaderIdListByDataCenterId(c.clientDataCenterId)
 
-	coordinatorPartitionId := c.Config.GetPartitionIdByServerId(serverList[rand.Intn(len(serverList))])
+	coordinatorPartitionId := c.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
 	if _, exist := partitionSet[coordinatorPartitionId]; !exist {
 		partitionSet[coordinatorPartitionId] = make([][]string, 2)
 	}

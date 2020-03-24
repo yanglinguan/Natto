@@ -151,7 +151,7 @@ func (h *HeartBeatSender) Send() int {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	logrus.Infof("SEND PrintStatus to %v ", conn.GetDstAddr())
+	logrus.Infof("SEND HeartBeat to %v ", conn.GetDstAddr())
 	reply, err := client.HeartBeat(context.Background(), &rpc.Empty{})
 	if err != nil {
 		logrus.Fatalf("cannot sent heart beat request to server %v: %v", conn.GetDstAddr(), err)

@@ -55,6 +55,7 @@ type Configuration interface {
 	GetDataCenterIdByClientId(clientId int) string
 	GetMaxDelay(clientDCId string, dcIds []string) time.Duration
 	GetServerListByDataCenterId(dataCenterId string) []int
+	GetLeaderIdListByDataCenterId(dataCenterId string) []int
 	GetKeyNum() int64
 	GetDelay() time.Duration
 	GetConnectionPoolSize() int
@@ -92,6 +93,7 @@ type FileConfiguration struct {
 	raftPeers              [][]string
 	raftToServerId         [][]int
 	expectPartitionLeaders []int
+	dataCenterIdToLeaderId map[string][]int
 
 	serverToRaftId   []int
 	serverToRaftPort []string
@@ -219,6 +221,11 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 
 		if f.expectPartitionLeaders[pId] == -1 {
 			f.expectPartitionLeaders[pId] = sId
+
+			if _, exist := f.dataCenterIdToLeaderId[dcId]; !exist {
+				f.dataCenterIdToLeaderId[dcId] = make([]int, 0)
+			}
+			f.dataCenterIdToLeaderId[dcId] = append(f.dataCenterIdToLeaderId[dcId], sId)
 		}
 
 		if _, exist := f.dataCenterIdToServerIdList[dcId]; !exist {
@@ -460,6 +467,15 @@ func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId string) []i
 	}
 
 	return f.dataCenterIdToServerIdList[dataCenterId]
+}
+
+func (f *FileConfiguration) GetLeaderIdListByDataCenterId(dataCenterId string) []int {
+	if _, exist := f.dataCenterIdToLeaderId[dataCenterId]; !exist {
+		log.Fatalf("dataCenter ID %v does not exist", dataCenterId)
+		return make([]int, 0)
+	}
+
+	return f.dataCenterIdToLeaderId[dataCenterId]
 }
 
 func (f *FileConfiguration) GetKeyNum() int64 {

@@ -39,7 +39,7 @@ func main() {
 	carouselClient = client.NewClient(0, ConfigFile)
 
 	for partitionId, leaderId := range carouselClient.Config.GetExpectPartitionLeaders() {
-		logrus.Debugf("Enforcing partition %v leader to be server Id = %s", partitionId, leaderId)
+		logrus.Debugf("Enforcing partition %v leader to be server Id = %v", partitionId, leaderId)
 
 		wg.Add(1)
 
@@ -84,19 +84,19 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 
 	//expectedLeaderServerId := serverAddrToInfoTable[expectedLeaderServerId].id
 
-	logrus.Infof("Expects the leader to be server Id = %s, addr = %s",
+	logrus.Infof("Expects the leader to be server Id = %v, addr = %v",
 		expectedLeaderServerId, config.GetServerAddressByServerId(expectedLeaderServerId))
 
 	// Sends a heart beat message to check if the leader is the expected server.
 	// The hear-beat response contains the current leader's server address.
 	curLeaderId := carouselClient.HeartBeat(expectedLeaderServerId)
 
-	logrus.Infof("The current leader is server id = %s", curLeaderId)
+	logrus.Infof("The current leader is server id = %v", curLeaderId)
 
 	// Kills the current leader until the expected server becomes the leader
 	for curLeaderId != expectedLeaderServerId {
 
-		logrus.Debugf("Killing the current leader, server id %s expect leaderId %v", curLeaderId, expectedLeaderServerId)
+		logrus.Debugf("Killing the current leader, server id %v expect leaderId %v", curLeaderId, expectedLeaderServerId)
 
 		if isLocalMode {
 			StopLocalServer(curLeaderId)
@@ -106,7 +106,7 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 		// Waits for Raft to elect a new leader
 		time.Sleep(time.Duration(waitTime) * time.Second)
 
-		logrus.Debugf("Starting the server Id = %s", curLeaderId)
+		logrus.Debugf("Starting the server Id = %v", curLeaderId)
 
 		StartServer(config, curLeaderId)
 		// Waits for the server to join in the Raft instance
@@ -114,10 +114,10 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 
 		curLeaderId = carouselClient.HeartBeat(expectedLeaderServerId)
 		if curLeaderId == -1 {
-			logrus.Fatalf("Invalid current leader address. Expected leader addr = %s", expectedLeaderServerId)
+			logrus.Fatalf("Invalid current leader address. Expected leader addr = %v", expectedLeaderServerId)
 		}
 
-		logrus.Infof("The current leader is server id = %s, expected leader id = %v", curLeaderId, expectedLeaderServerId)
+		logrus.Infof("The current leader is server id = %v, expected leader id = %v", curLeaderId, expectedLeaderServerId)
 	}
 }
 
@@ -127,7 +127,7 @@ func StopLocalServer(serverId int) {
 	//serverId := serverInfo.id
 	pid := getLocalPid(serverId)
 	if len(pid) == 0 {
-		logrus.Fatalf("Cannot stop server id = %s due to failing to locate the process on the local machine", serverId)
+		logrus.Fatalf("Cannot stop server id = %v due to failing to locate the process on the local machine", serverId)
 	}
 
 	serverDir, err := os.Getwd()
@@ -209,12 +209,12 @@ func buildSshCmd(config configuration.Configuration, serverId int, cmd string) s
 
 // Runs the command in a local bash, which will evaluate environment variables
 func execBashCmd(cmd string) string {
-	logrus.Debugf("Executing command: %s", cmd)
+	logrus.Debugf("Executing command: %v", cmd)
 
 	shell := exec.Command("bash", "-c", cmd)
 	stdoutStderr, err := shell.CombinedOutput()
 	if err != nil {
-		logrus.Errorf("Error: %s from\n %s", err, string(stdoutStderr))
+		logrus.Errorf("Error: %v from\n %v", err, string(stdoutStderr))
 	}
 
 	logrus.Debugf(string(stdoutStderr))
@@ -226,16 +226,16 @@ func getLocalPid(serverId int) string {
 	cmd := exec.Command("pgrep", "-f", carouselServerCmd+strconv.Itoa(serverId))
 	pid := ""
 	if stdout, err := cmd.Output(); err != nil {
-		logrus.Errorf("Failed to get process pid for server id = %s, error = %s", serverId, err)
+		logrus.Errorf("Failed to get process pid for server id = %v, error = %v", serverId, err)
 	} else {
 		pid = strings.TrimSuffix(string(stdout), "\n")
 	}
 
 	if len(pid) == 0 {
-		logrus.Errorf("There is no process for server id = %s", serverId)
+		logrus.Errorf("There is no process for server id = %v", serverId)
 	}
 
-	logrus.Debugf("server id = %s, pid = %s", serverId, pid)
+	logrus.Debugf("server id = %v, pid = %v", serverId, pid)
 
 	return pid
 }
@@ -247,7 +247,7 @@ func getRemotePid(serverId int, config configuration.Configuration) string {
 	sshCmd := buildSshCmd(config, serverId, cmd)
 	pid := execBashCmd(sshCmd)
 	if len(pid) == 0 {
-		logrus.Errorf("There is no process for server id = %s", serverId)
+		logrus.Errorf("There is no process for server id = %v", serverId)
 	}
 	pid = strings.TrimSuffix(pid, "\n")
 	return pid
