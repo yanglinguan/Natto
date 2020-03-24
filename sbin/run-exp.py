@@ -1,11 +1,7 @@
 #!/usr/bin/python
-import json
 import subprocess
 import os
 import argparse
-
-from paramiko import SSHClient, AutoAddPolicy
-from scp import SCPClient
 
 path = os.getcwd()
 
