@@ -71,7 +71,8 @@ def start_servers():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         cmd += "cd " + path + ";"
-        exe = server_cmd + "-i $id" + " -c " + args.config + " > " + " s$id.log &"
+        exe = server_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 & " + \
+              "echo \\$! > " + "server-$id.pid"
         loop = "for id in " + ' '.join(server_machine[mId]) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
@@ -101,8 +102,7 @@ def start_clients():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         cmd += "cd " + path + ";"
-        exe = client_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 & " + \
-              "echo \\$! > " + "server-$id.pid "
+        exe = client_cmd + "-i $id" + " -c " + args.config + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(client_machine[mId]) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
