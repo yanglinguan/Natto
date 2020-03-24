@@ -100,29 +100,31 @@ func NewServer(serverId int, configFile string) *Server {
 func (server *Server) Start() {
 	log.Infof("Starting Server %v", server.serverId)
 
-	// The channel for proposing requests to Raft
-	raftInputChannel := make(chan string, server.config.GetQueueLen())
-	defer close(raftInputChannel)
-	raftConfChangeChannel := make(chan raftpb.ConfChange)
-	defer close(raftConfChangeChannel)
+	if server.config.GetReplication() {
+		// The channel for proposing requests to Raft
+		raftInputChannel := make(chan string, server.config.GetQueueLen())
+		defer close(raftInputChannel)
+		raftConfChangeChannel := make(chan raftpb.ConfChange)
+		defer close(raftConfChangeChannel)
 
-	// TODO: snapshot function
-	getSnapshotFunc := func() ([]byte, error) { return make([]byte, 0), nil }
-	raftOutputChannel, raftErrorChannel, raftSnapshotterChannel, getLeaderIdFunc, raftNode := raftnode.NewRaftNode(
-		server.config.GetRaftIdByServerId(server.serverId)+1,
-		server.config.GetRaftPortByServerId(server.serverId),
-		server.config.GetRaftPeersByServerId(server.serverId),
-		false,
-		getSnapshotFunc,
-		raftInputChannel,
-		raftConfChangeChannel,
-		server.config.GetQueueLen(),
-	)
+		// TODO: snapshot function
+		getSnapshotFunc := func() ([]byte, error) { return make([]byte, 0), nil }
+		raftOutputChannel, raftErrorChannel, raftSnapshotterChannel, getLeaderIdFunc, raftNode := raftnode.NewRaftNode(
+			server.config.GetRaftIdByServerId(server.serverId)+1,
+			server.config.GetRaftPortByServerId(server.serverId),
+			server.config.GetRaftPeersByServerId(server.serverId),
+			false,
+			getSnapshotFunc,
+			raftInputChannel,
+			raftConfChangeChannel,
+			server.config.GetQueueLen(),
+		)
 
-	server.getLeaderId = getLeaderIdFunc
-	server.raftNode = raftNode
+		server.getLeaderId = getLeaderIdFunc
+		server.raftNode = raftNode
 
-	server.raft = NewRaft(server, <-raftSnapshotterChannel, raftInputChannel, raftOutputChannel, raftErrorChannel)
+		server.raft = NewRaft(server, <-raftSnapshotterChannel, raftInputChannel, raftOutputChannel, raftErrorChannel)
+	}
 
 	// Starts RPC service
 	rpcListener, err := net.Listen("tcp", ":"+server.port)

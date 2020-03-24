@@ -121,8 +121,9 @@ def print_server_status():
 
 
 def enforce_leader():
-    cmd = enforce_leader_cmd + "-c " + args.config
-    subprocess.call(cmd, shell=True)
+    if config["experiment"]["replication"]:
+        cmd = enforce_leader_cmd + "-c " + args.config
+        subprocess.call(cmd, shell=True)
 
 
 def stop_servers():
