@@ -25,7 +25,7 @@ config = json.load(config_file)
 config_file.close()
 
 path = os.getcwd()
-binPath = "$HOME/Projects/go/bin/"
+binPath = "/home/l69yang/Projects/go/bin/"
 
 server_cmd = "./carousel-server "
 client_cmd = "./client "
