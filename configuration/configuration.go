@@ -206,7 +206,7 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		raftPort := strconv.Itoa(raftPortBase + sId)
 
 		rpcAddr := ip + ":" + rpcPort
-		raftAddr := "http//" + ip + ":" + raftPort
+		raftAddr := "http://" + ip + ":" + raftPort
 
 		f.servers[sId] = rpcAddr
 		f.partitions[pId] = append(f.partitions[pId], sId)
