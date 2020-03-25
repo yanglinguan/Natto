@@ -19,10 +19,11 @@ func NewOccStorage(server *Server) *OccStorage {
 }
 
 func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
-	s.txnStore[op.request.Txn.TxnId].status = PREPARED
+	txnId := op.request.Txn.TxnId
+	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
+	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
 	s.replicatePreparedResult(op.request.Txn.TxnId)
-	//s.setPrepareResult(op)
 }
 
 func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
