@@ -102,8 +102,8 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	case INIT:
 		log.Infof("ABORT %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId, nil)
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
+		s.replicateCommitResult(txnId, nil)
 		s.getNextCommitListByCommitOrAbort(txnId)
 		s.release(txnId)
 		break
@@ -143,11 +143,13 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
 	s.removeFromQueue(op)
-	s.graph.AddNode(op.request.Txn.TxnId, op.keyMap)
-	s.txnStore[op.request.Txn.TxnId].status = PREPARED
+	txnId := op.request.Txn.TxnId
+	s.graph.AddNode(txnId, op.keyMap)
+	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setReadResult(op)
-	s.setPrepareResult(op)
+	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
+	s.replicatePreparedResult(txnId)
 }
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
