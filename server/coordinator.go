@@ -8,14 +8,15 @@ import (
 )
 
 type TwoPCInfo struct {
-	txnId             string
-	status            TxnStatus
-	preparedPartition map[int]*PrepareResultOp
-	readAndPrepareOp  *ReadAndPrepareOp
-	commitRequest     *CommitRequestOp
-	abortRequest      *AbortRequestOp
-	resultSent        bool
-	writeData         []*rpc.KeyValue
+	txnId               string
+	status              TxnStatus
+	preparedPartition   map[int]*PrepareResultOp
+	readAndPrepareOp    *ReadAndPrepareOp
+	commitRequest       *CommitRequestOp
+	abortRequest        *AbortRequestOp
+	resultSent          bool
+	writeData           []*rpc.KeyValue
+	writeDataReplicated bool
 }
 
 type Coordinator struct {
@@ -66,10 +67,11 @@ func (c *Coordinator) run() {
 func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 	if _, exist := c.txnStore[txnId]; !exist {
 		c.txnStore[txnId] = &TwoPCInfo{
-			txnId:             txnId,
-			status:            INIT,
-			preparedPartition: make(map[int]*PrepareResultOp),
-			resultSent:        false,
+			txnId:               txnId,
+			status:              INIT,
+			preparedPartition:   make(map[int]*PrepareResultOp),
+			resultSent:          false,
+			writeDataReplicated: false,
 		}
 	}
 	return c.txnStore[txnId]
@@ -77,12 +79,15 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 
 func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
 	switch msg.MsgType {
-	case CommitResultMsg:
+	case WriteDataMsg:
+		log.Debugf("server")
 		if c.server.IsLeader() {
-			c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
+			c.txnStore[msg.TxnId].writeDataReplicated = true
+			if c.txnStore[msg.TxnId].status == COMMIT {
+				c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
+			}
 		} else {
 			c.initTwoPCInfoIfNotExist(msg.TxnId)
-			c.txnStore[msg.TxnId].status = msg.Status
 			c.txnStore[msg.TxnId].writeData = msg.WriteData
 		}
 	}
@@ -113,7 +118,32 @@ func (c *Coordinator) handleCommitRequest(op *CommitRequestOp) {
 		return
 	}
 
+	c.replicateWriteData(txnId)
+
 	c.checkResult(twoPCInfo)
+}
+
+func (c *Coordinator) replicateWriteData(txnId string) {
+	if !c.server.config.GetReplication() {
+		c.txnStore[txnId].writeDataReplicated = true
+		log.Debugf("txn %v config not replication", txnId)
+		return
+	}
+
+	replicationMsg := ReplicationMsg{
+		TxnId:             txnId,
+		Status:            c.txnStore[txnId].status,
+		MsgType:           WriteDataMsg,
+		WriteData:         c.txnStore[txnId].commitRequest.request.WriteKeyValList,
+		IsFromCoordinator: true,
+	}
+
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
+		log.Errorf("replication encoding error: %v", err)
+	}
+
+	c.server.raft.raftInputChannel <- string(buf.Bytes())
 }
 
 func (c *Coordinator) handleAbortRequest(op *AbortRequestOp) {
@@ -169,71 +199,42 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 	return true
 }
 
-func (c *Coordinator) convertReplicationMsgToByte(txnId string, msgType ReplicationMsgType) bytes.Buffer {
-	replicationMsg := ReplicationMsg{
-		TxnId:             txnId,
-		Status:            c.txnStore[txnId].status,
-		MsgType:           msgType,
-		WriteData:         nil,
-		IsFromCoordinator: true,
-	}
-	if c.txnStore[txnId].status == COMMIT {
-		replicationMsg.WriteData = c.txnStore[txnId].commitRequest.request.WriteKeyValList
-	}
-
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
-		log.Errorf("replication encoding error: %v", err)
-	}
-	return buf
-}
-
-func (c *Coordinator) replicateCommitResult(txnId string) {
-	c.txnStore[txnId].resultSent = true
-	if !c.server.config.GetReplication() {
-		log.Debugf("txn %v config not replication", txnId)
-		c.sendToParticipantsAndClient(c.txnStore[txnId])
+func (c *Coordinator) checkResult(info *TwoPCInfo) {
+	if info.resultSent {
+		log.Warnf("txn %v result is sent", info.txnId)
 		return
 	}
-	buf := c.convertReplicationMsgToByte(txnId, CommitResultMsg)
-	c.server.raft.raftInputChannel <- string(buf.Bytes())
-}
-
-func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
-		if info.readAndPrepareOp != nil && !info.resultSent {
+		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
-			c.replicateCommitResult(info.txnId)
-			//c.sendToParticipantsAndClient(info)
+			c.sendToParticipantsAndClient(info)
 		}
 	} else {
-		if info.readAndPrepareOp != nil && info.commitRequest != nil && !info.resultSent {
-			if len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.preparedPartition) && info.status == INIT {
-				if c.checkReadKeyVersion(info) {
-					log.Debugf("txn %v commit coordinator %v", info.txnId, info.preparedPartition)
-					info.status = COMMIT
-				} else {
-					log.Debugf("txn %v abort coordinator %v, due to read version invalid",
-						info.txnId, info.preparedPartition)
-					info.status = ABORT
+		if info.status == INIT && info.readAndPrepareOp != nil &&
+			len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.preparedPartition) {
+			if c.checkReadKeyVersion(info) {
+				log.Debugf("txn %v commit coordinator %v", info.txnId, info.preparedPartition)
+				info.status = COMMIT
+				if info.writeDataReplicated {
+					c.sendToParticipantsAndClient(info)
 				}
-				c.replicateCommitResult(info.txnId)
-				//c.sendToParticipantsAndClient(info)
 			} else {
-				log.Debugf("txn %v cannot commit yet required partitions %v, received partition %v, status %v",
-					info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds,
-					len(info.preparedPartition),
-					info.status)
+				log.Debugf("txn %v abort coordinator %v, due to read version invalid",
+					info.txnId, info.preparedPartition)
+				info.status = ABORT
+
+				c.sendToParticipantsAndClient(info)
 			}
-		} else {
-			log.Debugf("txn %v cannot commit yet, read and prepared request or commit request does not received from client already sent %v", info.txnId, info.resultSent)
 		}
 	}
 }
 
 func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
-	//info.resultSent = true
-	//c.replicateCommitResult(info.txnId)
+	if info.resultSent {
+		log.Warnf("txn %v result is sent", info.txnId)
+		return
+	}
+	info.resultSent = true
 	switch info.status {
 	case ABORT:
 		if info.commitRequest != nil {

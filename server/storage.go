@@ -34,6 +34,7 @@ type ReplicationMsgType int32
 const (
 	PrepareResultMsg ReplicationMsgType = iota
 	CommitResultMsg
+	WriteDataMsg
 )
 
 type ReplicationMsg struct {
