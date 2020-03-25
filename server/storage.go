@@ -452,6 +452,7 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
 	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
+	s.setReadResult(op)
 	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
 	//if s.server.config.GetReplication() {
 	s.replicatePreparedResult(op.request.Txn.TxnId)
@@ -567,6 +568,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
 	log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
+	s.setReadResult(op)
 	abortOp := NewAbortRequestOp(nil, op, false)
 	s.server.executor.AbortTxn <- abortOp
 }
@@ -624,7 +626,7 @@ func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 	case PrepareResultMsg:
 		log.Debugf("txn %v apply prepare result %v", msg.TxnId, msg.Status)
 		if s.server.IsLeader() {
-			s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+			//s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 			s.readyToSendPrepareResultToCoordinator(s.txnStore[msg.TxnId].prepareResultOp)
 		} else {
 			s.initTxnIfNotExist(msg.TxnId)

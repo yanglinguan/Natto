@@ -210,7 +210,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			c.sendToParticipantsAndClient(info)
 		}
 	} else {
-		if info.status == INIT && info.readAndPrepareOp != nil &&
+		if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
 			len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.preparedPartition) {
 			if c.checkReadKeyVersion(info) {
 				log.Debugf("txn %v commit coordinator %v", info.txnId, info.preparedPartition)
