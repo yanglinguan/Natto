@@ -167,10 +167,12 @@ func (s *AbstractStorage) print() {
 }
 
 func (s AbstractStorage) printCommitOrder() {
-	txnId := make([]*TxnInfo, s.committed)
-	for _, info := range s.txnStore {
+	txnInfo := make([]*TxnInfo, s.committed)
+	txnId := make([]string, s.committed)
+	for id, info := range s.txnStore {
 		if info.status == COMMIT {
-			txnId[info.commitOrder] = info
+			txnInfo[info.commitOrder] = info
+			txnId[info.commitOrder] = id
 		}
 	}
 	fName := fmt.Sprintf("s%v_%v_commitOrder.log", s.server.serverId, s.server.IsLeader())
@@ -180,9 +182,9 @@ func (s AbstractStorage) printCommitOrder() {
 		return
 	}
 
-	for _, info := range txnId {
+	for i, info := range txnInfo {
 		s := fmt.Sprintf("%v %v %v %v %v %v %v\n",
-			info.readAndPrepareRequestOp.request.Txn.TxnId,
+			txnId[i],
 			info.waitingTxnKey,
 			info.waitingTxnDep,
 			info.preparedTime.Sub(info.startTime).Nanoseconds(),
