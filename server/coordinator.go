@@ -174,9 +174,13 @@ func (c *Coordinator) convertReplicationMsgToByte(txnId string, msgType Replicat
 		TxnId:             txnId,
 		Status:            c.txnStore[txnId].status,
 		MsgType:           msgType,
-		WriteData:         c.txnStore[txnId].commitRequest.request.WriteKeyValList,
+		WriteData:         nil,
 		IsFromCoordinator: true,
 	}
+	if c.txnStore[txnId].status == COMMIT {
+		replicationMsg.WriteData = c.txnStore[txnId].commitRequest.request.WriteKeyValList
+	}
+
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
 		log.Errorf("replication encoding error: %v", err)
