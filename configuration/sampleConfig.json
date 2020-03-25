@@ -2,35 +2,24 @@
   "servers": {
     "nums": 3,
     "partitions": 3,
+    "replicationFactor": 1,
     "raftPortBase": 20000,
     "rpcPortBase": 10000,
     "machines": [
-      {
-        "ip": "localhost",
-        "dataCenterId": "D1"
-      },
-      {
-        "ip": "localhost",
-        "dataCenterId": "D2"
-      },
-      {
-        "ip": "localhost",
-        "dataCenterId": "D3"
-      }
+      "localhost",
+      "localhost",
+      "localhost"
     ]
   },
   "clients": {
     "nums": 16,
     "machines": [
-      {
-        "ip": "localhost",
-        "dataCenterId": "D1"
-      }
+      "localhost"
     ]
   },
   "experiment": {
     "mode": "occ",
-    "replication": false,
+    "fastPath": false,
     "totalKey": 3,
     "delay": "200ms",
     "RPCPoolSize": 0,
@@ -58,11 +47,11 @@
       "maxRetry": 20,
       "maxSlot": 32
     },
-    "oneWayDelay" : {
-      "D1": {"D2": "50ms", "D3": "100ms"},
-      "D2": {"D1": "50ms", "D3": "80ms"},
-      "D3": {"D1": "100ms", "D2": "80ms"}
-    },
+    "oneWayDelay" : [
+      ["0ms","50ms", "100ms"],
+      ["50ms", "0ms", "80ms"],
+      ["100ms", "80ms", "0ms"]
+    ],
     "ssh": {
       "username": "l69yang",
       "identity": ""

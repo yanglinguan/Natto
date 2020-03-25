@@ -251,7 +251,7 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 				op := NewAbortRequestOp(request, nil, true)
 				c.server.executor.AbortTxn <- op
 			} else {
-				serverId := c.server.config.GetServerIdByPartitionId(int(pId))
+				serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
 				sender := NewAbortRequestSender(request, serverId, c.server)
 				go sender.Send()
 			}
@@ -291,7 +291,7 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 				c.server.executor.CommitTxn <- op
 			} else {
 				log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
-				serverId := c.server.config.GetServerIdByPartitionId(int(pId))
+				serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
 				sender := NewCommitRequestSender(request, serverId, c.server)
 				go sender.Send()
 			}

@@ -59,7 +59,7 @@ func (e *Executor) sendPreparedResultToCoordinator() {
 		if op.CoordPartitionId == e.server.partitionId {
 			e.server.coordinator.PrepareResult <- op
 		} else {
-			coordinatorId := e.server.config.GetServerIdByPartitionId(op.CoordPartitionId)
+			coordinatorId := e.server.config.GetLeaderIdByPartitionId(op.CoordPartitionId)
 			sender := NewPrepareResultSender(op.Request, coordinatorId, e.server)
 			go sender.Send()
 		}

@@ -15,10 +15,7 @@ import (
 	"time"
 )
 
-//const QueueLen = 1024
-
 type Transaction struct {
-	// when retry, txnId is different from txn.TxnId
 	txnId        string
 	commitReply  chan *rpc.CommitReply
 	commitResult int
@@ -75,7 +72,7 @@ func (o *CommitOp) BlockOwner() bool {
 type Client struct {
 	clientId           int
 	Config             configuration.Configuration
-	clientDataCenterId string
+	clientDataCenterId int
 
 	connections []connection.Connection
 
@@ -94,7 +91,7 @@ func NewClient(clientId int, configFile string) *Client {
 	c := &Client{
 		clientId:           clientId,
 		Config:             config,
-		clientDataCenterId: "",
+		clientDataCenterId: config.GetDataCenterIdByClientId(clientId),
 		connections:        make([]connection.Connection, len(config.GetServerAddress())),
 		sendTxnRequest:     make(chan *SendOp, queueLen),
 		commitTxnRequest:   make(chan *CommitOp, queueLen),
@@ -103,7 +100,6 @@ func NewClient(clientId int, configFile string) *Client {
 		count:              0,
 	}
 
-	c.clientDataCenterId = c.Config.GetDataCenterIdByClientId(clientId)
 	if c.Config.GetConnectionPoolSize() == 0 {
 		for sId, addr := range c.Config.GetServerAddress() {
 			c.connections[sId] = connection.NewSingleConnect(addr)
@@ -276,11 +272,11 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	partitionSet, participants := c.separatePartition(op)
 
 	participatedPartitions := make([]int32, len(partitionSet))
-	serverDcIds := make([]string, len(partitionSet))
+	serverDcIds := make([]int, len(partitionSet))
 	i := 0
 	for pId := range participants {
 		participatedPartitions[i] = int32(pId)
-		sId := c.Config.GetServerIdByPartitionId(pId)
+		sId := c.Config.GetLeaderIdByPartitionId(pId)
 		serverDcIds[i] = c.Config.GetDataCenterIdByServerId(sId)
 		i++
 	}
@@ -328,7 +324,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			ClientId:         "c" + strconv.Itoa(c.clientId),
 		}
 
-		sId := c.Config.GetServerIdByPartitionId(pId)
+		sId := c.Config.GetLeaderIdByPartitionId(pId)
 		sender := NewReadAndPrepareSender(request, execution, sId, c)
 
 		go sender.Send()
@@ -425,7 +421,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		IsReadAnyReplica: false,
 	}
 
-	coordinatorId := c.Config.GetServerIdByPartitionId(int(execution.rpcTxn.CoordPartitionId))
+	coordinatorId := c.Config.GetLeaderIdByPartitionId(int(execution.rpcTxn.CoordPartitionId))
 	sender := NewCommitRequestSender(request, ongoingTxn, coordinatorId, c)
 
 	go sender.Send()
@@ -433,17 +429,6 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	go c.waitCommitReply(op, ongoingTxn)
 }
 
-//func (c *Client) getCommitTxn() map[int]int {
-//	commitTxn := make(map[int]int)
-//	for _, txn := range c.txnStore {
-//		if txn.commitResult == 1 {
-//			for _, pId := range txn.executions[0].rpcTxn.ParticipatedPartitionIds {
-//				commitTxn[int(pId)]++
-//			}
-//		}
-//	}
-//	return commitTxn
-//}
 func (c *Client) PrintServerStatus(commitTxn []int) {
 	var wg sync.WaitGroup
 	for sId := range c.connections {
@@ -460,17 +445,6 @@ func (c *Client) PrintServerStatus(commitTxn []int) {
 }
 
 func (c *Client) PrintTxnStatisticData() {
-	//commitTxn := c.getCommitTxn()
-	//for sId := range c.connections {
-	//	pId := c.Config.GetPartitionIdByServerId(sId)
-	//	committed := commitTxn[pId]
-	//	request := &rpc.PrintStatusRequest{
-	//		CommittedTxn: int32(committed),
-	//	}
-	//	sender := NewPrintStatusRequestSender(request, sId, c)
-	//	go sender.Send()
-	//}
-
 	file, err := os.Create("c" + strconv.Itoa(c.clientId) + ".statistic")
 	if err != nil || file == nil {
 		logrus.Fatal("Fails to create log file: statistic.log")
