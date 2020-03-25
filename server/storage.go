@@ -2,6 +2,7 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"Carousel-GTS/utils"
 	"bytes"
 	"container/list"
 	"encoding/gob"
@@ -33,8 +34,6 @@ type ReplicationMsgType int32
 const (
 	PrepareResultMsg ReplicationMsgType = iota
 	CommitResultMsg
-	//LeaderAbortMsg        = "4"
-	//CoordinatorAbortMsg   = "5"
 )
 
 type ReplicationMsg struct {
@@ -222,14 +221,12 @@ func (s AbstractStorage) printModifiedData() {
 			continue
 		}
 
-		var k int
-		_, err := fmt.Sscan(key, &k)
+		k := utils.ConvertToInt(key)
 		if err != nil {
 			log.Fatalf("key %v is invalid", key)
 		}
 
-		var v int
-		_, err = fmt.Sscan(kv.Value, &v)
+		v := utils.ConvertToInt(kv.Value)
 		if err != nil {
 			log.Fatalf("value %v is invalid", kv.Value)
 		}
@@ -463,20 +460,6 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	//}
 }
 
-func (s *AbstractStorage) convertReplicationMsgToByte(txnId string, msgType ReplicationMsgType) bytes.Buffer {
-	replicationMsg := ReplicationMsg{
-		TxnId:             txnId,
-		Status:            s.txnStore[txnId].status,
-		MsgType:           msgType,
-		IsFromCoordinator: false,
-	}
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
-		log.Errorf("replication encoding error: %v", err)
-	}
-	return buf
-}
-
 func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 	if !s.server.config.GetReplication() {
 		log.Debugf("txn %v config no replication send result to coordinator", txnId)
@@ -486,7 +469,16 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 	}
 	//Replicates the prepare result to followers.
 
-	buf := s.convertReplicationMsgToByte(txnId, PrepareResultMsg)
+	replicationMsg := ReplicationMsg{
+		TxnId:             txnId,
+		Status:            s.txnStore[txnId].status,
+		MsgType:           PrepareResultMsg,
+		IsFromCoordinator: false,
+	}
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
+		log.Errorf("replication encoding error: %v", err)
+	}
 
 	log.Debugf("txn %s replicates the prepare result %v.", txnId, s.txnStore[txnId].status)
 
@@ -549,13 +541,25 @@ func (s *AbstractStorage) readyToSendPrepareResultToCoordinator(op *PrepareResul
 	s.server.executor.PrepareResult <- s.txnStore[txnId].prepareResultOp
 }
 
-func (s *AbstractStorage) replicateCommitResult(txnId string) {
+func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.KeyValue) {
 	if !s.server.config.GetReplication() {
 		log.Debugf("txn %v config no replication", txnId)
 		return
 	}
 	log.Debugf("txn %v replicate commit result %v", txnId, s.txnStore[txnId].status)
-	buf := s.convertReplicationMsgToByte(txnId, CommitResultMsg)
+
+	replicationMsg := ReplicationMsg{
+		TxnId:             txnId,
+		Status:            s.txnStore[txnId].status,
+		MsgType:           CommitResultMsg,
+		IsFromCoordinator: false,
+		WriteData:         writeData,
+	}
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
+		log.Errorf("replication encoding error: %v", err)
+	}
+
 	s.server.raft.raftInputChannel <- string(buf.Bytes())
 }
 
@@ -590,7 +594,7 @@ func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
 			status:                  ABORT,
 			receiveFromCoordinator:  true,
 		}
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, nil)
 	}
 }
 

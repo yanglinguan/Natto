@@ -74,7 +74,7 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		op.wait <- true
 
 		s.txnStore[txnId].status = COMMIT
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, op.request.WriteKeyValList)
 
 		s.getNextCommitListByCommitOrAbort(txnId)
 		s.release(txnId)
@@ -95,14 +95,14 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	case PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, nil)
 		s.getNextCommitListByCommitOrAbort(txnId)
 		s.release(txnId)
 		break
 	case INIT:
 		log.Infof("ABORT %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, nil)
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
 		s.getNextCommitListByCommitOrAbort(txnId)
 		s.release(txnId)

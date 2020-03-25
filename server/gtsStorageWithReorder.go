@@ -60,14 +60,14 @@ func (s *GTSStorageWithReorder) abortProcessedTxn(txnId string) {
 	case PREPARED:
 		log.Infof("ABORT: %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, nil)
 		s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 		s.release(txnId)
 		break
 	case INIT:
 		log.Infof("ABORT: %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, nil)
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
 		s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 		s.release(txnId)
@@ -137,7 +137,7 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].commitTime = time.Now()
 
 	s.txnStore[txnId].status = COMMIT
-	s.replicateCommitResult(txnId)
+	s.replicateCommitResult(txnId, op.request.WriteKeyValList)
 
 	s.release(txnId)
 	s.writeToDB(op.request.WriteKeyValList)

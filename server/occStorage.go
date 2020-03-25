@@ -55,7 +55,7 @@ func (s *OccStorage) Commit(op *CommitRequestOp) {
 	txnId := op.request.TxnId
 	log.Infof("COMMIT %v", txnId)
 	s.txnStore[txnId].status = COMMIT
-	s.replicateCommitResult(txnId)
+	s.replicateCommitResult(txnId, op.request.WriteKeyValList)
 	s.release(txnId)
 	s.writeToDB(op.request.WriteKeyValList)
 
@@ -72,7 +72,7 @@ func (s *OccStorage) abortProcessedTxn(txnId string) {
 	case PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId)
+		s.replicateCommitResult(txnId, nil)
 		s.release(txnId)
 		break
 	default:
