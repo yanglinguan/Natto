@@ -83,8 +83,7 @@ def collect_client_log(clients, machines):
     for mId in range(len(clients)):
         if len(clients[mId]) == 0:
             continue
-        m = machines[mId]
-        ip = m["ip"]
+        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -104,8 +103,7 @@ def collect_server_log(new_dir, servers, machines):
     for mId in range(len(servers)):
         if len(servers[mId]) == 0:
             continue
-        m = machines[mId]
-        ip = m["ip"]
+        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -146,8 +144,7 @@ def deploy(servers, server_machines, clients, client_machines):
     for mId in range(len(servers)):
         if len(servers[mId]) == 0:
             continue
-        m = server_machines[mId]
-        ip = m["ip"]
+        ip = server_machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -159,8 +156,7 @@ def deploy(servers, server_machines, clients, client_machines):
     for mId in range(len(clients)):
         if len(clients[mId]) == 0:
             continue
-        m = client_machines[mId]
-        ip = m["ip"]
+        ip = client_machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -184,8 +180,7 @@ def start_servers(servers, machines):
     for mId in range(len(servers)):
         if len(servers[mId]) == 0:
             continue
-        m = machines[mId]
-        ip = m["ip"]
+        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -209,8 +204,7 @@ def start_clients(clients, machines):
     for mId in range(len(clients)):
         if len(clients[mId]) == 0:
             continue
-        m = machines[mId]
-        ip = m["ip"]
+        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -242,8 +236,7 @@ def enforce_leader():
 
 
 def stop_servers():
-    for machine in config["servers"]["machines"]:
-        ip = machine["ip"]
+    for ip in config["servers"]["machines"]:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -255,8 +248,7 @@ def stop_servers():
 
 
 def stop_clients():
-    for info in config["clients"]["machines"]:
-        ip = info["ip"]
+    for ip in config["clients"]["machines"]:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
