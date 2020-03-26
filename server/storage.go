@@ -261,7 +261,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 		IsAbort:       s.txnStore[op.request.Txn.TxnId].status == ABORT,
 	}
 
-	if !op.reply.IsAbort {
+	if !op.reply.IsAbort && s.server.IsLeader() {
 		for rk := range op.readKeyMap {
 			keyValueVersion := &rpc.KeyValueVersion{
 				Key:     rk,
@@ -270,6 +270,10 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 			}
 			op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 		}
+	}
+
+	if !s.server.IsLeader() {
+		op.reply.IsAbort = false
 	}
 
 	op.wait <- true
@@ -320,12 +324,6 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) *PrepareResultO
 		Request:          op.prepareResult,
 		CoordPartitionId: int(op.request.Txn.CoordPartitionId),
 	}
-
-	// ready to send the coordinator
-	//s.server.executor.PrepareResult <- &PrepareResultOp{
-	//	Request:          op.prepareResult,
-	//	CoordPartitionId: int(op.request.Txn.CoordPartitionId),
-	//}
 }
 
 // add txn to the queue waiting for keys
@@ -454,12 +452,7 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	s.recordPrepared(op)
 	s.setReadResult(op)
 	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
-	//if s.server.config.GetReplication() {
 	s.replicatePreparedResult(op.request.Txn.TxnId)
-	//} else {
-	//	s.setReadResult(op)
-	//	s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
-	//}
 }
 
 func (s *AbstractStorage) replicatePreparedResult(txnId string) {
@@ -469,8 +462,12 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 		s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
 		return
 	}
-	//Replicates the prepare result to followers.
 
+	if s.server.config.GetFastPath() {
+		s.server.executor.sendFastPrepareResultToCoordinator()
+	}
+
+	//Replicates the prepare result to followers.
 	replicationMsg := ReplicationMsg{
 		TxnId:             txnId,
 		Status:            s.txnStore[txnId].status,

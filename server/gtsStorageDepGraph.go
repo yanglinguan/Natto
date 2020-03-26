@@ -114,19 +114,6 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	}
 }
 
-//func (s *GTSStorageDepGraph) Abort(op *AbortRequestOp) {
-//	if op.isFromCoordinator {
-//		s.coordinatorAbort(op.abortRequest)
-//	} else {
-//		//s.selfAbort(op.request)
-//		//s.setReadResult(op.request)
-//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-//		if op.sendToCoordinator {
-//			s.setPrepareResult(op.request)
-//		}
-//	}
-//}
-
 func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	available := true
 	// read write conflict

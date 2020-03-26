@@ -126,3 +126,42 @@ func (c *CommitRequestSender) Send() {
 		logrus.Infof("RECEIVE ACK Commit %v from server %v", c.request.TxnId, conn.GetDstAddr())
 	}
 }
+
+type FastPrepareResultSender struct {
+	request     *rpc.FastPrepareResultRequest
+	timeout     time.Duration
+	dstServerId int
+	server      *Server
+}
+
+func NewFastPrepareResultSender(request *rpc.FastPrepareResultRequest, dstServerId int, server *Server) *FastPrepareResultSender {
+	s := &FastPrepareResultSender{
+		request:     request,
+		timeout:     0,
+		server:      server,
+		dstServerId: dstServerId,
+	}
+	return s
+}
+
+func (p *FastPrepareResultSender) Send() {
+	conn := p.server.connections[p.dstServerId]
+	logrus.Infof("SEND PrepareResult %v partition %v result %v to %v",
+		p.request.PrepareResult.TxnId, p.request.PrepareResult.PartitionId, p.request.PrepareResult.PrepareStatus, conn.GetDstAddr())
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
+	}
+
+	client := rpc.NewCarouselClient(clientConn)
+	_, err := client.FastPrepareResult(context.Background(), p.request)
+
+	if err != nil {
+		if dstServerId, handled := utils.HandleError(err); handled {
+			p.dstServerId = dstServerId
+			p.Send()
+		} else {
+			logrus.Fatalf("fail to send prepare result txn %v to server %v: %v", p.request.PrepareResult.TxnId, conn.GetDstAddr(), err)
+		}
+	}
+}

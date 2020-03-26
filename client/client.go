@@ -282,8 +282,15 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	}
 
 	leaderIdList := c.Config.GetLeaderIdListByDataCenterId(c.clientDataCenterId)
-
 	coordinatorPartitionId := c.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
+	for _, lId := range leaderIdList {
+		pLId := c.Config.GetPartitionIdByServerId(lId)
+		if _, exist := partitionSet[pLId]; exist {
+			coordinatorPartitionId = pLId
+			break
+		}
+	}
+
 	if _, exist := partitionSet[coordinatorPartitionId]; !exist {
 		partitionSet[coordinatorPartitionId] = make([][]string, 2)
 	}
@@ -324,10 +331,11 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			ClientId:         "c" + strconv.Itoa(c.clientId),
 		}
 
-		sId := c.Config.GetLeaderIdByPartitionId(pId)
-		sender := NewReadAndPrepareSender(request, execution, sId, c)
-
-		go sender.Send()
+		sIdList := c.Config.GetServerIdListByPartitionId(pId)
+		for _, sId := range sIdList {
+			sender := NewReadAndPrepareSender(request, execution, sId, c)
+			go sender.Send()
+		}
 	}
 
 	go c.waitReadAndPrepareRequest(op, execution)

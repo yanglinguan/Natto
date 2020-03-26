@@ -69,19 +69,6 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 	}
 }
 
-//func (s *GTSStorage) Abort(op *AbortRequestOp) {
-//	if op.isFromCoordinator {
-//		s.coordinatorAbort(op.abortRequest)
-//	} else {
-//	//	s.selfAbort(op.request)
-//	//	s.setReadResult(op.request)
-//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-//		if op.sendToCoordinator {
-//			s.setPrepareResult(op.request)
-//		}
-//	}
-//}
-
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	log.Infof("PROCESSING txn %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId

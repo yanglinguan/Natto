@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"strconv"
 	"time"
@@ -48,6 +49,8 @@ type Configuration interface {
 	GetServerIdByRaftId(raftId int, serverId int) int
 	GetTotalPartition() int
 	GetExpectPartitionLeaders() []int
+	GetFastPath() bool
+	GetSuperMajority() int
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -142,6 +145,8 @@ type FileConfiguration struct {
 
 	isReplication     bool
 	replicationFactor int
+	isFastPath        bool
+	failure           int
 
 	username string
 	identity string
@@ -149,19 +154,7 @@ type FileConfiguration struct {
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
-	c := &FileConfiguration{
-		servers:                    nil,
-		partitions:                 nil,
-		serverToPartitionId:        nil,
-		serverMode:                 0,
-		keys:                       nil,
-		keyNum:                     0,
-		dataCenterDistance:         nil,
-		serverToDataCenterId:       nil,
-		dataCenterIdToServerIdList: nil,
-		dataCenterIdToLeaderIdList: nil,
-		clientToDataCenterId:       nil,
-	}
+	c := &FileConfiguration{}
 	c.loadFile(filePath)
 	return c
 }
@@ -188,6 +181,8 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	partitionNum := int(config["partitions"].(float64))
 	serverNum := int(config["nums"].(float64))
 	f.replicationFactor = int(config["replicationFactor"].(float64))
+	f.isReplication = f.replicationFactor != 1
+	f.failure = int(config["failure"].(float64))
 	dcNum := serverNum/f.replicationFactor + 1
 	machines := config["machines"].([]interface{})
 	totalMachines := len(machines)
@@ -350,6 +345,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.identity = items["identity"].(string)
 		} else if key == "runDir" {
 			f.runDir = v.(string)
+		} else if key == "fastPath" {
+			f.isFastPath = v.(bool)
 		}
 	}
 }
@@ -385,7 +382,11 @@ func (f *FileConfiguration) GetServerIdListByPartitionId(partitionId int) []int 
 		log.Fatalf("partitionId %v does not exist", partitionId)
 		return nil
 	}
-	return f.partitions[partitionId]
+	if f.isFastPath {
+		return f.partitions[partitionId]
+	} else {
+		return []int{f.GetLeaderIdByPartitionId(partitionId)}
+	}
 }
 
 func (f *FileConfiguration) GetServerAddress() []string {
@@ -623,4 +624,12 @@ func (f *FileConfiguration) GetSSHUsername() string {
 
 func (f *FileConfiguration) GetRunDir() string {
 	return f.runDir
+}
+
+func (f *FileConfiguration) GetFastPath() bool {
+	return f.isFastPath
+}
+
+func (f *FileConfiguration) GetSuperMajority() int {
+	return int(math.Ceil(float64(f.failure*3/2)) + 1)
 }

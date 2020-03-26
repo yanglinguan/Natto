@@ -83,14 +83,3 @@ func (s *OccStorage) abortProcessedTxn(txnId string) {
 	}
 
 }
-
-//func (s *OccStorage) Abort(op *AbortRequestOp) {
-//	if op.isFromCoordinator {
-//		s.coordinatorAbort(op.abortRequest)
-//	} else {
-//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-//		if op.sendToCoordinator {
-//			s.setPrepareResult(op.request)
-//		}
-//	}
-//}

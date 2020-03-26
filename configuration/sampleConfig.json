@@ -3,6 +3,7 @@
     "nums": 3,
     "partitions": 3,
     "replicationFactor": 1,
+    "failure": 1,
     "raftPortBase": 20000,
     "rpcPortBase": 10000,
     "machines": [

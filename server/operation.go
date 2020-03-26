@@ -135,7 +135,6 @@ type AbortRequestOp struct {
 	abortRequest      *rpc.AbortRequest
 	request           *ReadAndPrepareOp
 	isFromCoordinator bool
-	//sendToCoordinator bool
 }
 
 func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
@@ -144,7 +143,6 @@ func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
 		abortRequest:      abortRequest,
 		request:           request,
 		isFromCoordinator: fromCoordinator,
-		//sendToCoordinator: false,
 	}
 	return a
 }
@@ -171,6 +169,19 @@ func NewPrepareRequestOp(request *rpc.PrepareResultRequest, coordinatorPartition
 		CoordPartitionId: coordinatorPartitionId,
 	}
 
+	return p
+}
+
+type FastPrepareResultOp struct {
+	request          *rpc.FastPrepareResultRequest
+	coordPartitionId int
+}
+
+func NewFastPrepareRequestOp(request *rpc.FastPrepareResultRequest, coordinatorPartitionId int) *FastPrepareResultOp {
+	p := &FastPrepareResultOp{
+		request:          request,
+		coordPartitionId: coordinatorPartitionId,
+	}
 	return p
 }
 

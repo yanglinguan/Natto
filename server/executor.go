@@ -1,6 +1,9 @@
 package server
 
-import "github.com/sirupsen/logrus"
+import (
+	"Carousel-GTS/rpc"
+	"github.com/sirupsen/logrus"
+)
 
 type Executor struct {
 	server *Server
@@ -55,12 +58,36 @@ func (e *Executor) run() {
 func (e *Executor) sendPreparedResultToCoordinator() {
 	for {
 		op := <-e.PrepareResult
-		logrus.Debugf("send prepare result %v to coordinator %v txn %v", op.Request.PrepareStatus, op.CoordPartitionId, op.Request.TxnId)
+		logrus.Debugf("send prepare result %v to coordinator %v txn %v",
+			op.Request.PrepareStatus, op.CoordPartitionId, op.Request.TxnId)
 		if op.CoordPartitionId == e.server.partitionId {
 			e.server.coordinator.PrepareResult <- op
 		} else {
 			coordinatorId := e.server.config.GetLeaderIdByPartitionId(op.CoordPartitionId)
 			sender := NewPrepareResultSender(op.Request, coordinatorId, e.server)
+			go sender.Send()
+		}
+	}
+}
+
+func (e *Executor) sendFastPrepareResultToCoordinator() {
+	for {
+		op := <-e.PrepareResult
+		logrus.Debugf("send fast prepare result %v to coordinator %v txn %v, isLeader %v, raft term %v ",
+			op.Request.PrepareStatus, op.CoordPartitionId, op.Request.TxnId, e.server.IsLeader(), e.server.raftNode.GetRaftTerm())
+		request := &rpc.FastPrepareResultRequest{
+			PrepareResult: op.Request,
+			IsLeader:      e.server.IsLeader(),
+			RaftTerm:      e.server.raftNode.GetRaftTerm(),
+		}
+
+		fOp := NewFastPrepareRequestOp(request, op.CoordPartitionId)
+
+		if op.CoordPartitionId == e.server.partitionId {
+			e.server.coordinator.FastPrepareResult <- fOp
+		} else {
+			coordinatorId := e.server.config.GetLeaderIdByPartitionId(op.CoordPartitionId)
+			sender := NewFastPrepareResultSender(request, coordinatorId, e.server)
 			go sender.Send()
 		}
 	}

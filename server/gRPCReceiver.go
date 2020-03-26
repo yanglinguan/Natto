@@ -12,10 +12,11 @@ import (
 func (server *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
 	logrus.Infof("RECEIVE ReadAndPrepare %v", request.Txn.TxnId)
-	if !server.IsLeader() {
+	if !server.IsLeader() && (!server.config.GetFastPath() || request.IsNotParticipant) {
 		logrus.Debugf("txn %v server %v is not leader", request.Txn.TxnId, server.serverAddress)
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
 	}
+
 	requestOp := NewReadAndPrepareOp(request, server)
 
 	if int(request.Txn.CoordPartitionId) == server.partitionId {
@@ -23,13 +24,6 @@ func (server *Server) ReadAndPrepare(ctx context.Context,
 	}
 
 	if request.IsNotParticipant {
-		if int(request.Txn.CoordPartitionId) != server.partitionId {
-			logrus.Fatalf("txn %v is not participant and not coordinator (server %v, pId %v)",
-				request.Txn.TxnId,
-				server.serverId,
-				server.partitionId)
-		}
-
 		reply := &rpc.ReadAndPrepareReply{
 			KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 		}
@@ -99,6 +93,21 @@ func (server *Server) PrepareResult(ctx context.Context, request *rpc.PrepareRes
 	server.coordinator.PrepareResult <- op
 	return &rpc.PrepareResultReply{
 		LeaderId: int32(server.GetLeaderServerId()),
+	}, nil
+}
+
+func (server *Server) FastPrepareResult(ctx context.Context, request *rpc.FastPrepareResultRequest) (*rpc.FastPrepareResultReply, error) {
+	logrus.Infof("RECEIVE FastPrepareResult %v partition %v result %v",
+		request.PrepareResult.TxnId, request.PrepareResult.PartitionId, request.PrepareResult.PrepareStatus)
+	if !server.IsLeader() {
+		logrus.Debugf("txn %v server %v is not leader", request.PrepareResult.TxnId, server.serverAddress)
+		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
+	}
+
+	op := NewFastPrepareRequestOp(request, server.partitionId)
+	server.coordinator.FastPrepareResult <- op
+	return &rpc.FastPrepareResultReply{
+		LeaderAddr: int32(server.GetLeaderServerId()),
 	}, nil
 }
 

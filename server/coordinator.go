@@ -7,27 +7,45 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type PartitionStatus struct {
+	status        TxnStatus
+	isFastPrepare bool
+	prepareResult *rpc.PrepareResultRequest
+}
+
+func NewPartitionStatus(status TxnStatus, isFastPrepare bool, prepareResult *rpc.PrepareResultRequest) *PartitionStatus {
+	p := &PartitionStatus{
+		status:        status,
+		isFastPrepare: isFastPrepare,
+		prepareResult: prepareResult,
+	}
+	return p
+}
+
 type TwoPCInfo struct {
 	txnId               string
 	status              TxnStatus
-	preparedPartition   map[int]*PrepareResultOp
 	readAndPrepareOp    *ReadAndPrepareOp
 	commitRequest       *CommitRequestOp
 	abortRequest        *AbortRequestOp
 	resultSent          bool
 	writeData           []*rpc.KeyValue
 	writeDataReplicated bool
+	//slowPathPreparePartition map[int]*PrepareResultOp
+	fastPathPreparePartition map[int]*FastPrepareStatus
+	partitionPrepareResult   map[int]*PartitionStatus
 }
 
 type Coordinator struct {
 	txnStore map[string]*TwoPCInfo
 	server   *Server
 
-	PrepareResult    chan *PrepareResultOp
-	Wait2PCResultTxn chan *ReadAndPrepareOp
-	CommitRequest    chan *CommitRequestOp
-	AbortRequest     chan *AbortRequestOp
-	Replication      chan ReplicationMsg
+	PrepareResult     chan *PrepareResultOp
+	Wait2PCResultTxn  chan *ReadAndPrepareOp
+	CommitRequest     chan *CommitRequestOp
+	AbortRequest      chan *AbortRequestOp
+	Replication       chan ReplicationMsg
+	FastPrepareResult chan *FastPrepareResultOp
 }
 
 func NewCoordinator(server *Server) *Coordinator {
@@ -60,6 +78,8 @@ func (c *Coordinator) run() {
 			c.handleAbortRequest(abort)
 		case replicationMsg := <-c.Replication:
 			c.handleReplicationMsg(replicationMsg)
+		case fastPrepare := <-c.FastPrepareResult:
+			c.handleFastPrepareResult(fastPrepare)
 		}
 	}
 }
@@ -67,11 +87,13 @@ func (c *Coordinator) run() {
 func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 	if _, exist := c.txnStore[txnId]; !exist {
 		c.txnStore[txnId] = &TwoPCInfo{
-			txnId:               txnId,
-			status:              INIT,
-			preparedPartition:   make(map[int]*PrepareResultOp),
-			resultSent:          false,
-			writeDataReplicated: false,
+			txnId:  txnId,
+			status: INIT,
+			//slowPathPreparePartition: make(map[int]*PrepareResultOp),
+			resultSent:               false,
+			writeDataReplicated:      false,
+			fastPathPreparePartition: make(map[int]*FastPrepareStatus),
+			partitionPrepareResult:   make(map[int]*PartitionStatus),
 		}
 	}
 	return c.txnStore[txnId]
@@ -163,21 +185,64 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 
 	log.Debugf("txn %v receive prepared result from partition %v result %v",
 		txnId, result.Request.PartitionId, result.Request.PrepareStatus)
-	switch twoPCInfo.status {
-	case COMMIT:
-		log.Fatalln("txn %v should not be prepared without the result from partition %v", txnId, result.Request.PartitionId)
-		break
-	case ABORT:
-		log.Debugf("txn %v is already abort", txnId)
+	if !c.server.config.GetFastPath() && twoPCInfo.status == COMMIT {
+		log.Fatalf("txn %v cannot commit without the result from partition %v", txnId, result.Request.PartitionId)
 		return
-	default:
-		break
 	}
 
-	if result.Request.PrepareStatus == int32(ABORT) {
+	if twoPCInfo.status == ABORT {
+		log.Debugf("txn %v is already abort", txnId)
+		return
+	}
+
+	pId := int(result.Request.PartitionId)
+	if _, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
+		log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
+			txnId, pId, twoPCInfo.partitionPrepareResult[pId].status, twoPCInfo.partitionPrepareResult[pId].isFastPrepare)
+		return
+	}
+
+	if TxnStatus(result.Request.PrepareStatus) == ABORT {
 		twoPCInfo.status = ABORT
 	} else {
-		twoPCInfo.preparedPartition[(int)(result.Request.PartitionId)] = result
+		twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(
+			TxnStatus(result.Request.PrepareStatus), false, result.Request)
+	}
+
+	c.checkResult(twoPCInfo)
+}
+
+func (c *Coordinator) handleFastPrepareResult(result *FastPrepareResultOp) {
+	txnId := result.request.PrepareResult.TxnId
+	twoPCInfo := c.initTwoPCInfoIfNotExist(txnId)
+	if twoPCInfo.status == ABORT {
+		log.Debugf("txn %v is already abort", txnId)
+		return
+	}
+
+	pId := int(result.request.PrepareResult.PartitionId)
+	if _, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
+		log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
+			txnId, pId, twoPCInfo.partitionPrepareResult[pId].status, twoPCInfo.partitionPrepareResult[pId].isFastPrepare)
+		return
+	}
+
+	if _, exist := twoPCInfo.fastPathPreparePartition[pId]; !exist {
+		twoPCInfo.fastPathPreparePartition[pId] = NewFastPrepareStatus(txnId, pId, c.server.config.GetSuperMajority())
+	}
+
+	twoPCInfo.fastPathPreparePartition[pId].addFastPrepare(result)
+
+	ok, status := twoPCInfo.fastPathPreparePartition[pId].isFastPathSuccess()
+
+	if !ok {
+		log.Debugf("txn %v pId %v fast path not success yet", txnId, pId)
+		return
+	}
+	if status == ABORT {
+		twoPCInfo.status = ABORT
+	} else {
+		twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(status, true, result.request.PrepareResult)
 	}
 
 	c.checkResult(twoPCInfo)
@@ -185,8 +250,8 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 
 func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 	preparedKeyVersion := make(map[string]uint64)
-	for _, p := range info.preparedPartition {
-		for _, kv := range p.Request.ReadKeyVerList {
+	for _, p := range info.partitionPrepareResult {
+		for _, kv := range p.prepareResult.ReadKeyVerList {
 			preparedKeyVersion[kv.Key] = kv.Version
 		}
 	}
@@ -200,10 +265,6 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 }
 
 func (c *Coordinator) checkResult(info *TwoPCInfo) {
-	if info.resultSent {
-		log.Warnf("txn %v result is sent", info.txnId)
-		return
-	}
 	if info.status == ABORT {
 		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
@@ -211,16 +272,16 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 		}
 	} else {
 		if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
-			len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.preparedPartition) {
+			len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.partitionPrepareResult) {
 			if c.checkReadKeyVersion(info) {
-				log.Debugf("txn %v commit coordinator %v", info.txnId, info.preparedPartition)
+				log.Debugf("txn %v commit coordinator after check version", info.txnId)
 				info.status = COMMIT
 				if info.writeDataReplicated {
 					c.sendToParticipantsAndClient(info)
 				}
 			} else {
-				log.Debugf("txn %v abort coordinator %v, due to read version invalid",
-					info.txnId, info.preparedPartition)
+				log.Debugf("txn %v abort coordinator, due to read version invalid",
+					info.txnId)
 				info.status = ABORT
 
 				c.sendToParticipantsAndClient(info)

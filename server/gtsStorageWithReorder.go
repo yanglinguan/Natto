@@ -148,16 +148,3 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 	s.committed++
 	s.print()
 }
-
-//func (s *GTSStorageWithReorder) Abort(op *AbortRequestOp) {
-//	if op.isFromCoordinator {
-//		s.coordinatorAbort(op.abortRequest)
-//	} else {
-//		//s.selfAbort(op.request)
-//		//s.setReadResult(op.request)
-//		op.sendToCoordinator = !s.txnStore[op.request.request.Txn.TxnId].receiveFromCoordinator
-//		if op.sendToCoordinator {
-//			s.setPrepareResult(op.request)
-//		}
-//	}
-//}
