@@ -225,7 +225,8 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		f.serverToPartitionId[sId] = pId
 		f.serverToRaftPort[sId] = raftPort
 
-		if sId%f.replicationFactor == 0 {
+		leaderIdx := pId % f.replicationFactor
+		if leaderIdx < len(f.partitions[pId]) {
 			f.expectPartitionLeaders[pId] = sId
 			f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], sId)
 		}
