@@ -59,7 +59,17 @@ for ip in machines:
     if ip not in dc_ip_map[dcId]:
         dc_ip_map[dcId].append(ip)
 
-dc_delay_map = config["experiment"]["oneWayDelay"]
+print(dc_ip_map)
+
+dc_delay_map = {}
+for dc_id, dst_list in enumerate(config["experiment"]["oneWayDelay"]):
+    if dc_id not in dc_delay_map:
+        dc_delay_map[dc_id] = {}
+    for dst_dc_id, dis in enumerate(dst_list):
+        if dst_dc_id != dc_id:
+            dc_delay_map[dc_id][dst_dc_id] = dis
+
+print(dc_delay_map)
 
 # cmd prefix
 tc = 'sudo tc'
