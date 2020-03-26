@@ -246,7 +246,7 @@ func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 	}
 }
 
-func (f *FileConfiguration) loadDataCenterDistance(config [][]interface{}) {
+func (f *FileConfiguration) loadDataCenterDistance(config []interface{}) {
 	var err error
 	if f.dcNum != len(config) {
 		log.Fatalf("total dataCenter required %v provided %v", f.dcNum, len(config))
@@ -255,7 +255,7 @@ func (f *FileConfiguration) loadDataCenterDistance(config [][]interface{}) {
 	f.dataCenterDistance = make([][]time.Duration, f.dcNum)
 	for dcId, disList := range config {
 		f.dataCenterDistance[dcId] = make([]time.Duration, f.dcNum)
-		for dstId, dis := range disList {
+		for dstId, dis := range disList.([]interface{}) {
 			f.dataCenterDistance[dcId][dstId], err = time.ParseDuration(dis.(string))
 			if err != nil {
 				log.Fatalf("Sets delay (%v, %v) fails: %v", dcId, dstId, err)
@@ -284,7 +284,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			keyNum := v.(float64)
 			f.keyNum = int64(keyNum)
 		} else if key == "oneWayDelay" {
-			f.loadDataCenterDistance(v.([][]interface{}))
+			f.loadDataCenterDistance(v.([]interface{}))
 		} else if key == "delay" {
 			f.delay, err = time.ParseDuration(v.(string))
 			if err != nil {
