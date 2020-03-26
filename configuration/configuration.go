@@ -183,14 +183,18 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	f.replicationFactor = int(config["replicationFactor"].(float64))
 	f.isReplication = f.replicationFactor != 1
 	f.failure = int(config["failure"].(float64))
-	dcNum := serverNum/f.replicationFactor + 1
+	f.dcNum = serverNum / f.replicationFactor
+	if serverNum%f.replicationFactor != 0 {
+		log.Fatalf("the number of server %v and replication factor %v does not much", serverNum, f.replicationFactor)
+		return
+	}
 	machines := config["machines"].([]interface{})
 	totalMachines := len(machines)
 	rpcPortBase := int(config["rpcPortBase"].(float64))
 	raftPortBase := int(config["raftPortBase"].(float64))
 
-	f.dataCenterIdToServerIdList = make([][]int, dcNum)
-	f.dataCenterIdToLeaderIdList = make([][]int, dcNum)
+	f.dataCenterIdToServerIdList = make([][]int, f.dcNum)
+	f.dataCenterIdToLeaderIdList = make([][]int, f.dcNum)
 	f.servers = make([]string, serverNum)
 	f.serverToPartitionId = make([]int, serverNum)
 	f.serverToRaftId = make([]int, serverNum)
@@ -205,7 +209,7 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		mId := sId % totalMachines
 		pId := sId % partitionNum
 		ip := machines[mId].(string)
-		dcId := sId / f.replicationFactor
+		dcId := mId / f.replicationFactor
 		rpcPort := strconv.Itoa(rpcPortBase + sId)
 		raftPort := strconv.Itoa(raftPortBase + sId)
 
