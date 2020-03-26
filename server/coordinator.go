@@ -51,13 +51,14 @@ type Coordinator struct {
 func NewCoordinator(server *Server) *Coordinator {
 	queueLen := server.config.GetQueueLen()
 	c := &Coordinator{
-		txnStore:         make(map[string]*TwoPCInfo),
-		server:           server,
-		PrepareResult:    make(chan *PrepareResultOp, queueLen),
-		Wait2PCResultTxn: make(chan *ReadAndPrepareOp, queueLen),
-		CommitRequest:    make(chan *CommitRequestOp, queueLen),
-		AbortRequest:     make(chan *AbortRequestOp, queueLen),
-		Replication:      make(chan ReplicationMsg, queueLen),
+		txnStore:          make(map[string]*TwoPCInfo),
+		server:            server,
+		PrepareResult:     make(chan *PrepareResultOp, queueLen),
+		Wait2PCResultTxn:  make(chan *ReadAndPrepareOp, queueLen),
+		CommitRequest:     make(chan *CommitRequestOp, queueLen),
+		AbortRequest:      make(chan *AbortRequestOp, queueLen),
+		Replication:       make(chan ReplicationMsg, queueLen),
+		FastPrepareResult: make(chan *FastPrepareResultOp, queueLen),
 	}
 
 	go c.run()
@@ -87,9 +88,8 @@ func (c *Coordinator) run() {
 func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 	if _, exist := c.txnStore[txnId]; !exist {
 		c.txnStore[txnId] = &TwoPCInfo{
-			txnId:  txnId,
-			status: INIT,
-			//slowPathPreparePartition: make(map[int]*PrepareResultOp),
+			txnId:                    txnId,
+			status:                   INIT,
 			resultSent:               false,
 			writeDataReplicated:      false,
 			fastPathPreparePartition: make(map[int]*FastPrepareStatus),

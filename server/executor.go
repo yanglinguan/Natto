@@ -14,7 +14,8 @@ type Executor struct {
 	// commit message from coordinator
 	CommitTxn chan *CommitRequestOp
 
-	PrepareResult chan *PrepareResultOp
+	PrepareResult     chan *PrepareResultOp
+	FastPrepareResult chan *PrepareResultOp
 
 	PrintStatus chan *PrintStatusRequestOp
 
@@ -35,6 +36,10 @@ func NewExecutor(server *Server) *Executor {
 
 	go e.run()
 	go e.sendPreparedResultToCoordinator()
+	if server.config.GetFastPath() {
+		e.FastPrepareResult = make(chan *PrepareResultOp, queueLen)
+		go e.sendFastPrepareResultToCoordinator()
+	}
 	return e
 }
 
@@ -72,7 +77,7 @@ func (e *Executor) sendPreparedResultToCoordinator() {
 
 func (e *Executor) sendFastPrepareResultToCoordinator() {
 	for {
-		op := <-e.PrepareResult
+		op := <-e.FastPrepareResult
 		logrus.Debugf("send fast prepare result %v to coordinator %v txn %v, isLeader %v, raft term %v ",
 			op.Request.PrepareStatus, op.CoordPartitionId, op.Request.TxnId, e.server.IsLeader(), e.server.raftNode.GetRaftTerm())
 		request := &rpc.FastPrepareResultRequest{

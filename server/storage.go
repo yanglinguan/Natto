@@ -464,7 +464,7 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 	}
 
 	if s.server.config.GetFastPath() {
-		s.server.executor.sendFastPrepareResultToCoordinator()
+		s.server.executor.FastPrepareResult <- s.txnStore[txnId].prepareResultOp
 	}
 
 	//Replicates the prepare result to followers.
