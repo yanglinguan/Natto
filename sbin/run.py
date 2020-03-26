@@ -230,7 +230,7 @@ def print_server_status(dir_name):
 
 
 def enforce_leader():
-    if config["experiment"]["replication"]:
+    if config["servers"]["replicationFactor"] > 1:
         cmd = enforce_leader_cmd + "-c " + args.config
         subprocess.call(cmd, shell=True)
 

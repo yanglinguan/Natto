@@ -18,15 +18,18 @@ config_file.close()
 
 
 def stop_servers():
+    server_id = 0
     for ip in config["servers"]["machines"]:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "killall -9 carousel-server"
+        server_dir = config["experiment"]["runDir"] + "/server-" + server_id
+        cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*"
         print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
         print(stderr.read())
+        server_id = server_id + 1
 
 
 def stop_clients():
