@@ -234,7 +234,7 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		f.dataCenterIdToServerIdList[dcId] = append(f.dataCenterIdToServerIdList[dcId], sId)
 
 		log.Infof("Server %v: addr %v, raftAddr %v, raftGroup %v, partitionId %v, dataCenterId %v, isLeader %v",
-			sId, rpcAddr, raftAddr, pId, pId, dcId, sId%f.replicationFactor == 0)
+			sId, rpcAddr, raftAddr, pId, pId, dcId, leaderIdx == len(f.partitions[pId])-1)
 	}
 }
 
