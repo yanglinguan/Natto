@@ -632,9 +632,9 @@ func (s *AbstractStorage) initTxnIfNotExist(msg ReplicationMsg) bool {
 			commitOrder:             0,
 			waitingTxnKey:           0,
 			waitingTxnDep:           0,
-			startTime:               time.Time{},
-			preparedTime:            time.Time{},
-			commitTime:              time.Time{},
+			startTime:               time.Now(),
+			preparedTime:            time.Now(),
+			commitTime:              time.Now(),
 			canReorder:              0,
 		}
 		if msg.Status == PREPARED {
