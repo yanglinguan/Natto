@@ -159,7 +159,7 @@ func (s *GTSStorage) applyReplicatedCommitResult(msg ReplicationMsg) {
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 	}
-
+	s.txnStore[msg.TxnId].status = msg.Status
 	if msg.Status == COMMIT {
 		s.txnStore[msg.TxnId].commitOrder = s.committed
 		s.committed++

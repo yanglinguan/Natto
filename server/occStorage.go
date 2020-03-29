@@ -125,7 +125,7 @@ func (s *OccStorage) applyReplicatedCommitResult(msg ReplicationMsg) {
 	if s.txnStore[msg.TxnId].status == PREPARED {
 		s.releaseKey(msg.TxnId)
 	}
-
+	s.txnStore[msg.TxnId].status = msg.Status
 	if msg.Status == COMMIT {
 		s.txnStore[msg.TxnId].commitOrder = s.committed
 		s.committed++
