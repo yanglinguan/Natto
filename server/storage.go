@@ -166,9 +166,9 @@ func (s *AbstractStorage) checkWaiting() {
 func (s *AbstractStorage) print() {
 	log.Debugf("total commit %v committed %v", s.totalCommit, s.committed)
 	if s.waitPrintStatusRequest != nil && s.totalCommit == s.committed {
+		s.checkWaiting()
 		s.printCommitOrder()
 		s.printModifiedData()
-		s.checkWaiting()
 		s.waitPrintStatusRequest.wait <- true
 	}
 }
