@@ -62,15 +62,15 @@ func (s *GTSStorageWithReorder) abortProcessedTxn(txnId string) {
 		s.txnStore[txnId].status = ABORT
 		s.replicateCommitResult(txnId, nil)
 		s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
-		s.release(txnId)
+		s.releaseKeyAndCheckPrepare(txnId)
 		break
-	case INIT:
+	case WAITING:
 		log.Infof("ABORT: %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
 		s.replicateCommitResult(txnId, nil)
 		s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
-		s.release(txnId)
+		s.releaseKeyAndCheckPrepare(txnId)
 		break
 	default:
 		log.Fatalf("txn %v should be in statue prepared or init, but status is %v",
@@ -114,6 +114,7 @@ func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
 		s.prepared(op)
 	} else {
 		if !op.passedTimestamp {
+			s.txnStore[txnId].status = WAITING
 			s.addToQueue(op.keyMap, op)
 		} else {
 			s.txnStore[txnId].status = ABORT
@@ -137,9 +138,10 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].commitTime = time.Now()
 
 	s.txnStore[txnId].status = COMMIT
+	s.txnStore[txnId].isFastPrepare = op.request.IsFastPathSuccess
 	s.replicateCommitResult(txnId, op.request.WriteKeyValList)
 
-	s.release(txnId)
+	s.releaseKeyAndCheckPrepare(txnId)
 	s.writeToDB(op.request.WriteKeyValList)
 	s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.allKeys)
 
@@ -147,4 +149,67 @@ func (s *GTSStorageWithReorder) Commit(op *CommitRequestOp) {
 	s.txnStore[txnId].commitOrder = s.committed
 	s.committed++
 	s.print()
+}
+
+func (s *GTSStorageWithReorder) applyReplicatedPrepareResult(msg ReplicationMsg) {
+	if s.txnStore[msg.TxnId].receiveFromCoordinator {
+		log.Debugf("txn %v already receive the result from coordinator", msg.TxnId)
+		// already receive final decision from coordinator
+		return
+	}
+	log.Debugf("txn %v fast path status %v, slow path status %v", msg.TxnId, s.txnStore[msg.TxnId].status, msg.Status)
+	switch s.txnStore[msg.TxnId].status {
+	case PREPARED:
+		s.txnStore[msg.TxnId].status = msg.Status
+		if msg.Status == ABORT {
+			log.Debugf("CONFLICT: txn %v fast path prepare but slow path abort, abort", msg.TxnId)
+			s.releaseKeyAndCheckPrepare(msg.TxnId)
+		}
+		break
+	case ABORT:
+		s.txnStore[msg.TxnId].status = msg.Status
+		if msg.Status == PREPARED {
+			log.Debugf("CONFLICT: txn %v fast path abort but slow path prepare, prepare", msg.TxnId)
+			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		}
+		break
+	case WAITING:
+		log.Debugf("txn %v fast path waiting the lock slow path status %v", msg.TxnId, msg.Status)
+		s.txnStore[msg.TxnId].status = msg.Status
+		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		if msg.Status == PREPARED {
+			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		}
+		break
+	case INIT:
+		log.Debugf("txn %v fast path not stated slow path status %v ", msg.TxnId, msg.Status)
+		s.txnStore[msg.TxnId].status = msg.Status
+		if msg.Status == PREPARED {
+			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		}
+		break
+	}
+}
+
+func (s *GTSStorageWithReorder) applyReplicatedCommitResult(msg ReplicationMsg) {
+	log.Debugf("txn %v apply replicated commit result enable fast path, status %v, current status %v",
+		msg.TxnId, msg.Status, s.txnStore[msg.TxnId].status)
+	s.txnStore[msg.TxnId].receiveFromCoordinator = true
+	s.txnStore[msg.TxnId].isFastPrepare = msg.IsFastPathSuccess
+	switch s.txnStore[msg.TxnId].status {
+	case PREPARED:
+		s.releaseKeyAndCheckPrepare(msg.TxnId)
+	case WAITING:
+		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+	}
+
+	if msg.Status == COMMIT {
+		s.txnStore[msg.TxnId].commitOrder = s.committed
+		s.committed++
+		s.txnStore[msg.TxnId].commitTime = time.Now()
+		s.writeToDB(msg.WriteData)
+		s.print()
+	}
 }

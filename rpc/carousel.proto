@@ -84,6 +84,7 @@ message CommitRequest {
     bool isCoordinator = 3;
     repeated KeyVersion readKeyVerList = 4;
     bool isReadAnyReplica = 5;
+    bool isFastPathSuccess = 6;
 }
 
 message CommitReply {

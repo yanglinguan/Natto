@@ -14,10 +14,10 @@ type ReadAndPrepareOp struct {
 	reply *rpc.ReadAndPrepareReply
 
 	// for prepare
-	readKeyMap          map[string]bool
-	preparedReadKeyNum  int
-	writeKeyMap         map[string]bool
-	preparedWriteKeyNum int
+	readKeyMap map[string]bool
+	//preparedReadKeyNum  int
+	writeKeyMap map[string]bool
+	//preparedWriteKeyNum int
 
 	keyMap map[string]bool
 
@@ -25,40 +25,61 @@ type ReadAndPrepareOp struct {
 
 	partitionKeys map[int]map[string]bool
 
-	// prepare result will send to coordinator
-	prepareResult *rpc.PrepareResultRequest
-
-	// for commit
-	numPartitions int
+	//// prepare result will send to coordinator
+	//prepareResult *rpc.PrepareResultRequest
 
 	sendToCoordinator bool
 
 	passedTimestamp bool
 }
 
+func NewReadAndPrepareOpWithKeys(readKeyVersion []*rpc.KeyVersion, writeKeyVersion []*rpc.KeyVersion, server *Server) *ReadAndPrepareOp {
+	r := &ReadAndPrepareOp{
+		request:       nil,
+		wait:          nil,
+		index:         0,
+		reply:         nil,
+		readKeyMap:    make(map[string]bool),
+		writeKeyMap:   make(map[string]bool),
+		keyMap:        make(map[string]bool),
+		allKeys:       make(map[string]bool),
+		partitionKeys: make(map[int]map[string]bool),
+		//prepareResult:     nil,
+		sendToCoordinator: false,
+		passedTimestamp:   false,
+	}
+	readKeyList := make([]string, len(readKeyVersion))
+	for i, kv := range readKeyVersion {
+		readKeyList[i] = kv.Key
+	}
+	writeKeyList := make([]string, len(writeKeyVersion))
+	for i, kv := range writeKeyVersion {
+		writeKeyList[i] = kv.Key
+	}
+	r.processKey(readKeyList, server, READ)
+	r.processKey(writeKeyList, server, WRITE)
+
+	return r
+}
+
 func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPrepareOp {
 	r := &ReadAndPrepareOp{
-		request:             request,
-		wait:                make(chan bool, 1),
-		index:               0,
-		reply:               nil,
-		readKeyMap:          make(map[string]bool),
-		preparedReadKeyNum:  0,
-		writeKeyMap:         make(map[string]bool),
-		preparedWriteKeyNum: 0,
-		keyMap:              make(map[string]bool),
-		prepareResult:       nil,
-		numPartitions:       0,
-		sendToCoordinator:   false,
-		partitionKeys:       make(map[int]map[string]bool),
-		allKeys:             make(map[string]bool),
-		passedTimestamp:     false,
+		request:     request,
+		wait:        make(chan bool, 1),
+		index:       0,
+		reply:       nil,
+		readKeyMap:  make(map[string]bool),
+		writeKeyMap: make(map[string]bool),
+		keyMap:      make(map[string]bool),
+		//prepareResult:     nil,
+		sendToCoordinator: false,
+		partitionKeys:     make(map[int]map[string]bool),
+		allKeys:           make(map[string]bool),
+		passedTimestamp:   false,
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
 	r.processKey(request.Txn.WriteKeyList, server, WRITE)
-
-	r.numPartitions = len(request.Txn.ParticipatedPartitionIds)
 
 	return r
 }
@@ -82,23 +103,6 @@ func (o *ReadAndPrepareOp) processKey(keys []string, server *Server, keyType Key
 			o.readKeyMap[key] = false
 		}
 	}
-}
-
-func (o *ReadAndPrepareOp) RecordPreparedKey(key string, keyType KeyType) {
-	switch keyType {
-	case READ:
-		o.readKeyMap[key] = true
-		o.preparedReadKeyNum++
-		break
-	case WRITE:
-		o.writeKeyMap[key] = true
-		o.preparedWriteKeyNum++
-		break
-	}
-}
-
-func (o *ReadAndPrepareOp) IsPrepared() bool {
-	return o.preparedReadKeyNum == len(o.readKeyMap) && o.preparedWriteKeyNum == len(o.writeKeyMap)
 }
 
 func (o *ReadAndPrepareOp) BlockOwner() bool {
@@ -147,17 +151,6 @@ func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
 	return a
 }
 
-func (o *AbortRequestOp) GetTxnId() string {
-	if o.abortRequest != nil {
-		return o.abortRequest.TxnId
-	}
-	if o.request != nil {
-		return o.request.request.Txn.TxnId
-	}
-
-	return ""
-}
-
 type PrepareResultOp struct {
 	Request          *rpc.PrepareResultRequest
 	CoordPartitionId int
@@ -170,6 +163,22 @@ func NewPrepareRequestOp(request *rpc.PrepareResultRequest, coordinatorPartition
 	}
 
 	return p
+}
+
+func NewPrepareRequestOpWithReplicatedMsg(partitionId int, msg ReplicationMsg) *PrepareResultOp {
+	request := &rpc.PrepareResultRequest{
+		TxnId:           msg.TxnId,
+		ReadKeyVerList:  msg.PreparedReadKeyVersion,
+		WriteKeyVerList: msg.PreparedWriteKeyVersion,
+		PartitionId:     int32(partitionId),
+		PrepareStatus:   int32(msg.Status),
+	}
+	op := &PrepareResultOp{
+		Request:          request,
+		CoordPartitionId: -1,
+	}
+
+	return op
 }
 
 type FastPrepareResultOp struct {

@@ -11,7 +11,7 @@ func NewOccStorageWithReadOnly(server *Server) *OccStorageWithReadOnly {
 
 func (s *OccStorageWithReadOnly) Prepare(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
+	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status != INIT {
 		s.setReadResult(op)
 		return
 	}

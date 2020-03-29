@@ -23,6 +23,7 @@ type TxnStatus int32
 
 const (
 	INIT TxnStatus = iota
+	WAITING
 	PREPARED
 	COMMIT
 	ABORT
@@ -38,12 +39,15 @@ const (
 )
 
 type ReplicationMsg struct {
-	TxnId             string
-	Status            TxnStatus
-	MsgType           ReplicationMsgType
-	WriteData         []*rpc.KeyValue
-	IsFromCoordinator bool
-	TotalCommit       int
+	TxnId                   string
+	Status                  TxnStatus
+	MsgType                 ReplicationMsgType
+	WriteData               []*rpc.KeyValue
+	PreparedReadKeyVersion  []*rpc.KeyVersion
+	PreparedWriteKeyVersion []*rpc.KeyVersion
+	IsFastPathSuccess       bool
+	IsFromCoordinator       bool
+	TotalCommit             int
 }
 
 type TxnInfo struct {
@@ -60,6 +64,7 @@ type TxnInfo struct {
 	preparedTime            time.Time
 	commitTime              time.Time
 	canReorder              int
+	isFastPrepare           bool
 }
 
 type KeyInfo struct {
@@ -85,6 +90,8 @@ type AbstractMethod interface {
 	checkKeysAvailable(op *ReadAndPrepareOp) bool
 	prepared(op *ReadAndPrepareOp)
 	abortProcessedTxn(txnId string)
+	applyReplicatedPrepareResult(msg ReplicationMsg)
+	applyReplicatedCommitResult(msg ReplicationMsg)
 }
 
 type AbstractStorage struct {
@@ -183,14 +190,15 @@ func (s AbstractStorage) printCommitOrder() {
 	}
 
 	for i, info := range txnInfo {
-		s := fmt.Sprintf("%v %v %v %v %v %v %v\n",
+		s := fmt.Sprintf("%v %v %v %v %v %v %v %v\n",
 			txnId[i],
 			info.waitingTxnKey,
 			info.waitingTxnDep,
 			info.preparedTime.Sub(info.startTime).Nanoseconds(),
 			info.commitTime.Sub(info.preparedTime).Nanoseconds(),
 			info.commitTime.Sub(info.startTime).Nanoseconds(),
-			info.canReorder)
+			info.canReorder,
+			info.isFastPrepare)
 		_, err = file.WriteString(s)
 		if err != nil {
 			log.Fatalf("Cannot write to file %v", err)
@@ -280,28 +288,29 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 }
 
 // set prepared or abort result
-func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) *PrepareResultOp {
+func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
-	if s.txnStore[txnId].prepareResultOp != nil {
-		return s.txnStore[txnId].prepareResultOp
-	}
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalln("txn %v txnInfo should be created, and INIT status", txnId)
 	}
 
-	op.prepareResult = &rpc.PrepareResultRequest{
+	if s.txnStore[txnId].prepareResultOp != nil {
+		return
+	}
+
+	prepareResult := &rpc.PrepareResultRequest{
 		TxnId:           txnId,
 		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
 		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 		PartitionId:     int32(s.server.partitionId),
-		PrepareStatus:   int32(s.txnStore[op.request.Txn.TxnId].status),
+		PrepareStatus:   int32(s.txnStore[txnId].status),
 	}
 
-	if s.txnStore[op.request.Txn.TxnId].status == PREPARED {
-		s.txnStore[op.request.Txn.TxnId].preparedTime = time.Now()
+	if s.txnStore[txnId].status == PREPARED {
+		s.txnStore[txnId].preparedTime = time.Now()
 
 		for rk := range op.readKeyMap {
-			op.prepareResult.ReadKeyVerList = append(op.prepareResult.ReadKeyVerList,
+			prepareResult.ReadKeyVerList = append(prepareResult.ReadKeyVerList,
 				&rpc.KeyVersion{
 					Key:     rk,
 					Version: s.kvStore[rk].Version,
@@ -310,7 +319,7 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) *PrepareResultO
 		}
 
 		for wk := range op.writeKeyMap {
-			op.prepareResult.WriteKeyVerList = append(op.prepareResult.WriteKeyVerList,
+			prepareResult.WriteKeyVerList = append(prepareResult.WriteKeyVerList,
 				&rpc.KeyVersion{
 					Key:     wk,
 					Version: s.kvStore[wk].Version,
@@ -320,10 +329,8 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) *PrepareResultO
 
 		op.sendToCoordinator = true
 	}
-	return &PrepareResultOp{
-		Request:          op.prepareResult,
-		CoordPartitionId: int(op.request.Txn.CoordPartitionId),
-	}
+
+	s.txnStore[txnId].prepareResultOp = NewPrepareRequestOp(prepareResult, int(op.request.Txn.CoordPartitionId))
 }
 
 // add txn to the queue waiting for keys
@@ -337,9 +344,7 @@ func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp)
 	}
 }
 
-// release the keys that txn holds
-// check if there is txn can be prepared when keys are released
-func (s *AbstractStorage) release(txnId string) {
+func (s *AbstractStorage) releaseKey(txnId string) {
 	txnInfo := s.txnStore[txnId]
 	// remove prepared read and write key
 	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
@@ -355,8 +360,13 @@ func (s *AbstractStorage) release(txnId string) {
 			delete(s.kvStore[wk].PreparedTxnWrite, txnId)
 		}
 	}
+}
 
-	for key := range txnInfo.readAndPrepareRequestOp.keyMap {
+// release the keys that txn holds
+// check if there is txn can be prepared when keys are released
+func (s *AbstractStorage) releaseKeyAndCheckPrepare(txnId string) {
+	s.releaseKey(txnId)
+	for key := range s.txnStore[txnId].readAndPrepareRequestOp.keyMap {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
 			// if in the queue, then remove from the queue
 			log.Debugf("remove txn %v from key %v queue", txnId, key)
@@ -417,11 +427,11 @@ func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
 func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 	txnId := op.request.Txn.TxnId
 	for rk := range op.readKeyMap {
-		op.RecordPreparedKey(rk, READ)
+		op.readKeyMap[rk] = true
 		s.kvStore[rk].PreparedTxnRead[txnId] = true
 	}
 	for wk := range op.writeKeyMap {
-		op.RecordPreparedKey(wk, WRITE)
+		op.writeKeyMap[wk] = true
 		s.kvStore[wk].PreparedTxnWrite[txnId] = true
 	}
 }
@@ -451,7 +461,7 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setReadResult(op)
-	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
+	s.setPrepareResult(op)
 	s.replicatePreparedResult(op.request.Txn.TxnId)
 }
 
@@ -467,6 +477,10 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 		s.server.executor.FastPrepareResult <- s.txnStore[txnId].prepareResultOp
 	}
 
+	if !s.server.IsLeader() {
+		return
+	}
+
 	//Replicates the prepare result to followers.
 	replicationMsg := ReplicationMsg{
 		TxnId:             txnId,
@@ -474,6 +488,12 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 		MsgType:           PrepareResultMsg,
 		IsFromCoordinator: false,
 	}
+
+	if replicationMsg.Status == PREPARED {
+		replicationMsg.PreparedReadKeyVersion = s.txnStore[txnId].prepareResultOp.Request.ReadKeyVerList
+		replicationMsg.PreparedWriteKeyVersion = s.txnStore[txnId].prepareResultOp.Request.WriteKeyVerList
+	}
+
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
 		log.Errorf("replication encoding error: %v", err)
@@ -523,7 +543,8 @@ func (s *AbstractStorage) Abort(op *AbortRequestOp) {
 		s.coordinatorAbort(op.abortRequest)
 	} else {
 		txnId := op.request.request.Txn.TxnId
-		s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op.request)
+		s.txnStore[txnId].readAndPrepareRequestOp = op.request
+		s.setPrepareResult(op.request)
 		s.replicatePreparedResult(txnId)
 	}
 }
@@ -553,6 +574,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 		MsgType:           CommitResultMsg,
 		IsFromCoordinator: false,
 		WriteData:         writeData,
+		IsFastPathSuccess: s.txnStore[txnId].isFastPrepare,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
@@ -598,9 +620,9 @@ func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
 	}
 }
 
-func (s *AbstractStorage) initTxnIfNotExist(txnId string) {
-	if _, exist := s.txnStore[txnId]; !exist {
-		s.txnStore[txnId] = &TxnInfo{
+func (s *AbstractStorage) initTxnIfNotExist(msg ReplicationMsg) bool {
+	if _, exist := s.txnStore[msg.TxnId]; !exist {
+		s.txnStore[msg.TxnId] = &TxnInfo{
 			readAndPrepareRequestOp: nil,
 			prepareResultOp:         nil,
 			status:                  INIT,
@@ -615,7 +637,13 @@ func (s *AbstractStorage) initTxnIfNotExist(txnId string) {
 			commitTime:              time.Time{},
 			canReorder:              0,
 		}
+		if msg.Status == PREPARED {
+			s.txnStore[msg.TxnId].readAndPrepareRequestOp = NewReadAndPrepareOpWithKeys(msg.PreparedReadKeyVersion, msg.PreparedWriteKeyVersion, s.server)
+			s.txnStore[msg.TxnId].prepareResultOp = NewPrepareRequestOpWithReplicatedMsg(s.server.partitionId, msg)
+		}
+		return false
 	}
+	return true
 }
 
 func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
@@ -623,31 +651,39 @@ func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 	case PrepareResultMsg:
 		log.Debugf("txn %v apply prepare result %v", msg.TxnId, msg.Status)
 		if s.server.IsLeader() {
-			//s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 			s.readyToSendPrepareResultToCoordinator(s.txnStore[msg.TxnId].prepareResultOp)
-		} else {
-			s.initTxnIfNotExist(msg.TxnId)
+			break
+		}
+		s.initTxnIfNotExist(msg)
+		if !s.server.config.GetFastPath() {
 			if s.txnStore[msg.TxnId].status != INIT {
 				log.Fatalf("txn %v in follower should be INIT but it is %v", msg.TxnId, s.txnStore[msg.TxnId].status)
 			}
 			s.txnStore[msg.TxnId].status = msg.Status
+			break
 		}
+		s.abstractMethod.applyReplicatedPrepareResult(msg)
+
 		break
 	case CommitResultMsg:
 		log.Debugf("txn %v apply commit result %v", msg.TxnId, msg.Status)
 		if s.server.IsLeader() {
 			break
 		}
-		s.initTxnIfNotExist(msg.TxnId)
-		s.txnStore[msg.TxnId].status = msg.Status
-
-		if msg.Status == COMMIT {
-			s.txnStore[msg.TxnId].commitOrder = s.committed
-			s.committed++
-			s.txnStore[msg.TxnId].commitTime = time.Now()
-			s.writeToDB(msg.WriteData)
-			s.print()
+		s.initTxnIfNotExist(msg)
+		if !s.server.config.GetFastPath() {
+			log.Debugf("txn %v apply commit result disable fast path", msg.TxnId)
+			s.txnStore[msg.TxnId].status = msg.Status
+			if msg.Status == COMMIT {
+				s.txnStore[msg.TxnId].commitOrder = s.committed
+				s.committed++
+				s.txnStore[msg.TxnId].commitTime = time.Now()
+				s.writeToDB(msg.WriteData)
+				s.print()
+			}
+			break
 		}
+		s.abstractMethod.applyReplicatedCommitResult(msg)
 
 		break
 	default:

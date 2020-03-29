@@ -341,11 +341,12 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 
 		for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
 			request := &rpc.CommitRequest{
-				TxnId:            info.txnId,
-				WriteKeyValList:  partitionWriteKV[int(pId)],
-				IsCoordinator:    true,
-				ReadKeyVerList:   partitionReadVersion[int(pId)],
-				IsReadAnyReplica: false,
+				TxnId:             info.txnId,
+				WriteKeyValList:   partitionWriteKV[int(pId)],
+				IsCoordinator:     true,
+				ReadKeyVerList:    partitionReadVersion[int(pId)],
+				IsReadAnyReplica:  false,
+				IsFastPathSuccess: info.partitionPrepareResult[int(pId)].isFastPrepare,
 			}
 			if int(pId) == c.server.partitionId {
 				op := NewCommitRequestOp(request)

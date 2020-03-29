@@ -2,6 +2,7 @@ package server
 
 import (
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type GTSStorageDepGraph struct {
@@ -74,10 +75,11 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 		op.wait <- true
 
 		s.txnStore[txnId].status = COMMIT
+		s.txnStore[txnId].isFastPrepare = op.request.IsFastPathSuccess
 		s.replicateCommitResult(txnId, op.request.WriteKeyValList)
 
 		s.getNextCommitListByCommitOrAbort(txnId)
-		s.release(txnId)
+		s.releaseKeyAndCheckPrepare(txnId)
 		s.writeToDB(op.request.WriteKeyValList)
 
 		s.txnStore[txnId].receiveFromCoordinator = true
@@ -97,15 +99,15 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 		s.txnStore[txnId].status = ABORT
 		s.replicateCommitResult(txnId, nil)
 		s.getNextCommitListByCommitOrAbort(txnId)
-		s.release(txnId)
+		s.releaseKeyAndCheckPrepare(txnId)
 		break
-	case INIT:
+	case WAITING:
 		log.Infof("ABORT %v (coordinator) INIT", txnId)
 		s.txnStore[txnId].status = ABORT
 		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
 		s.replicateCommitResult(txnId, nil)
 		s.getNextCommitListByCommitOrAbort(txnId)
-		s.release(txnId)
+		s.releaseKeyAndCheckPrepare(txnId)
 		break
 	default:
 		log.Fatalf("txn %v should be in statue prepared or init, but status is %v",
@@ -127,26 +129,23 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	return available
 }
 
-func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
-	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
-	s.removeFromQueue(op)
-	txnId := op.request.Txn.TxnId
-	s.graph.AddNode(txnId, op.keyMap)
-	s.txnStore[txnId].status = PREPARED
-	s.recordPrepared(op)
-	s.setReadResult(op)
-	s.txnStore[txnId].prepareResultOp = s.setPrepareResult(op)
-	s.replicatePreparedResult(txnId)
-}
+//func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
+//	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
+//	s.removeFromQueue(op)
+//	txnId := op.request.Txn.TxnId
+//	s.graph.AddNode(txnId, op.keyMap)
+//	s.txnStore[txnId].status = PREPARED
+//	s.recordPrepared(op)
+//	s.setReadResult(op)
+//	s.setPrepareResult(op)
+//	s.replicatePreparedResult(txnId)
+//}
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	log.Infof("PROCESSING %v", op.request.Txn.TxnId)
 	txnId := op.request.Txn.TxnId
-	if info, exist := s.txnStore[txnId]; exist && info.status == ABORT {
-		if !info.receiveFromCoordinator {
-			log.Fatalf("txn %v is aborted. it must receive coordinator abort", op.request.Txn.TxnId)
-		}
-		log.Infof("txn %v is already aborted (coordinator abort)", op.request.Txn.TxnId)
+	if info, exist := s.txnStore[txnId]; exist && info.status != INIT {
+		log.Infof("txn %v is already has status %v", txnId, info.status)
 		s.setReadResult(op)
 		return
 	}
@@ -163,8 +162,10 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 
 	if available && !hasWaiting {
 		s.prepared(op)
+		s.graph.AddNode(txnId, op.keyMap)
 	} else {
 		if !op.passedTimestamp {
+			s.txnStore[txnId].status = WAITING
 			log.Debugf("txn %v cannot prepare available %v, hasWaiting %v", txnId, available, hasWaiting)
 			s.addToQueue(op.keyMap, op)
 		} else {
@@ -172,5 +173,71 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 			//	s.setReadResult(op)
 			s.selfAbort(op)
 		}
+	}
+}
+
+func (s *GTSStorageDepGraph) applyReplicatedPrepareResult(msg ReplicationMsg) {
+	if s.txnStore[msg.TxnId].receiveFromCoordinator {
+		log.Debugf("txn %v already receive the result from coordinator", msg.TxnId)
+		// already receive final decision from coordinator
+		return
+	}
+	log.Debugf("txn %v fast path status %v, slow path status %v", msg.TxnId, s.txnStore[msg.TxnId].status, msg.Status)
+	switch s.txnStore[msg.TxnId].status {
+	case PREPARED:
+		s.txnStore[msg.TxnId].status = msg.Status
+		if msg.Status == ABORT {
+			log.Debugf("txn %v fast path prepare but slow path abort, abort", msg.TxnId)
+			s.releaseKeyAndCheckPrepare(msg.TxnId)
+		}
+		break
+	case ABORT:
+		s.txnStore[msg.TxnId].status = msg.Status
+		if msg.Status == PREPARED {
+			log.Debugf("txn %v fast path abort but slow path prepare, prepare", msg.TxnId)
+			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		}
+		break
+	case WAITING:
+		log.Debugf("txn %v fast path waiting the lock slow path status %v", msg.TxnId, msg.Status)
+		s.txnStore[msg.TxnId].status = msg.Status
+		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		if msg.Status == PREPARED {
+			s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap)
+			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		}
+	case INIT:
+		log.Debugf("txn %v fast path not stated slow path status %v ", msg.TxnId, msg.Status)
+		s.txnStore[msg.TxnId].status = msg.Status
+		if msg.Status == PREPARED {
+			s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap)
+			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		}
+		break
+	}
+}
+
+func (s *GTSStorageDepGraph) applyReplicatedCommitResult(msg ReplicationMsg) {
+	log.Debugf("txn %v apply replicated commit result enable fast path, status %v, current status %v",
+		msg.TxnId, msg.Status, s.txnStore[msg.TxnId].status)
+	s.txnStore[msg.TxnId].receiveFromCoordinator = true
+	s.getNextCommitListByCommitOrAbort(msg.TxnId)
+	s.txnStore[msg.TxnId].isFastPrepare = msg.IsFastPathSuccess
+
+	switch s.txnStore[msg.TxnId].status {
+	case PREPARED:
+		s.releaseKeyAndCheckPrepare(msg.TxnId)
+	case WAITING:
+		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+	}
+
+	if msg.Status == COMMIT {
+		s.txnStore[msg.TxnId].commitOrder = s.committed
+		s.committed++
+		s.txnStore[msg.TxnId].commitTime = time.Now()
+		s.writeToDB(msg.WriteData)
+		s.print()
 	}
 }

@@ -57,7 +57,7 @@ type Configuration interface {
 	GetPartitionIdByKey(key string) int
 	GetDataCenterIdByServerId(serverId int) int
 	GetDataCenterIdByClientId(clientId int) int
-	GetMaxDelay(clientDCId int, dcIds []int) time.Duration
+	GetMaxDelay(clientDCId int, dcIds map[int]bool) time.Duration
 	GetServerListByDataCenterId(dataCenterId int) []int
 	GetLeaderIdListByDataCenterId(dataCenterId int) []int
 	GetKeyNum() int64
@@ -443,7 +443,7 @@ func (f *FileConfiguration) GetDataCenterIdByClientId(clientId int) int {
 	return f.clientToDataCenterId[clientId]
 }
 
-func (f *FileConfiguration) GetMaxDelay(clientDCId int, dcIds []int) time.Duration {
+func (f *FileConfiguration) GetMaxDelay(clientDCId int, dcIds map[int]bool) time.Duration {
 	if clientDCId >= f.dcNum || clientDCId < 0 {
 		log.Fatalf("invalid dataCenter Id %v should < %v", clientDCId, f.dcNum)
 	}
@@ -451,7 +451,7 @@ func (f *FileConfiguration) GetMaxDelay(clientDCId int, dcIds []int) time.Durati
 	dis := f.dataCenterDistance[clientDCId]
 
 	var max time.Duration = 0
-	for _, dId := range dcIds {
+	for dId := range dcIds {
 		if dId > f.dcNum || dId < 0 {
 			log.Fatalf("invalid dataCenter Id %v should < %v", clientDCId, f.dcNum)
 		}

@@ -272,12 +272,16 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	partitionSet, participants := c.separatePartition(op)
 
 	participatedPartitions := make([]int32, len(partitionSet))
-	serverDcIds := make([]int, len(partitionSet))
+	serverDcIds := make(map[int]bool)
 	i := 0
 	for pId := range participants {
 		participatedPartitions[i] = int32(pId)
-		sId := c.Config.GetLeaderIdByPartitionId(pId)
-		serverDcIds[i] = c.Config.GetDataCenterIdByServerId(sId)
+		serverList := c.Config.GetServerIdListByPartitionId(pId)
+		for _, sId := range serverList {
+			dcId := c.Config.GetDataCenterIdByServerId(sId)
+			serverDcIds[dcId] = true
+		}
+
 		i++
 	}
 
