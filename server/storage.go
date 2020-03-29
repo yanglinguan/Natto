@@ -190,13 +190,14 @@ func (s AbstractStorage) printCommitOrder() {
 	}
 
 	for i, info := range txnInfo {
-		s := fmt.Sprintf("%v %v %v %v %v %v %v %v\n",
+		s := fmt.Sprintf("%v %v %v %v %v\n",
+			//s := fmt.Sprintf("%v %v %v %v %v %v %v %v\n",
 			txnId[i],
 			info.waitingTxnKey,
 			info.waitingTxnDep,
-			info.preparedTime.Sub(info.startTime).Nanoseconds(),
-			info.commitTime.Sub(info.preparedTime).Nanoseconds(),
-			info.commitTime.Sub(info.startTime).Nanoseconds(),
+			//info.preparedTime.Sub(info.startTime).Nanoseconds(),
+			//info.commitTime.Sub(info.preparedTime).Nanoseconds(),
+			//info.commitTime.Sub(info.startTime).Nanoseconds(),
 			info.canReorder,
 			info.isFastPrepare)
 		_, err = file.WriteString(s)
