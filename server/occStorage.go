@@ -96,17 +96,17 @@ func (s *OccStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
 	log.Debugf("txn %v fast path status %v, slow path status %v", msg.TxnId, s.txnStore[msg.TxnId].status, msg.Status)
 	switch s.txnStore[msg.TxnId].status {
 	case PREPARED:
+		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == ABORT {
 			log.Debugf("CONFLICT: txn %v fast path prepared but slow path abort", msg.TxnId)
 			s.releaseKey(msg.TxnId)
-			s.txnStore[msg.TxnId].status = msg.Status
 		}
 		break
 	case ABORT:
+		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == PREPARED {
 			log.Debugf("CONFLICT: txn %v fast path abort but slow path prepared", msg.TxnId)
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-			s.txnStore[msg.TxnId].status = msg.Status
 		}
 		break
 	case INIT:
