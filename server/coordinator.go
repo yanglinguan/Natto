@@ -239,6 +239,7 @@ func (c *Coordinator) handleFastPrepareResult(result *FastPrepareResultOp) {
 		log.Debugf("txn %v pId %v fast path not success yet", txnId, pId)
 		return
 	}
+	log.Debugf("txn %v pId %v fast path success", txnId, pId)
 	if status == ABORT {
 		twoPCInfo.status = ABORT
 	} else {
