@@ -444,10 +444,10 @@ func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; !exist {
 			continue
 		}
-		if s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).txnId != txnId {
-			log.Fatalf("txn %v is not front of queue key %v", txnId, key)
-			return
-		}
+		//if s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).txnId != txnId {
+		//	log.Fatalf("txn %v is not front of queue key %v", txnId, key)
+		//	return
+		//}
 
 		s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 		delete(s.kvStore[key].WaitingItem, txnId)
