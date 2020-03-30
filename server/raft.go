@@ -50,7 +50,7 @@ func (r *Raft) handleReplicatedOp(data *string) {
 	if err := decoder.Decode(&replicationMsg); err != nil {
 		logrus.Fatalf("Decoding error %v", err)
 	}
-	logrus.Debugf("get replicated msg txn %v msg %v", replicationMsg.TxnId, replicationMsg.Status)
+	logrus.Debugf("get replicated msg txn %v msg %v msg type %v", replicationMsg.TxnId, replicationMsg.Status, replicationMsg.MsgType)
 	if replicationMsg.IsFromCoordinator {
 		r.server.coordinator.Replication <- replicationMsg
 	} else {

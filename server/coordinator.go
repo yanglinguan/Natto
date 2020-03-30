@@ -164,7 +164,7 @@ func (c *Coordinator) replicateWriteData(txnId string) {
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
 		log.Errorf("replication encoding error: %v", err)
 	}
-	log.Debugf("txn %v replicated write data", txnId)
+	log.Debugf("txn %v replicated write data size %v", txnId, len(buf.Bytes()))
 	c.server.raft.raftInputChannel <- string(buf.Bytes())
 }
 
