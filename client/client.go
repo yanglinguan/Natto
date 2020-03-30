@@ -488,7 +488,7 @@ func (c *Client) PrintTxnStatisticData() {
 		}
 
 		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v\n",
-			txn.txnId,
+			txn.executions[txn.execCount].rpcTxn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
