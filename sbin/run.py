@@ -52,46 +52,43 @@ if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0
     path = config["experiment"]["runDir"]
 
 
+class Machine:
+    def __init__(self, machine_ip):
+        self.machine_ip = machine_ip
+        self.ids = []
+
+    def add_id(self, server_id):
+        self.ids.append(server_id)
+
+
+machines_client = {}
+
+machines_server = {}
+
+
 def parse_client_machine():
     client_nums = config["clients"]["nums"]
     machines = config["clients"]["machines"]
-    client_machine = [[] for i in range(len(machines))]
+    for ip in machines:
+        machines_client[ip] = Machine(ip)
     for clientId in range(client_nums):
         idx = clientId % len(machines)
-        client_machine[idx].append(str(clientId))
-    return client_machine, machines
+        ip = machines[idx]
+        machines_client[ip].add_id(clientId)
 
 
 def parse_server_machine():
     server_nums = int(config["servers"]["nums"])
     machines = config["servers"]["machines"]
-    total_partition = int(config["servers"]["partitions"])
-    replication_factor = int(config["servers"]["replicationFactor"])
-    server_machine = [[] for i in range(len(machines))]
-    pid_server = [[] for i in range(total_partition)]
-    leader_list = []
+    for ip in machines:
+        machines_server[ip] = Machine(ip)
     for server_id in range(server_nums):
-        p_id = server_id % total_partition
-        pid_server[p_id].append(server_id)
-        leader_idx = p_id % replication_factor
-        if len(pid_server[p_id]) - 1 == leader_idx:
-            leader_list.append(server_id)
         idx = server_id % len(machines)
-        server_machine[idx].append(str(server_id))
-    idx = 0
-    for leader_id in leader_list:
-        tmp = server_machine[idx]
-        server_machine[idx] = server_machine[leader_id]
-        server_machine[leader_id] = tmp
-        tmp = machines[idx]
-        machines[idx] = machines[leader_id]
-        machines[leader_id] = tmp
-        idx = idx + 1
-    print(server_machine)
-    return server_machine, machines
+        ip = machines[idx]
+        machines_server[ip].add_id(server_id)
 
 
-def collect_client_log(clients, machines):
+def collect_client_log():
     dir_name = args.config.split('.')[0] + "-" + args.runCount
     new_dir = os.path.join(os.getcwd(), dir_name)
     if os.path.isdir(new_dir):
@@ -99,10 +96,9 @@ def collect_client_log(clients, machines):
     else:
         os.mkdir(new_dir)
 
-    for mId in range(len(clients)):
-        if len(clients[mId]) == 0:
+    for ip, machine in machines_client:
+        if len(machine.ids) == 0:
             continue
-        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -118,16 +114,15 @@ def collect_client_log(clients, machines):
     return new_dir
 
 
-def collect_server_log(new_dir, servers, machines):
-    for mId in range(len(servers)):
-        if len(servers[mId]) == 0:
+def collect_server_log(new_dir):
+    for ip, machine in machines_server:
+        if len(machine.ids) == 0:
             continue
-        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        for sId in servers[mId]:
+        for sId in machine.ids:
             server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
             stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
             log_files = stdout.read().split()
@@ -138,8 +133,8 @@ def collect_server_log(new_dir, servers, machines):
             print("collect server log " + sId + " from " + ip)
 
 
-def scp_server_exec(ssh, scp, servers, mid, ip):
-    for sId in servers[mid]:
+def scp_server_exec(ssh, scp, servers, ip):
+    for sId in servers:
         server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
         ssh.exec_command("mkdir -p " + server_dir)
         scp.put(os.getcwd() + "/" + args.config, server_dir)
@@ -155,27 +150,25 @@ def scp_client_exec(ssh, scp, ip):
     print("deploy config and client at " + ip)
 
 
-def deploy(servers, server_machines, clients, client_machines):
+def deploy():
     if "runDir" not in config["experiment"] or len(config["experiment"]["runDir"]) == 0:
         return
 
     threads = []
-    for mId in range(len(servers)):
-        if len(servers[mId]) == 0:
+    for ip, machine in machines_server.items():
+        if len(machine.ids) == 0:
             continue
-        ip = server_machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, servers, mId, ip))
+        thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, machine.ids, ip))
         threads.append(thread)
         thread.start()
 
-    for mId in range(len(clients)):
-        if len(clients[mId]) == 0:
+    for ip, machine in machines_client:
+        if len(machine.ids) == 0:
             continue
-        ip = client_machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -188,18 +181,21 @@ def deploy(servers, server_machines, clients, client_machines):
         thread.join()
 
 
-def ssh_exec_thread(ssh_client, command, server):
+def ssh_exec_thread(ssh_client, command, ip, servers=None):
     stdin, stdout, stderr = ssh_client.exec_command(command)
     print(stdout.read())
     print(stderr.read())
-    print("clients on " + server + " finishes")
+    if servers is None:
+        print("clients on " + ip + " finishes")
+    else:
+        print("server " + ' '.join(servers) + " starts on " + ip)
 
 
-def start_servers(servers, machines):
-    for mId in range(len(servers)):
-        if len(servers[mId]) == 0:
+def start_servers():
+    threads = list()
+    for ip, machine in machines_server:
+        if len(machine.ids) == 0:
             continue
-        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -208,22 +204,23 @@ def start_servers(servers, machines):
         # cmd += "cd " + path + ";"
         exe = "cd " + path + "/server-$id; " + \
               server_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 &"
-        loop = "for id in " + ' '.join(servers[mId]) + "; do " + exe + " done"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        print(stdout.read())
-        print(stderr.read())
-        print("server " + ' '.join(servers[mId]) + " is running on machine " + ip)
+        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, machine.ids))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
 
-def start_clients(clients, machines):
+def start_clients():
     threads = list()
 
-    for mId in range(len(clients)):
-        if len(clients[mId]) == 0:
+    for ip, machine in machines_server:
+        if len(machine.ids) == 0:
             continue
-        ip = machines[mId]
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
@@ -232,7 +229,7 @@ def start_clients(clients, machines):
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
         exe = "cd " + path + "/client;" + \
               client_cmd + "-i $id" + " -c " + args.config + " > " + "client-$id.log " + "2>&1 &"
-        loop = "for id in " + ' '.join(clients[mId]) + "; do " + exe + " done; wait"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
@@ -296,16 +293,16 @@ def build():
 
 def main():
     build()
-    servers, server_machines = parse_server_machine()
-    clients, client_machines = parse_client_machine()
-    deploy(servers, server_machines, clients, client_machines)
-    start_servers(servers, server_machines)
+    parse_server_machine()
+    parse_client_machine()
+    deploy()
+    start_servers()
     time.sleep(15)
     enforce_leader()
-    start_clients(clients, client_machines)
-    dir_name = collect_client_log(clients, client_machines)
+    start_clients()
+    dir_name = collect_client_log()
     print_server_status(dir_name)
-    collect_server_log(dir_name, servers, server_machines)
+    collect_server_log(dir_name)
     stop_clients()
     stop_servers()
 
