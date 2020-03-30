@@ -63,15 +63,16 @@ def parse_client_machine():
 
 
 def parse_server_machine():
-    server_nums = config["servers"]["nums"]
+    server_nums = int(config["servers"]["nums"])
     machines = config["servers"]["machines"]
-    total_partition = config["servers"]["partitions"]
-    replication_factor = config["servers"]["replicationFactor"]
+    total_partition = int(config["servers"]["partitions"])
+    replication_factor = int(config["servers"]["replicationFactor"])
     server_machine = [[] for i in range(len(machines))]
     pid_server = [[] for i in range(total_partition)]
     leader_list = []
     for server_id in range(server_nums):
         p_id = server_id % total_partition
+        pid_server[p_id].append(str(server_id))
         leader_idx = p_id % replication_factor
         if len(pid_server[p_id]) - 1 == leader_idx:
             leader_list.append(server_id)
