@@ -102,7 +102,7 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
 	switch msg.MsgType {
 	case WriteDataMsg:
-		log.Debugf("server")
+		log.Debugf("txn %v apply write data replicated msg", msg.TxnId)
 		if c.server.IsLeader() {
 			c.txnStore[msg.TxnId].writeDataReplicated = true
 			if c.txnStore[msg.TxnId].status == COMMIT {
@@ -164,7 +164,7 @@ func (c *Coordinator) replicateWriteData(txnId string) {
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
 		log.Errorf("replication encoding error: %v", err)
 	}
-
+	log.Debugf("txn %v replicated write data", txnId)
 	c.server.raft.raftInputChannel <- string(buf.Bytes())
 }
 
@@ -279,6 +279,8 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				info.status = COMMIT
 				if info.writeDataReplicated {
 					c.sendToParticipantsAndClient(info)
+				} else {
+					log.Debugf("txn %v write data not replicated yet cannot send out the commit result", info.txnId)
 				}
 			} else {
 				log.Debugf("txn %v abort coordinator, due to read version invalid",

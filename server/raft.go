@@ -36,6 +36,7 @@ func (r *Raft) run() {
 	for {
 		data := <-r.raftOutputChannel
 		if data == nil {
+			logrus.Warn("get empty data")
 			continue
 		}
 
