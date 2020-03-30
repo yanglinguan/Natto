@@ -72,13 +72,19 @@ def parse_server_machine():
     leader_list = []
     for server_id in range(server_nums):
         p_id = server_id % total_partition
-        pid_server[p_id].append(str(server_id))
+        pid_server[p_id].append(server_id)
         leader_idx = p_id % replication_factor
         if len(pid_server[p_id]) - 1 == leader_idx:
             leader_list.append(server_id)
         idx = server_id % len(machines)
         server_machine[idx].append(str(server_id))
-    print(leader_list)
+    idx = 0
+    for leader_id in leader_list:
+        tmp = server_machine[idx]
+        server_machine[idx] = server_machine[leader_id]
+        server_machine[leader_id] = tmp
+        idx = idx + 1
+    print(server_machine)
     return server_machine, machines
 
 
