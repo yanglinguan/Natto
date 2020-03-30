@@ -31,7 +31,7 @@ func main() {
 	if IsDebug {
 		carouselServerCmd += "-d -i "
 	} else {
-		carouselServerCmd += "-d -i "
+		carouselServerCmd += "-i "
 	}
 
 	carouselClient = client.NewClient(0, ConfigFile)
