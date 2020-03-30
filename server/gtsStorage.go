@@ -71,8 +71,8 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 }
 
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("PROCESSING txn %v", op.request.Txn.TxnId)
-	txnId := op.request.Txn.TxnId
+	log.Infof("PROCESSING txn %v", op.txnId)
+	txnId := op.txnId
 	if info, exist := s.txnStore[txnId]; exist && info.status != INIT {
 		log.Infof("txn %v is already has status %v", txnId, s.txnStore[txnId].status)
 		s.setReadResult(op)

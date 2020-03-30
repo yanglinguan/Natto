@@ -31,9 +31,10 @@ type ReadAndPrepareOp struct {
 	sendToCoordinator bool
 
 	passedTimestamp bool
+	txnId           string
 }
 
-func NewReadAndPrepareOpWithKeys(readKeyVersion []*rpc.KeyVersion, writeKeyVersion []*rpc.KeyVersion, server *Server) *ReadAndPrepareOp {
+func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareOp {
 	r := &ReadAndPrepareOp{
 		request:       nil,
 		wait:          nil,
@@ -47,13 +48,14 @@ func NewReadAndPrepareOpWithKeys(readKeyVersion []*rpc.KeyVersion, writeKeyVersi
 		//prepareResult:     nil,
 		sendToCoordinator: false,
 		passedTimestamp:   false,
+		txnId:             msg.TxnId,
 	}
-	readKeyList := make([]string, len(readKeyVersion))
-	for i, kv := range readKeyVersion {
+	readKeyList := make([]string, len(msg.PreparedReadKeyVersion))
+	for i, kv := range msg.PreparedReadKeyVersion {
 		readKeyList[i] = kv.Key
 	}
-	writeKeyList := make([]string, len(writeKeyVersion))
-	for i, kv := range writeKeyVersion {
+	writeKeyList := make([]string, len(msg.PreparedWriteKeyVersion))
+	for i, kv := range msg.PreparedWriteKeyVersion {
 		writeKeyList[i] = kv.Key
 	}
 	r.processKey(readKeyList, server, READ)
@@ -76,6 +78,7 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *Re
 		partitionKeys:     make(map[int]map[string]bool),
 		allKeys:           make(map[string]bool),
 		passedTimestamp:   false,
+		txnId:             request.Txn.TxnId,
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)

@@ -116,8 +116,8 @@ func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
 }
 
 func (c *Coordinator) handleReadAndPrepare(op *ReadAndPrepareOp) {
-	log.Debugf("receive read and prepare from client %v", op.request.Txn.TxnId)
-	txnId := op.request.Txn.TxnId
+	log.Debugf("receive read and prepare from client %v", op.txnId)
+	txnId := op.txnId
 	twoPCInfo := c.initTwoPCInfoIfNotExist(txnId)
 
 	twoPCInfo.readAndPrepareOp = op

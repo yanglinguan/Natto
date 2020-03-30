@@ -259,15 +259,15 @@ func (s AbstractStorage) printModifiedData() {
 
 // set the read value, return back to client
 func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
-	if s.txnStore[op.request.Txn.TxnId].sendToClient {
-		log.Debugf("txn %v read result already sent to client", op.request.Txn.TxnId)
+	if s.txnStore[op.txnId].sendToClient {
+		log.Debugf("txn %v read result already sent to client", op.txnId)
 		return
 	}
-	s.txnStore[op.request.Txn.TxnId].sendToClient = true
+	s.txnStore[op.txnId].sendToClient = true
 
 	op.reply = &rpc.ReadAndPrepareReply{
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
-		IsAbort:       s.txnStore[op.request.Txn.TxnId].status == ABORT,
+		IsAbort:       s.txnStore[op.txnId].status == ABORT,
 	}
 
 	if !op.reply.IsAbort && s.server.IsLeader() {
@@ -290,7 +290,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 
 // set prepared or abort result
 func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalln("txn %v txnInfo should be created, and INIT status", txnId)
 	}
@@ -336,7 +336,7 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 
 // add txn to the queue waiting for keys
 func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	log.Infof("Txn %v wait for keys", txnId)
 	for key := range keys {
 		log.Debugf("Txn %v wait for key %v", txnId, key)
@@ -371,7 +371,7 @@ func (s *AbstractStorage) releaseKeyAndCheckPrepare(txnId string) {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; exist {
 			// if in the queue, then remove from the queue
 			log.Debugf("remove txn %v from key %v queue", txnId, key)
-			isTop := s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).request.Txn.TxnId == txnId
+			isTop := s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).txnId == txnId
 			s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 			delete(s.kvStore[key].WaitingItem, txnId)
 			if !isTop {
@@ -389,7 +389,7 @@ func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	available := true
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-			log.Debugf("txn %v cannot prepare because of cannot get read key %v: %v", op.request.Txn.TxnId, rk, s.kvStore[rk].PreparedTxnWrite)
+			log.Debugf("txn %v cannot prepare because of cannot get read key %v: %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
 			available = false
 			break
 		}
@@ -400,7 +400,7 @@ func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 			len(s.kvStore[wk].PreparedTxnRead) > 0 ||
 			len(s.kvStore[wk].PreparedTxnWrite) > 0 {
 			log.Debugf("txn %v cannot prepare because of cannot get write key %v: read %v write %v",
-				op.request.Txn.TxnId, wk, s.kvStore[wk].PreparedTxnRead, s.kvStore[wk].PreparedTxnWrite)
+				op.txnId, wk, s.kvStore[wk].PreparedTxnRead, s.kvStore[wk].PreparedTxnWrite)
 			available = false
 			break
 		}
@@ -414,9 +414,9 @@ func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
 	for key := range op.keyMap {
 		if s.kvStore[key].WaitingOp.Len() > 0 {
 			top := s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp)
-			if top.request.Txn.TxnId != op.request.Txn.TxnId {
+			if top.txnId != op.txnId {
 				log.Debugf("txn %v has txn in queue key %v top of queue is %v",
-					op.request.Txn.TxnId, key, top.request.Txn.TxnId)
+					op.txnId, key, top.txnId)
 				return true
 			}
 		}
@@ -426,7 +426,7 @@ func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
 }
 
 func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	for rk := range op.readKeyMap {
 		op.readKeyMap[rk] = true
 		s.kvStore[rk].PreparedTxnRead[txnId] = true
@@ -439,12 +439,12 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 
 func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 	// remove from the top of the queue
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	for key := range op.keyMap {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; !exist {
 			continue
 		}
-		if s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).request.Txn.TxnId != txnId {
+		if s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).txnId != txnId {
 			log.Fatalf("txn %v is not front of queue key %v", txnId, key)
 			return
 		}
@@ -455,15 +455,15 @@ func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 }
 
 func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
-	log.Debugf("PREPARED txn %v", op.request.Txn.TxnId)
+	log.Debugf("PREPARED txn %v", op.txnId)
 	s.removeFromQueue(op)
 	// record the prepared keys
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setReadResult(op)
 	s.setPrepareResult(op)
-	s.replicatePreparedResult(op.request.Txn.TxnId)
+	s.replicatePreparedResult(op.txnId)
 }
 
 func (s *AbstractStorage) replicatePreparedResult(txnId string) {
@@ -510,7 +510,7 @@ func (s *AbstractStorage) checkPrepare(key string) {
 	for s.kvStore[key].WaitingOp.Len() != 0 {
 		e := s.kvStore[key].WaitingOp.Front()
 		op := e.Value.(*ReadAndPrepareOp)
-		txnId := op.request.Txn.TxnId
+		txnId := op.txnId
 		// skip the aborted txn
 		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
 			log.Debugf("txn %v is already abort remove from the queue of key %v", txnId, key)
@@ -523,11 +523,11 @@ func (s *AbstractStorage) checkPrepare(key string) {
 		hasWaiting := s.hasWaitingTxn(op)
 		if !canPrepare || hasWaiting {
 			log.Infof("cannot prepare %v had waiting %v, can prepare %v when release key %v",
-				op.request.Txn.TxnId, hasWaiting, canPrepare, key)
+				op.txnId, hasWaiting, canPrepare, key)
 			break
 		}
 
-		log.Infof("can prepare %v when key %v is released", op.request.Txn.TxnId, key)
+		log.Infof("can prepare %v when key %v is released", op.txnId, key)
 		s.abstractMethod.prepared(op)
 	}
 }
@@ -543,7 +543,7 @@ func (s *AbstractStorage) Abort(op *AbortRequestOp) {
 	if op.isFromCoordinator {
 		s.coordinatorAbort(op.abortRequest)
 	} else {
-		txnId := op.request.request.Txn.TxnId
+		txnId := op.request.txnId
 		s.txnStore[txnId].readAndPrepareRequestOp = op.request
 		s.setPrepareResult(op.request)
 		s.replicatePreparedResult(txnId)
@@ -586,7 +586,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 }
 
 func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
 	s.setReadResult(op)
 	abortOp := NewAbortRequestOp(nil, op, false)
@@ -639,7 +639,7 @@ func (s *AbstractStorage) initTxnIfNotExist(msg ReplicationMsg) bool {
 			canReorder:              0,
 		}
 		if msg.Status == PREPARED {
-			s.txnStore[msg.TxnId].readAndPrepareRequestOp = NewReadAndPrepareOpWithKeys(msg.PreparedReadKeyVersion, msg.PreparedWriteKeyVersion, s.server)
+			s.txnStore[msg.TxnId].readAndPrepareRequestOp = NewReadAndPrepareOpWithReplicatedMsg(msg, s.server)
 			s.txnStore[msg.TxnId].prepareResultOp = NewPrepareRequestOpWithReplicatedMsg(s.server.partitionId, msg)
 		}
 		return false

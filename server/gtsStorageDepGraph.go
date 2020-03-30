@@ -121,7 +121,7 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	// read write conflict
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-			log.Debugf("txn %v read write conflict key %v with %v", op.request.Txn.TxnId, rk, s.kvStore[rk].PreparedTxnWrite)
+			log.Debugf("txn %v read write conflict key %v with %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
 			available = false
 			break
 		}
@@ -130,9 +130,9 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 }
 
 func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
-	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
+	log.Infof("DEP graph prepared %v", op.txnId)
 	s.removeFromQueue(op)
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	s.graph.AddNode(txnId, op.keyMap)
 	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
@@ -142,8 +142,8 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 }
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("PROCESSING %v", op.request.Txn.TxnId)
-	txnId := op.request.Txn.TxnId
+	log.Infof("PROCESSING %v", op.txnId)
+	txnId := op.txnId
 	if info, exist := s.txnStore[txnId]; exist && info.status != INIT {
 		log.Infof("txn %v is already has status %v", txnId, info.status)
 		s.setReadResult(op)

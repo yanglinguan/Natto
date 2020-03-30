@@ -20,15 +20,15 @@ func NewOccStorage(server *Server) *OccStorage {
 }
 
 func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setPrepareResult(op)
-	s.replicatePreparedResult(op.request.Txn.TxnId)
+	s.replicatePreparedResult(op.txnId)
 }
 
 func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status != INIT {
 		s.setReadResult(op)
 		return

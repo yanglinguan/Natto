@@ -43,7 +43,7 @@ func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflic
 }
 
 func (s *GTSStorageWithReorder) reorder(op *ReadAndPrepareOp) bool {
-	txnId := op.request.Txn.TxnId
+	txnId := op.txnId
 	canReorder := true
 	conflictTxnList := s.graph.GetConflictTxn(txnId)
 	log.Debugf("txn %v conflict txn: %v", txnId, conflictTxnList)
@@ -80,13 +80,13 @@ func (s *GTSStorageWithReorder) abortProcessedTxn(txnId string) {
 }
 
 func (s *GTSStorageWithReorder) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("PROCESSING txn %v", op.request.Txn.TxnId)
-	txnId := op.request.Txn.TxnId
+	log.Infof("PROCESSING txn %v", op.txnId)
+	txnId := op.txnId
 	if info, exist := s.txnStore[txnId]; exist && info.status == ABORT {
 		if !info.receiveFromCoordinator {
-			log.Fatalf("txn %v is aborted. it must receive coordinator abort", op.request.Txn.TxnId)
+			log.Fatalf("txn %v is aborted. it must receive coordinator abort", op.txnId)
 		}
-		log.Infof("txn %v is already aborted (coordinator abort)", op.request.Txn.TxnId)
+		log.Infof("txn %v is already aborted (coordinator abort)", op.txnId)
 		s.setReadResult(op)
 		return
 	}
