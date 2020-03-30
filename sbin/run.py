@@ -83,6 +83,9 @@ def parse_server_machine():
         tmp = server_machine[idx]
         server_machine[idx] = server_machine[leader_id]
         server_machine[leader_id] = tmp
+        tmp = machines[idx]
+        machines[idx] = machines[leader_id]
+        machines[leader_id] = tmp
         idx = idx + 1
     print(server_machine)
     return server_machine, machines
