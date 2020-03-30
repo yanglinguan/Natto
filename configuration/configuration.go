@@ -146,7 +146,8 @@ type FileConfiguration struct {
 	isReplication     bool
 	replicationFactor int
 	isFastPath        bool
-	failure           int
+	failure           float64
+	superMajority     int
 
 	username string
 	identity string
@@ -182,7 +183,8 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	serverNum := int(config["nums"].(float64))
 	f.replicationFactor = int(config["replicationFactor"].(float64))
 	f.isReplication = f.replicationFactor != 1
-	f.failure = int(config["failure"].(float64))
+	f.failure = config["failure"].(float64)
+	f.superMajority = int(math.Ceil(f.failure*1.5) + 1)
 	f.dcNum = serverNum / f.replicationFactor
 	if serverNum%f.replicationFactor != 0 {
 		log.Fatalf("the number of server %v and replication factor %v does not much", serverNum, f.replicationFactor)
@@ -636,5 +638,5 @@ func (f *FileConfiguration) GetFastPath() bool {
 }
 
 func (f *FileConfiguration) GetSuperMajority() int {
-	return int(math.Ceil(float64(f.failure*3/2)) + 1)
+	return f.superMajority
 }

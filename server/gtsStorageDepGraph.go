@@ -129,17 +129,17 @@ func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	return available
 }
 
-//func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
-//	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
-//	s.removeFromQueue(op)
-//	txnId := op.request.Txn.TxnId
-//	s.graph.AddNode(txnId, op.keyMap)
-//	s.txnStore[txnId].status = PREPARED
-//	s.recordPrepared(op)
-//	s.setReadResult(op)
-//	s.setPrepareResult(op)
-//	s.replicatePreparedResult(txnId)
-//}
+func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
+	log.Infof("DEP graph prepared %v", op.request.Txn.TxnId)
+	s.removeFromQueue(op)
+	txnId := op.request.Txn.TxnId
+	s.graph.AddNode(txnId, op.keyMap)
+	s.txnStore[txnId].status = PREPARED
+	s.recordPrepared(op)
+	s.setReadResult(op)
+	s.setPrepareResult(op)
+	s.replicatePreparedResult(txnId)
+}
 
 func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	log.Infof("PROCESSING %v", op.request.Txn.TxnId)
@@ -162,7 +162,6 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 
 	if available && !hasWaiting {
 		s.prepared(op)
-		s.graph.AddNode(txnId, op.keyMap)
 	} else {
 		if !op.passedTimestamp {
 			s.txnStore[txnId].status = WAITING
