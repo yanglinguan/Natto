@@ -12,9 +12,9 @@ arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
                         help='configuration file', required=False)
 args = arg_parser.parse_args()
 
-path = os.getcwd()
-if args.config is not None:
-    path = args.config
+# path = os.getcwd()
+# if args.config is not None:
+#     path = args.config
 
 low = 0 * 1000000000
 high = 90 * 1000000000
@@ -24,7 +24,8 @@ high = 90 * 1000000000
 # high = 75 * 1000000000
 
 
-def analyse_waiting():
+def analyse_waiting(dir_name):
+    path = dir_name
     txn_map = {}
     lists = os.listdir(path)
     for f in lists:
@@ -64,7 +65,8 @@ def analyse_waiting():
     f.close()
 
 
-def load_statistic():
+def load_statistic(dir_name):
+    path = dir_name
     txn_map = {}
     lists = os.listdir(path)
     min_start = sys.maxsize
@@ -148,9 +150,10 @@ def analyse_abort_rate(txn_map):
     return commit_rate
 
 
-def main():
-    analyse_waiting()
-    txn_map = load_statistic()
+def analyse(dir_name):
+    path = dir_name
+    analyse_waiting(path)
+    txn_map = load_statistic(path)
     result = analyse_latency(txn_map)
     throughput = analyse_throughput(txn_map)
     commit_rate = analyse_abort_rate(txn_map)
@@ -161,6 +164,17 @@ def main():
     file_name = os.path.basename(path)
     with open(file_name + ".result", "w") as f:
         json.dump(result, f, indent=4)
+
+
+def main():
+    if args.config is not None:
+        analyse(args.config)
+    else:
+        path = os.getcwd()
+        lists = os.listdir(path)
+        for f in lists:
+            if os.path.isdir(os.path.join(path, f)):
+                analyse(f)
 
 
 if __name__ == "__main__":
