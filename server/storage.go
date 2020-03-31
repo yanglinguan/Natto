@@ -281,7 +281,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 		}
 	}
 
-	if isReadOnly && !s.server.IsLeader() {
+	if !s.server.IsLeader() {
 		op.reply.IsAbort = false
 	}
 
