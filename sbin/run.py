@@ -74,7 +74,7 @@ def parse_client_machine():
     for clientId in range(client_nums):
         idx = clientId % len(machines)
         ip = machines[idx]
-        machines_client[ip].add_id(clientId)
+        machines_client[ip].add_id(str(clientId))
 
 
 def parse_server_machine():
@@ -85,7 +85,7 @@ def parse_server_machine():
     for server_id in range(server_nums):
         idx = server_id % len(machines)
         ip = machines[idx]
-        machines_server[ip].add_id(server_id)
+        machines_server[ip].add_id(str(server_id))
 
 
 def collect_client_log():
