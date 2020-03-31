@@ -96,7 +96,7 @@ def collect_client_log():
     else:
         os.mkdir(new_dir)
 
-    for ip, machine in machines_client:
+    for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
         ssh = SSHClient()
@@ -166,7 +166,7 @@ def deploy():
         threads.append(thread)
         thread.start()
 
-    for ip, machine in machines_client:
+    for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
         ssh = SSHClient()
@@ -193,7 +193,7 @@ def ssh_exec_thread(ssh_client, command, ip, servers=None):
 
 def start_servers():
     threads = list()
-    for ip, machine in machines_server:
+    for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
         ssh = SSHClient()
@@ -218,7 +218,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    for ip, machine in machines_server:
+    for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
         ssh = SSHClient()
