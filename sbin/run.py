@@ -115,7 +115,7 @@ def collect_client_log():
 
 
 def collect_server_log(new_dir):
-    for ip, machine in machines_server:
+    for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
         ssh = SSHClient()
@@ -218,7 +218,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    for ip, machine in machines_server.items():
+    for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
         ssh = SSHClient()
