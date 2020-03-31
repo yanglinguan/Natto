@@ -88,7 +88,19 @@ def parse_server_machine():
         machines_server[ip].add_id(str(server_id))
 
 
+def scp_client_log_exec(new_dir, ssh, scp, ip):
+    client_dir = config["experiment"]["runDir"] + "/client"
+    stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
+    log_files = stdout.read().split()
+    for log in log_files:
+        scp.get(log, new_dir)
+    ssh.exec_command("rm " + client_dir + "/*.log")
+    ssh.exec_command("rm " + client_dir + "/*.statistic")
+    print("collect client log from " + ip)
+
+
 def collect_client_log():
+    threads = list()
     dir_name = args.config.split('.')[0] + "-" + args.runCount
     new_dir = os.path.join(os.getcwd(), dir_name)
     if os.path.isdir(new_dir):
@@ -103,18 +115,29 @@ def collect_client_log():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        client_dir = config["experiment"]["runDir"] + "/client"
-        stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
-        log_files = stdout.read().split()
-        for log in log_files:
-            scp.get(log, new_dir)
-        ssh.exec_command("rm " + client_dir + "/*.log")
-        ssh.exec_command("rm " + client_dir + "/*.statistic")
-        print("collect client log from " + ip)
+        thread = threading.Thread(target=scp_client_log_exec, args=(new_dir, ssh, scp, ip))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
     return new_dir
 
 
+def scp_server_log_exec(new_dir, ssh, scp, s_id, ip):
+    server_dir = config["experiment"]["runDir"] + "/server-" + str(s_id)
+    stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
+    log_files = stdout.read().split()
+    for log in log_files:
+        scp.get(log, new_dir)
+    ssh.exec_command("rm -r " + server_dir + "/raft-*")
+    ssh.exec_command("rm -r " + server_dir + "/*.log")
+    print("collect server log " + s_id + " from " + ip)
+
+
 def collect_server_log(new_dir):
+    threads = list()
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
@@ -123,23 +146,20 @@ def collect_server_log(new_dir):
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
         for sId in machine.ids:
-            server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
-            stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
-            log_files = stdout.read().split()
-            for log in log_files:
-                scp.get(log, new_dir)
-            ssh.exec_command("rm -r " + server_dir + "/raft-*")
-            ssh.exec_command("rm -r " + server_dir + "/*.log")
-            print("collect server log " + sId + " from " + ip)
+            thread = threading.Thread(target=scp_server_log_exec, args=(new_dir, ssh, scp, sId, ip))
+            threads.append(thread)
+            thread.start()
+
+    for thread in threads:
+        thread.join()
 
 
-def scp_server_exec(ssh, scp, servers, ip):
-    for sId in servers:
-        server_dir = config["experiment"]["runDir"] + "/server-" + str(sId)
-        ssh.exec_command("mkdir -p " + server_dir)
-        scp.put(os.getcwd() + "/" + args.config, server_dir)
-        scp.put(binPath + "carousel-server", server_dir)
-        print("deploy config and server " + str(sId) + " at " + ip)
+def scp_server_exec(ssh, scp, s_id, ip):
+    server_dir = config["experiment"]["runDir"] + "/server-" + str(s_id)
+    ssh.exec_command("mkdir -p " + server_dir)
+    scp.put(os.getcwd() + "/" + args.config, server_dir)
+    scp.put(binPath + "carousel-server", server_dir)
+    print("deploy config and server " + str(s_id) + " at " + ip)
 
 
 def scp_client_exec(ssh, scp, ip):
@@ -162,9 +182,10 @@ def deploy():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, machine.ids, ip))
-        threads.append(thread)
-        thread.start()
+        for sId in machine.ids:
+            thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, sId, ip))
+            threads.append(thread)
+            thread.start()
 
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
@@ -181,14 +202,16 @@ def deploy():
         thread.join()
 
 
-def ssh_exec_thread(ssh_client, command, ip, servers=None):
+def ssh_exec_thread(ssh_client, command, ip, servers=None, stop=False):
     stdin, stdout, stderr = ssh_client.exec_command(command)
     print(stdout.read())
     print(stderr.read())
     if servers is None:
-        print("clients on " + ip + " finishes")
+        if not stop:
+            print("clients on " + ip + " finishes")
     else:
-        print("server " + ' '.join(servers) + " starts on " + ip)
+        if not stop:
+            print("server " + ' '.join(servers) + " starts on " + ip)
 
 
 def start_servers():
@@ -252,27 +275,35 @@ def enforce_leader():
 
 
 def stop_servers():
+    threads = list()
     for ip in config["servers"]["machines"]:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         cmd = "killall -9 carousel-server"
         print(cmd + " # at " + ip)
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        print(stdout.read())
-        print(stderr.read())
+        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
 
 def stop_clients():
+    threads = list()
     for ip in config["clients"]["machines"]:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         cmd = "killall -9 client"
         print(cmd + " # at " + ip)
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        print(stdout.read())
-        print(stderr.read())
+        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
 
 def build():
