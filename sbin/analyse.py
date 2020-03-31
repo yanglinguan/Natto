@@ -101,15 +101,17 @@ def analyse_latency(txn_map):
             latency.append(value["latency"])
 
     median = numpy.percentile(latency, 50)
+    p90 = numpy.percentile(latency, 90)
     p95 = numpy.percentile(latency, 95)
     p99 = numpy.percentile(latency, 99)
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
-    result = {"median": median, "p95": p95, "p10": p10, "p99": p99, "avg": avg}
+    result = {"median": median, "p90": p90, "p95": p95, "p10": p10, "p99": p99, "avg": avg}
 
     print("10 per (ms): " + str(p10))
     print("median (ms): " + str(median))
+    print("90 per (ms): " + str(p90))
     print("95 per (ms): " + str(p95))
     print("99 per (ms): " + str(p99))
     print("avg (ms): " + str(avg))
