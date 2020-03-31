@@ -17,21 +17,26 @@ if args.data is not None:
     path = args.data
 
 style = {
-    "gts": {"color": "red", "line_style": "solid", "marker": 'o'},
-    "occ": {"color": "green", "line_style": "dashed", "marker": 'd'}
+    "gts-graph": {"color": "red", "line_style": "solid", "marker": 'o'},
+    "occ": {"color": "green", "line_style": "dashed", "marker": 'd'},
+    "gts": {"color": "blue", "line_style": "dashdot", "marker": '^'},
 }
 
 
 def draw():
     lists = os.listdir(path)
+    lists = [x for x in lists if x.endswith("result")]
     graph = {}
-    lists.sort(key=lambda x: int(os.path.splitext(x)[0].split("-")[1]))
+    lists.sort(key=lambda x: int(os.path.splitext(x)[0].split("-")[-3]))
+    print(lists)
     for f in lists:
         if f.endswith("result"):
             fl = open(os.path.join(path, f), "r")
             data = json.load(fl)
             items = f.split(".")
             protocol = items[0].split("-")[0]
+            if items[0].split("-")[1] == "graph":
+                protocol = protocol + "-" + "graph"
             if protocol not in graph:
                 graph[protocol] = {"x": [], "y": []}
             graph[protocol]["x"].append(data["throughput"])
@@ -48,7 +53,7 @@ def draw():
     plt.xlabel('Commit Throughput (txn/s)')
     plt.ylabel('Average Latency (ms)')
     plt.xlim(0, 500)
-    plt.ylim(0, 500)
+    plt.ylim(0, 550)
     plt.legend()
     plt.savefig(os.path.basename(path) + "-latency-commit-throughput.pdf")
     plt.show()

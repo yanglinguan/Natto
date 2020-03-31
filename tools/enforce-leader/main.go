@@ -131,7 +131,7 @@ func StopLocalServer(serverId int, config configuration.Configuration) {
 	serverDir := config.GetRunDir() + "/server-" + strconv.Itoa(serverId)
 
 	serverLogFile := "server-" + strconv.Itoa(serverId) + ".log"
-	cmd := "cd " + serverDir + "; " +
+	cmd := "ulimit -c unlimited;ulimit -n 100000; cd " + serverDir + "; " +
 		"kill " + pid + "; " +
 		"rm " + serverLogFile + "; " +
 		"rm -r raft-*-snap raft-*-wal;"
@@ -148,7 +148,7 @@ func StopRemoteServer(serverId int, config configuration.Configuration) {
 	serverDir := config.GetRunDir() + "/server-" + sIdStr
 
 	serverLogFile := "server-" + sIdStr + ".log"
-	cmd := "cd " + serverDir + "; " +
+	cmd := "ulimit -c unlimited;ulimit -n 100000; cd " + serverDir + "; " +
 		"kill " + pid + "; " +
 		"rm " + serverLogFile + "; " +
 		"rm -r raft-*-snap raft-*-wal;"
