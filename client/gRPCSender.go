@@ -86,6 +86,13 @@ func (c *CommitRequestSender) Send() {
 	reply, err := client.Commit(context.Background(), c.request)
 	if err == nil {
 		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, conn.GetDstAddr())
+		if c.txn.commitResult == 1 {
+			logrus.Debugf("txn %v already commit result", c.request.TxnId)
+			if !reply.Result {
+				logrus.Fatalf("read only txn %v should be commit", c.request.TxnId)
+			}
+			return
+		}
 		c.txn.commitReply <- reply
 	} else {
 		if dstServerId, handled := utils.HandleError(err); handled {

@@ -159,21 +159,25 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txn
 
 func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecord) {
 	// wait for result
+	result := make(map[string]*rpc.KeyValueVersion)
 	for {
 		readAndPrepareReply := <-execution.readAndPrepareReply
 		execution.isAbort = execution.isAbort || readAndPrepareReply.IsAbort
 		for _, kv := range readAndPrepareReply.KeyValVerList {
-			execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
+			if value, exist := result[kv.Key]; exist && value.Version >= kv.Version {
+				continue
+			}
+			result[kv.Key] = kv
+			//execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 		}
 
-		if execution.isAbort ||
-			len(execution.readKeyValueVersion) == len(execution.rpcTxn.ReadKeyList) {
+		if execution.isAbort || len(result) == len(execution.rpcTxn.ReadKeyList) {
 			break
 		}
 	}
 	op.isAbort = execution.isAbort
 	if !execution.isAbort {
-		for _, kv := range execution.readKeyValueVersion {
+		for _, kv := range result {
 			op.readResult[kv.Key] = kv.Value
 		}
 	}
@@ -350,6 +354,7 @@ func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bo
 		txnId:         c.getTxnId(txnId),
 		writeKeyValue: writeKeyValue,
 		wait:          make(chan bool, 1),
+		retry:         false,
 	}
 
 	c.commitTxnRequest <- commitOp
@@ -372,7 +377,9 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 		ongoingTxn.commitResult = 0
 	}
 	op.result = result.Result
-	op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
+	if !op.result {
+		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
+	}
 	op.wait <- true
 }
 
@@ -401,19 +408,25 @@ func (c *Client) isRetryTxn(execNum int64) (bool, time.Duration) {
 }
 
 func (c *Client) handleCommitRequest(op *CommitOp) {
-	writeKeyValue := op.writeKeyValue
+	ongoingTxn, execution := c.getTxnAndExecution(op.txnId)
 
-	writeKeyValueList := make([]*rpc.KeyValue, len(writeKeyValue))
+	if len(op.writeKeyValue) == 0 {
+		ongoingTxn.endTime = time.Now()
+		logrus.Debugf("read only txn %v commit", op.txnId)
+		ongoingTxn.commitResult = 1
+		op.result = true
+		op.wait <- true
+	}
+
+	writeKeyValueList := make([]*rpc.KeyValue, len(op.writeKeyValue))
 	i := 0
-	for k, v := range writeKeyValue {
+	for k, v := range op.writeKeyValue {
 		writeKeyValueList[i] = &rpc.KeyValue{
 			Key:   k,
 			Value: v,
 		}
 		i++
 	}
-
-	ongoingTxn, execution := c.getTxnAndExecution(op.txnId)
 
 	readKeyVerList := make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
 	i = 0
@@ -438,7 +451,9 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 	go sender.Send()
 
-	go c.waitCommitReply(op, ongoingTxn)
+	if len(op.writeKeyValue) != 0 {
+		go c.waitCommitReply(op, ongoingTxn)
+	}
 }
 
 func (c *Client) PrintServerStatus(commitTxn []int) {
