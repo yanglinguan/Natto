@@ -32,17 +32,24 @@ func NewGTSStorageDepGraph(server *Server) *GTSStorageDepGraph {
 func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
 	log.Debugf("REMOVE %v", txnId)
 	s.graph.RemoveNode(txnId, s.txnStore[txnId].readAndPrepareRequestOp.keyMap)
-	delete(s.readyToCommitTxn, txnId)
+
 	for _, txn := range s.graph.GetNext() {
 		log.Debugf("txn %v can commit now", txn)
-		s.readyToCommitTxn[txn] = true
+		if _, exist := s.readyToCommitTxn[txn]; exist {
+			log.Debugf("txnId is already in ready to commit txn")
+			continue
+		}
+
 		if _, exist := s.waitToCommitTxn[txn]; exist {
 			s.waitToCommitTxn[txn].canCommit = true
 			//s.Commit(s.waitToCommitTxn[txn])
 			s.server.executor.CommitTxn <- s.waitToCommitTxn[txn]
 			delete(s.waitToCommitTxn, txn)
+		} else {
+			s.readyToCommitTxn[txn] = true
 		}
 	}
+	delete(s.readyToCommitTxn, txnId)
 }
 
 func (s *GTSStorageDepGraph) checkCommit(txnId string) bool {
@@ -133,7 +140,9 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 	log.Infof("DEP graph prepared %v", op.txnId)
 	s.removeFromQueue(op)
 	txnId := op.txnId
-	s.graph.AddNode(txnId, op.keyMap)
+	if s.graph.AddNode(txnId, op.keyMap) {
+		s.readyToCommitTxn[txnId] = true
+	}
 	s.txnStore[txnId].status = PREPARED
 	s.recordPrepared(op)
 	s.setReadResult(op)
@@ -187,6 +196,7 @@ func (s *GTSStorageDepGraph) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == ABORT {
 			log.Debugf("txn %v fast path prepare but slow path abort, abort", msg.TxnId)
+			s.getNextCommitListByCommitOrAbort(msg.TxnId)
 			s.releaseKeyAndCheckPrepare(msg.TxnId)
 		}
 		break
@@ -203,14 +213,18 @@ func (s *GTSStorageDepGraph) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		if msg.Status == PREPARED {
-			s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap)
+			if s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap) {
+				s.readyToCommitTxn[msg.TxnId] = true
+			}
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
 	case INIT:
 		log.Debugf("txn %v fast path not stated slow path status %v ", msg.TxnId, msg.Status)
 		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == PREPARED {
-			s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap)
+			if s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap) {
+				s.readyToCommitTxn[msg.TxnId] = true
+			}
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
 		break
@@ -221,11 +235,11 @@ func (s *GTSStorageDepGraph) applyReplicatedCommitResult(msg ReplicationMsg) {
 	log.Debugf("txn %v apply replicated commit result enable fast path, status %v, current status %v",
 		msg.TxnId, msg.Status, s.txnStore[msg.TxnId].status)
 	s.txnStore[msg.TxnId].receiveFromCoordinator = true
-	s.getNextCommitListByCommitOrAbort(msg.TxnId)
 	s.txnStore[msg.TxnId].isFastPrepare = msg.IsFastPathSuccess
 
 	switch s.txnStore[msg.TxnId].status {
 	case PREPARED:
+		s.getNextCommitListByCommitOrAbort(msg.TxnId)
 		s.releaseKeyAndCheckPrepare(msg.TxnId)
 	case WAITING:
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)

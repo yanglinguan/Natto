@@ -28,7 +28,7 @@ func NewDependencyGraph() *Graph {
 	return g
 }
 
-func (g *Graph) AddNode(txnId string, keys map[string]bool) {
+func (g *Graph) AddNode(txnId string, keys map[string]bool) bool {
 	for key := range keys {
 		if _, exist := g.inDegree[txnId]; !exist {
 			g.inDegree[txnId] = 0
@@ -49,6 +49,8 @@ func (g *Graph) AddNode(txnId string, keys map[string]bool) {
 		}
 		g.keyToTxn[key][txnId] = true
 	}
+
+	return g.inDegree[txnId] == 0
 }
 
 func (g *Graph) RemoveNode(txnId string, keys map[string]bool) {
