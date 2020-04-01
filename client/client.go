@@ -370,17 +370,16 @@ func (c *Client) Abort(txnId string) (bool, time.Duration) {
 func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	result := <-ongoingTxn.commitReply
 
-	if !op.result {
-		ongoingTxn.endTime = time.Now()
-		if result.Result {
-			ongoingTxn.commitResult = 1
-		} else {
-			ongoingTxn.commitResult = 0
-			op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
-		}
-		op.result = result.Result
+	ongoingTxn.endTime = time.Now()
+	if result.Result {
+		ongoingTxn.commitResult = 1
+	} else {
+		ongoingTxn.commitResult = 0
 	}
-
+	op.result = result.Result
+	if !op.result {
+		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
+	}
 	op.wait <- true
 }
 
