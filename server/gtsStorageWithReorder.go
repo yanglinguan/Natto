@@ -24,6 +24,10 @@ func NewGTSStorageWithReorder(server *Server) *GTSStorageWithReorder {
 
 func (s GTSStorageWithReorder) hasConflictOnOtherPartition(txnId string, conflictTxnId string) bool {
 	x := s.txnStore[txnId].readAndPrepareRequestOp.partitionKeys
+	if len(x) > 1 {
+		return false
+	}
+
 	y := s.txnStore[conflictTxnId].readAndPrepareRequestOp.partitionKeys
 
 	for pId, keys := range x {
