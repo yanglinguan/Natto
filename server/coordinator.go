@@ -205,6 +205,7 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 	if TxnStatus(result.Request.PrepareStatus) == ABORT {
 		twoPCInfo.status = ABORT
 	} else {
+		log.Debugf("txn %v partition %v slow path success", txnId, pId)
 		twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(
 			TxnStatus(result.Request.PrepareStatus), false, result.Request)
 	}
@@ -215,6 +216,8 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 func (c *Coordinator) handleFastPrepareResult(result *FastPrepareResultOp) {
 	txnId := result.request.PrepareResult.TxnId
 	twoPCInfo := c.initTwoPCInfoIfNotExist(txnId)
+	log.Debugf("txn %v receive fast prepared result from partition %v result %v",
+		txnId, result.request.PrepareResult.TxnId, result.request.PrepareResult.PrepareStatus)
 	if twoPCInfo.status == ABORT {
 		log.Debugf("txn %v is already abort", txnId)
 		return

@@ -415,7 +415,6 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		logrus.Debugf("read only txn %v commit", op.txnId)
 		ongoingTxn.commitResult = 1
 		op.result = true
-		op.wait <- true
 	}
 
 	writeKeyValueList := make([]*rpc.KeyValue, len(op.writeKeyValue))
@@ -451,9 +450,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 	go sender.Send()
 
-	if len(op.writeKeyValue) != 0 {
-		go c.waitCommitReply(op, ongoingTxn)
-	}
+	go c.waitCommitReply(op, ongoingTxn)
 }
 
 func (c *Client) PrintServerStatus(commitTxn []int) {

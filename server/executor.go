@@ -88,7 +88,7 @@ func (e *Executor) sendFastPrepareResultToCoordinator() {
 
 		fOp := NewFastPrepareRequestOp(request, op.CoordPartitionId)
 
-		if op.CoordPartitionId == e.server.partitionId {
+		if op.CoordPartitionId == e.server.partitionId && e.server.IsLeader() {
 			e.server.coordinator.FastPrepareResult <- fOp
 		} else {
 			coordinatorId := e.server.config.GetLeaderIdByPartitionId(op.CoordPartitionId)
