@@ -41,6 +41,8 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 		commitOrder:             0,
 	}
 
+	s.txnStore[txnId].startTime = time.Now()
+
 	s.setReadResult(op)
 
 	available := s.checkKeysAvailable(op)

@@ -1,5 +1,7 @@
 package server
 
+import "time"
+
 type OccStorageWithReadOnly struct {
 	*OccStorage
 }
@@ -22,6 +24,8 @@ func (s *OccStorageWithReadOnly) Prepare(op *ReadAndPrepareOp) {
 		receiveFromCoordinator:  false,
 		commitOrder:             0,
 	}
+
+	s.txnStore[txnId].startTime = time.Now()
 
 	if len(op.writeKeyMap) > 0 {
 		s.setReadResult(op)

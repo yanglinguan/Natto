@@ -165,6 +165,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 		receiveFromCoordinator:  false,
 		commitOrder:             0,
 	}
+	s.txnStore[txnId].startTime = time.Now()
 
 	available := s.checkKeysAvailable(op)
 	hasWaiting := s.hasWaitingTxn(op)

@@ -87,6 +87,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		waitingTxnDep:           0,
 		startTime:               time.Now(),
 	}
+	s.txnStore[txnId].startTime = time.Now()
 
 	canPrepare := s.checkKeysAvailable(op)
 
@@ -124,6 +125,7 @@ func (s *GTSStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
 	case ABORT:
 		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == PREPARED {
+			s.txnStore[msg.TxnId].preparedTime = time.Now()
 			log.Debugf("CONFLICT: txn %v fast path abort but slow path prepare, prepare", msg.TxnId)
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
@@ -134,6 +136,7 @@ func (s *GTSStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		if msg.Status == PREPARED {
+			s.txnStore[msg.TxnId].preparedTime = time.Now()
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
 		break
