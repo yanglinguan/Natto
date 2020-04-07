@@ -140,13 +140,13 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 	log.Infof("DEP graph prepared %v", op.txnId)
 	s.removeFromQueue(op)
 	txnId := op.txnId
-	if s.graph.AddNode(txnId, op.keyMap) {
-		s.readyToCommitTxn[txnId] = true
-	}
 	s.txnStore[txnId].status = PREPARED
 	s.setReadResult(op)
 	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
 		return
+	}
+	if s.graph.AddNode(txnId, op.keyMap) {
+		s.readyToCommitTxn[txnId] = true
 	}
 	s.recordPrepared(op)
 	s.setPrepareResult(op)
