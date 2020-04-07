@@ -23,6 +23,7 @@ message Transaction {
     repeated string writeKeyList = 3;
     repeated int32 participatedPartitionIds = 4;
     int32 coordPartitionId = 5; // Coordination partition id
+    bool readOnly = 6;
 }
 
 message ReadAndPrepareRequest {

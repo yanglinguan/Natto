@@ -121,7 +121,11 @@ func (c *Client) Start() {
 func (c *Client) sendReadAndPrepareRequest() {
 	for {
 		op := <-c.sendTxnRequest
-		c.handleReadAndPrepareRequest(op)
+		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() {
+			c.handleReadOnlyRequest(op)
+		} else {
+			c.handleReadAndPrepareRequest(op)
+		}
 	}
 }
 
@@ -271,6 +275,65 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 
 }
 
+func (c *Client) handleReadOnlyRequest(op *SendOp) {
+	partitionSet, participants := c.separatePartition(op)
+	participatedPartitions := make([]int32, len(participants))
+	serverDcIds := make(map[int]bool)
+	i := 0
+	for pId := range participants {
+		participatedPartitions[i] = int32(pId)
+		serverId := c.Config.GetLeaderIdByPartitionId(pId)
+		dcId := c.Config.GetDataCenterIdByServerId(serverId)
+		serverDcIds[dcId] = true
+		i++
+	}
+
+	t := &rpc.Transaction{
+		TxnId:                    c.genTxnIdToServer(),
+		ReadKeyList:              op.readKeyList,
+		WriteKeyList:             op.writeKeyList,
+		ParticipatedPartitionIds: participatedPartitions,
+		CoordPartitionId:         int32(-1), // with read-only optimization, read-only txn does not need send to coord
+		ReadOnly:                 true,
+	}
+
+	c.addTxnIfNotExist(op.txnId, t)
+
+	_, execution := c.getTxnAndExecution(op.txnId)
+
+	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
+	maxDelay += c.Config.GetDelay().Nanoseconds()
+	maxDelay += time.Now().UnixNano()
+
+	// send read and prepare request to each partition
+	for pId, keyLists := range partitionSet {
+		txn := &rpc.Transaction{
+			TxnId:                    execution.rpcTxn.TxnId,
+			ReadKeyList:              keyLists[0],
+			WriteKeyList:             keyLists[1],
+			ParticipatedPartitionIds: participatedPartitions,
+			CoordPartitionId:         int32(-1),
+			ReadOnly:                 true,
+		}
+
+		request := &rpc.ReadAndPrepareRequest{
+			Txn:              txn,
+			IsRead:           false,
+			IsNotParticipant: !participants[pId],
+			Timestamp:        maxDelay,
+			ClientId:         "c" + strconv.Itoa(c.clientId),
+		}
+
+		// read-only txn only send to partition leader
+		partitionLeaderId := c.Config.GetLeaderIdByPartitionId(pId)
+
+		sender := NewReadAndPrepareSender(request, execution, partitionLeaderId, c)
+		go sender.Send()
+	}
+
+	go c.waitReadAndPrepareRequest(op, execution)
+}
+
 func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	// separate key into partitions
 	partitionSet, participants := c.separatePartition(op)
@@ -309,9 +372,8 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		WriteKeyList:             op.writeKeyList,
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(coordinatorPartitionId),
+		ReadOnly:                 false,
 	}
-
-	logrus.Debugf("txn %v potential coordinator %v, selected coordinator %v", t.TxnId, leaderIdList, t.CoordPartitionId)
 
 	c.addTxnIfNotExist(op.txnId, t)
 
@@ -329,6 +391,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			WriteKeyList:             keyLists[1],
 			ParticipatedPartitionIds: participatedPartitions,
 			CoordPartitionId:         int32(coordinatorPartitionId),
+			ReadOnly:                 false,
 		}
 
 		request := &rpc.ReadAndPrepareRequest{
@@ -370,16 +433,14 @@ func (c *Client) Abort(txnId string) (bool, time.Duration) {
 func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	result := <-ongoingTxn.commitReply
 
-	if !op.result {
-		ongoingTxn.endTime = time.Now()
-		if result.Result {
-			ongoingTxn.commitResult = 1
-		} else {
-			ongoingTxn.commitResult = 0
-			op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
-		}
-		op.result = result.Result
+	ongoingTxn.endTime = time.Now()
+	if result.Result {
+		ongoingTxn.commitResult = 1
+	} else {
+		ongoingTxn.commitResult = 0
+		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
 	}
+	op.result = result.Result
 
 	op.wait <- true
 }
@@ -411,11 +472,13 @@ func (c *Client) isRetryTxn(execNum int64) (bool, time.Duration) {
 func (c *Client) handleCommitRequest(op *CommitOp) {
 	ongoingTxn, execution := c.getTxnAndExecution(op.txnId)
 
-	if len(op.writeKeyValue) == 0 {
+	if len(op.writeKeyValue) == 0 && c.Config.GetIsReadOnly() {
 		ongoingTxn.endTime = time.Now()
 		logrus.Debugf("read only txn %v commit", op.txnId)
 		ongoingTxn.commitResult = 1
 		op.result = true
+		op.wait <- true
+		return
 	}
 
 	writeKeyValueList := make([]*rpc.KeyValue, len(op.writeKeyValue))
@@ -500,14 +563,16 @@ func (c *Client) PrintTxnStatisticData() {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.executions[txn.execCount].rpcTxn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
 			txn.endTime.UnixNano(),
 			keyList,
-			txn.execCount)
+			txn.execCount,
+			txn.executions[txn.execCount].rpcTxn.ReadOnly,
+		)
 		_, err = file.WriteString(s)
 		if err != nil {
 			logrus.Fatalf("Cannot write to file %v", err)

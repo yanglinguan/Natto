@@ -144,8 +144,11 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 		s.readyToCommitTxn[txnId] = true
 	}
 	s.txnStore[txnId].status = PREPARED
-	s.recordPrepared(op)
 	s.setReadResult(op)
+	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
+		return
+	}
+	s.recordPrepared(op)
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(txnId)
 }

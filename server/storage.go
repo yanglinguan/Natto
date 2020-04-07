@@ -444,10 +444,6 @@ func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 		if _, exist := s.kvStore[key].WaitingItem[txnId]; !exist {
 			continue
 		}
-		//if s.kvStore[key].WaitingOp.Front().Value.(*ReadAndPrepareOp).txnId != txnId {
-		//	log.Fatalf("txn %v is not front of queue key %v", txnId, key)
-		//	return
-		//}
 
 		s.kvStore[key].WaitingOp.Remove(s.kvStore[key].WaitingItem[txnId])
 		delete(s.kvStore[key].WaitingItem, txnId)
@@ -460,8 +456,12 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	// record the prepared keys
 	txnId := op.txnId
 	s.txnStore[txnId].status = PREPARED
-	s.recordPrepared(op)
 	s.setReadResult(op)
+	// with read-only optimization, do not need send the result to coordinator
+	if s.server.config.GetIsReadOnly() && op.request.Txn.ReadOnly {
+		return
+	}
+	s.recordPrepared(op)
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(op.txnId)
 }

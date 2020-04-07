@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -44,6 +45,15 @@ func parseClientLog(client *client.Client) []int {
 		logrus.Debugf("file %v lines %v", fName, len(lines))
 		for _, line := range lines {
 			items := strings.Split(line, ",")
+			readOnly, err := strconv.ParseBool(items[7])
+			if err != nil {
+				logrus.Fatalf("cannot convert read-only bool %v", err)
+			}
+			// when read-only optimization, ignore the read-only txn
+			// because the server side does not record the commit of read-only txn
+			if client.Config.GetIsReadOnly() && readOnly {
+				continue
+			}
 			commitResult := items[1]
 			if commitResult != "1" {
 				continue

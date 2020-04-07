@@ -63,9 +63,6 @@ func NewServer(serverId int, configFile string) *Server {
 	case configuration.GTSReorder:
 		server.scheduler = NewTimestampScheduler(server)
 		server.storage = NewGTSStorageWithReorder(server)
-	case configuration.OCCReadOnly:
-		server.scheduler = &NoScheduler{server: server}
-		server.storage = NewOccStorageWithReadOnly(server)
 		break
 	default:
 		log.Fatal("OCC, GTS, GTS_DEP_GRAPH")

@@ -21,6 +21,7 @@
   "experiment": {
     "mode": "occ",
     "fastPath": false,
+    "readOnly": false,
     "totalKey": 3,
     "delay": "200ms",
     "RPCPoolSize": 0,
