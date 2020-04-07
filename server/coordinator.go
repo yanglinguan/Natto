@@ -315,7 +315,7 @@ func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 
 		for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
 			if int(pId) == c.server.partitionId {
-				op := NewAbortRequestOp(request, nil, true)
+				op := NewAbortRequestOp(request)
 				c.server.executor.AbortTxn <- op
 			} else {
 				serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))

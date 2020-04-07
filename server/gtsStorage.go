@@ -102,6 +102,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		} else {
 			s.txnStore[txnId].status = ABORT
 			//s.setReadResult(op)
+			log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
 			s.selfAbort(op)
 		}
 	}

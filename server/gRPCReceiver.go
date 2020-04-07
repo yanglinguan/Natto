@@ -69,9 +69,8 @@ func (server *Server) Abort(ctx context.Context,
 		logrus.Debugf("txn %v server %v is not leader", request.TxnId, server.serverAddress)
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
 	}
-	op := NewAbortRequestOp(request, nil, false)
+	op := NewAbortRequestOp(request)
 	if request.IsCoordinator {
-		op.isFromCoordinator = true
 		server.executor.AbortTxn <- op
 	} else {
 		server.coordinator.AbortRequest <- op

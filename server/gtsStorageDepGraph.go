@@ -182,6 +182,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 			s.addToQueue(op.keyMap, op)
 		} else {
 			s.txnStore[txnId].status = ABORT
+			log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
 			//	s.setReadResult(op)
 			s.selfAbort(op)
 		}

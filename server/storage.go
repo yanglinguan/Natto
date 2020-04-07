@@ -190,7 +190,6 @@ func (s AbstractStorage) printCommitOrder() {
 	}
 
 	for i, info := range txnInfo {
-		//s := fmt.Sprintf("%v %v %v %v %v\n",
 		s := fmt.Sprintf("%v %v %v %v %v %v %v %v\n",
 			txnId[i],
 			info.waitingTxnKey,
@@ -540,13 +539,31 @@ func (s *AbstractStorage) writeToDB(op []*rpc.KeyValue) {
 }
 
 func (s *AbstractStorage) Abort(op *AbortRequestOp) {
-	if op.isFromCoordinator {
-		s.coordinatorAbort(op.abortRequest)
+	// coordinator abort
+	txnId := op.abortRequest.TxnId
+	if txnInfo, exist := s.txnStore[txnId]; exist {
+		txnInfo.receiveFromCoordinator = true
+		switch txnInfo.status {
+		case ABORT:
+			log.Infof("txn %v is already abort it self", txnId)
+			break
+		case COMMIT:
+			log.Fatalf("Error: txn %v is already committed", txnId)
+			break
+		default:
+			log.Debugf("call abort processed txn %v", txnId)
+			s.abstractMethod.abortProcessedTxn(txnId)
+			break
+		}
 	} else {
-		txnId := op.request.txnId
-		s.txnStore[txnId].readAndPrepareRequestOp = op.request
-		s.setPrepareResult(op.request)
-		s.replicatePreparedResult(txnId)
+		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
+
+		s.txnStore[txnId] = &TxnInfo{
+			readAndPrepareRequestOp: nil,
+			status:                  ABORT,
+			receiveFromCoordinator:  true,
+		}
+		s.replicateCommitResult(txnId, nil)
 	}
 }
 
@@ -586,39 +603,12 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 }
 
 func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
-	txnId := op.txnId
-	log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
 	s.setReadResult(op)
-	abortOp := NewAbortRequestOp(nil, op, false)
-	s.server.executor.AbortTxn <- abortOp
-}
-
-func (s *AbstractStorage) coordinatorAbort(request *rpc.AbortRequest) {
-	txnId := request.TxnId
-	if txnInfo, exist := s.txnStore[txnId]; exist {
-		txnInfo.receiveFromCoordinator = true
-		switch txnInfo.status {
-		case ABORT:
-			log.Infof("txn %v is already abort it self", txnId)
-			break
-		case COMMIT:
-			log.Fatalf("Error: txn %v is already committed", txnId)
-			break
-		default:
-			log.Debugf("call abort processed txn %v", txnId)
-			s.abstractMethod.abortProcessedTxn(txnId)
-			break
-		}
-	} else {
-		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
-
-		s.txnStore[txnId] = &TxnInfo{
-			readAndPrepareRequestOp: nil,
-			status:                  ABORT,
-			receiveFromCoordinator:  true,
-		}
-		s.replicateCommitResult(txnId, nil)
+	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
+		return
 	}
+	s.setPrepareResult(op)
+	s.replicatePreparedResult(op.txnId)
 }
 
 func (s *AbstractStorage) initTxnIfNotExist(msg ReplicationMsg) bool {

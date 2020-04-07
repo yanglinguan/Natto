@@ -139,17 +139,12 @@ func (c *CommitRequestOp) BlockOwner() bool {
 }
 
 type AbortRequestOp struct {
-	abortRequest      *rpc.AbortRequest
-	request           *ReadAndPrepareOp
-	isFromCoordinator bool
+	abortRequest *rpc.AbortRequest
 }
 
-func NewAbortRequestOp(abortRequest *rpc.AbortRequest,
-	request *ReadAndPrepareOp, fromCoordinator bool) *AbortRequestOp {
+func NewAbortRequestOp(abortRequest *rpc.AbortRequest) *AbortRequestOp {
 	a := &AbortRequestOp{
-		abortRequest:      abortRequest,
-		request:           request,
-		isFromCoordinator: fromCoordinator,
+		abortRequest: abortRequest,
 	}
 	return a
 }
