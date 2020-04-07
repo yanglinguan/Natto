@@ -268,8 +268,8 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 		IsAbort:       s.txnStore[op.txnId].status == ABORT,
 	}
-	isReadOnly := len(op.request.Txn.WriteKeyList) == 0
-	if !op.reply.IsAbort && ((isReadOnly && s.server.IsLeader()) || !isReadOnly) {
+
+	if !op.reply.IsAbort && ((op.request.Txn.ReadOnly && s.server.IsLeader()) || !op.request.Txn.ReadOnly) {
 		for rk := range op.readKeyMap {
 			keyValueVersion := &rpc.KeyValueVersion{
 				Key:     rk,
@@ -280,7 +280,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 		}
 	}
 
-	if !s.server.IsLeader() {
+	if !s.server.IsLeader() || !op.request.Txn.ReadOnly {
 		op.reply.IsAbort = false
 	}
 
