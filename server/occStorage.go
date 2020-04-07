@@ -22,8 +22,8 @@ func NewOccStorage(server *Server) *OccStorage {
 func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
 	txnId := op.txnId
 	s.txnStore[txnId].status = PREPARED
-	s.setReadResult(op)
 	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
+		s.setReadResult(op)
 		return
 	}
 	s.recordPrepared(op)
@@ -46,6 +46,10 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	s.txnStore[txnId].startTime = time.Now()
+
+	if !op.request.Txn.ReadOnly {
+		s.setReadResult(op)
+	}
 
 	available := s.checkKeysAvailable(op)
 
