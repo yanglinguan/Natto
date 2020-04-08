@@ -372,7 +372,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		WriteKeyList:             op.writeKeyList,
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(coordinatorPartitionId),
-		ReadOnly:                 false,
+		ReadOnly:                 len(op.writeKeyList) == 0,
 	}
 
 	c.addTxnIfNotExist(op.txnId, t)
@@ -391,7 +391,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			WriteKeyList:             keyLists[1],
 			ParticipatedPartitionIds: participatedPartitions,
 			CoordPartitionId:         int32(coordinatorPartitionId),
-			ReadOnly:                 false,
+			ReadOnly:                 len(op.writeKeyList) == 0,
 		}
 
 		request := &rpc.ReadAndPrepareRequest{

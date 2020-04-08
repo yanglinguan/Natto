@@ -40,20 +40,23 @@ def analyse_waiting(dir_name):
                 y = 0
                 z = 0
                 t = 0
-                if len(items) == 7:
+                fast = False
+                if len(items) == 8:
                     wait_num_t = int(items[2])
                     x = float(items[3]) / 1000000
                     y = float(items[4]) / 1000000
                     z = float(items[5]) / 1000000
                     t = int(items[6])
+                    fast = bool(items[7])
                 if txn_id not in txn_map:
-                    txn_map[txn_id] = [wait_num, wait_num_t, x, y, z, t]
+                    txn_map[txn_id] = [wait_num, wait_num_t, x, y, z, t, fast]
                 txn_map[txn_id][0] = max(txn_map[txn_id][0], wait_num)
                 txn_map[txn_id][1] = max(txn_map[txn_id][1], wait_num_t)
                 txn_map[txn_id][2] = max(txn_map[txn_id][2], x)
                 txn_map[txn_id][3] = max(txn_map[txn_id][3], y)
                 txn_map[txn_id][4] = max(txn_map[txn_id][4], z)
                 txn_map[txn_id][5] = txn_map[txn_id][5] + t
+                txn_map[txn_id][6] = fast and txn_map[txn_id][6]
 
     f = open("waiting.analyse", "w")
     for key, value in txn_map.items():
