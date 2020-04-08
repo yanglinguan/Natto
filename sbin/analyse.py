@@ -47,7 +47,7 @@ def analyse_waiting(dir_name):
                     y = float(items[4]) / 1000000
                     z = float(items[5]) / 1000000
                     t = int(items[6])
-                    fast = bool(items[7])
+                    fast = items[7] == "true"
                 if txn_id not in txn_map:
                     txn_map[txn_id] = [wait_num, wait_num_t, x, y, z, t, fast]
                 txn_map[txn_id][0] = max(txn_map[txn_id][0], wait_num)
