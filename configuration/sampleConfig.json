@@ -1,0 +1,63 @@
+{
+  "servers": {
+    "nums": 3,
+    "partitions": 3,
+    "replicationFactor": 1,
+    "failure": 1,
+    "raftPortBase": 20000,
+    "rpcPortBase": 10000,
+    "machines": [
+      "localhost",
+      "localhost",
+      "localhost"
+    ]
+  },
+  "clients": {
+    "nums": 16,
+    "machines": [
+      "localhost"
+    ]
+  },
+  "experiment": {
+    "mode": "occ",
+    "fastPath": false,
+    "readOnly": false,
+    "totalKey": 3,
+    "delay": "200ms",
+    "RPCPoolSize": 0,
+    "keySize": 1,
+    "txnSize": 3,
+    "openLoop": true,
+    "txnRate": 1,
+    "duration": 30,
+    "totalTxn": 1000,
+    "zipfAlpha": 0.75,
+    "workload": {
+      "type": "ycsbt",
+      "retwis": {
+        "addUserRatio": 5,
+        "followUnfollowRatio": 15,
+        "postTweetRatio": 30,
+        "loadTimelineRatio": 50
+      }
+    },
+    "seed": 0,
+    "queueLen": 10240,
+    "retry": {
+      "mode": "off",
+      "interval": 0,
+      "maxRetry": 20,
+      "maxSlot": 32
+    },
+    "oneWayDelay" : [
+      ["0ms","50ms", "100ms"],
+      ["50ms", "0ms", "80ms"],
+      ["100ms", "80ms", "0ms"]
+    ],
+    "ssh": {
+      "username": "l69yang",
+      "identity": ""
+    },
+    "runDir": "./"
+  }
+}

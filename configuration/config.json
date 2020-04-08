@@ -1,0 +1,31 @@
+{
+  "servers": {
+    "1": {
+      "ip": "localhost",
+      "port": "10001",
+      "dataCenterId": "D1"
+    }
+  },
+  "clients": {
+    "1": {
+      "ip": "localhost",
+      "port": "10004",
+      "dataCenterId": "D1"
+    }
+  },
+  "partitions": [
+    ["1"]
+  ],
+  "experiment": {
+    "mode": "gts_dep_graph",
+    "replication": false,
+    "totalKey": 10,
+    "delay": "200ms",
+    "RPCPoolSize": 200,
+    "oneWayDelay" : {
+      "D1": {"D2": "50ms", "D3": "100ms"},
+      "D2": {"D1": "50ms", "D3": "80ms"},
+      "D3": {"D1": "100ms", "D2": "80ms"}
+    }
+  }
+}
