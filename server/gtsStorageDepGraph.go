@@ -143,6 +143,9 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 	s.txnStore[txnId].status = PREPARED
 	s.setReadResult(op)
 	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
+		if s.txnStore[txnId].inQueue {
+			s.server.executor.ReleaseReadOnlyTxn <- op
+		}
 		return
 	}
 	if s.graph.AddNode(txnId, op.keyMap) {

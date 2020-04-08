@@ -20,6 +20,8 @@ type Executor struct {
 	PrintStatus chan *PrintStatusRequestOp
 
 	ReplicationTxn chan ReplicationMsg
+
+	ReleaseReadOnlyTxn chan *ReadAndPrepareOp
 }
 
 func NewExecutor(server *Server) *Executor {
@@ -40,6 +42,9 @@ func NewExecutor(server *Server) *Executor {
 		e.FastPrepareResult = make(chan *PrepareResultOp, queueLen)
 		go e.sendFastPrepareResultToCoordinator()
 	}
+	if server.config.GetIsReadOnly() {
+		e.ReleaseReadOnlyTxn = make(chan *ReadAndPrepareOp, queueLen)
+	}
 	return e
 }
 
@@ -56,6 +61,8 @@ func (e *Executor) run() {
 			e.server.storage.PrintStatus(op)
 		case msg := <-e.ReplicationTxn:
 			e.server.storage.ApplyReplicationMsg(msg)
+		case op := <-e.ReleaseReadOnlyTxn:
+			e.server.storage.ReleaseReadOnly(op)
 		}
 	}
 }

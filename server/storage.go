@@ -65,6 +65,7 @@ type TxnInfo struct {
 	commitTime              time.Time
 	canReorder              int
 	isFastPrepare           bool
+	inQueue                 bool
 }
 
 type KeyInfo struct {
@@ -84,6 +85,7 @@ type Storage interface {
 	PrintStatus(op *PrintStatusRequestOp)
 	HasKey(key string) bool
 	ApplyReplicationMsg(msg ReplicationMsg)
+	ReleaseReadOnly(op *ReadAndPrepareOp)
 }
 
 type AbstractMethod interface {
@@ -336,6 +338,7 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 // add txn to the queue waiting for keys
 func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp) {
 	txnId := op.txnId
+	s.txnStore[txnId].inQueue = true
 	log.Infof("Txn %v wait for keys", txnId)
 	for key := range keys {
 		log.Debugf("Txn %v wait for key %v", txnId, key)
@@ -379,6 +382,12 @@ func (s *AbstractStorage) releaseKeyAndCheckPrepare(txnId string) {
 		}
 		// otherwise, check if the top of the queue can prepare
 		log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
+		s.checkPrepare(key)
+	}
+}
+
+func (s *AbstractStorage) ReleaseReadOnly(op *ReadAndPrepareOp) {
+	for key := range op.keyMap {
 		s.checkPrepare(key)
 	}
 }
@@ -458,6 +467,9 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 	s.setReadResult(op)
 	// with read-only optimization, do not need send the result to coordinator
 	if s.server.config.GetIsReadOnly() && op.request.Txn.ReadOnly {
+		if s.txnStore[txnId].inQueue {
+			s.server.executor.ReleaseReadOnlyTxn <- op
+		}
 		return
 	}
 	s.recordPrepared(op)
