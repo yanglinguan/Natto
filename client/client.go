@@ -401,11 +401,17 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			Timestamp:        maxDelay,
 			ClientId:         "c" + strconv.Itoa(c.clientId),
 		}
-
-		sIdList := c.Config.GetServerIdListByPartitionId(pId)
-		for _, sId := range sIdList {
+		if request.IsNotParticipant {
+			// only send to the leader of non-participant partition
+			sId := c.Config.GetLeaderIdByPartitionId(pId)
 			sender := NewReadAndPrepareSender(request, execution, sId, c)
 			go sender.Send()
+		} else {
+			sIdList := c.Config.GetServerIdListByPartitionId(pId)
+			for _, sId := range sIdList {
+				sender := NewReadAndPrepareSender(request, execution, sId, c)
+				go sender.Send()
+			}
 		}
 	}
 

@@ -38,11 +38,12 @@ func (s *ReadAndPrepareSender) Send() {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	logrus.Infof("SEND ReadAndPrepare %v to %v", s.request.Txn.TxnId, conn.GetDstAddr())
+	logrus.Infof("SEND ReadAndPrepare %v to %v (%v)", s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId)
 
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err != nil {
 		if dstServerId, handled := utils.HandleError(err); handled {
+			logrus.Debugf("resend ReadAndPrepare %v to %v", s.request.Txn.TxnId, dstServerId)
 			s.dstServerId = dstServerId
 			s.Send()
 		} else {
@@ -86,12 +87,10 @@ func (c *CommitRequestSender) Send() {
 	reply, err := client.Commit(context.Background(), c.request)
 	if err == nil {
 		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, conn.GetDstAddr())
-		if c.txn.commitResult == 1 && !reply.Result {
-			logrus.Fatalf("read only txn %v should be commit", c.request.TxnId)
-		}
 		c.txn.commitReply <- reply
 	} else {
 		if dstServerId, handled := utils.HandleError(err); handled {
+			logrus.Debugf("resend ReadAndPrepare %v to %v", c.request.TxnId, dstServerId)
 			c.dstServerId = dstServerId
 			c.Send()
 		} else {
