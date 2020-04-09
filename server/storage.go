@@ -193,19 +193,35 @@ func (s AbstractStorage) printCommitOrder() {
 	}
 
 	for i, info := range txnInfo {
-		s := fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v\n",
-			txnId[i],
-			info.waitingTxnKey,
-			info.waitingTxnDep,
-			info.preparedTime.Sub(info.startTime).Nanoseconds(),
-			info.commitTime.Sub(info.preparedTime).Nanoseconds(),
-			info.commitTime.Sub(info.startTime).Nanoseconds(),
-			info.canReorder,
-			info.isFastPrepare,
-			info.readAndPrepareRequestOp.request.Timestamp,
-			info.hasWaitingButNoWriteReadConflict,
-		)
-		_, err = file.WriteString(s)
+		line := ""
+		if s.server.IsLeader() {
+			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v\n",
+				txnId[i],
+				info.waitingTxnKey,
+				info.waitingTxnDep,
+				info.preparedTime.Sub(info.startTime).Nanoseconds(),
+				info.commitTime.Sub(info.preparedTime).Nanoseconds(),
+				info.commitTime.Sub(info.startTime).Nanoseconds(),
+				info.canReorder,
+				info.isFastPrepare,
+				info.readAndPrepareRequestOp.request.Timestamp,
+				info.hasWaitingButNoWriteReadConflict,
+			)
+		} else {
+			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v\n",
+				txnId[i],
+				info.waitingTxnKey,
+				info.waitingTxnDep,
+				info.preparedTime.Sub(info.startTime).Nanoseconds(),
+				info.commitTime.Sub(info.preparedTime).Nanoseconds(),
+				info.commitTime.Sub(info.startTime).Nanoseconds(),
+				info.canReorder,
+				info.isFastPrepare,
+				0,
+				info.hasWaitingButNoWriteReadConflict,
+			)
+		}
+		_, err = file.WriteString(line)
 		if err != nil {
 			log.Fatalf("Cannot write to file %v", err)
 		}
