@@ -43,15 +43,13 @@ func (pq MinHeap) Len() int {
 }
 
 func (pq MinHeap) Less(i, j int) bool {
-	if pq[i].request.Timestamp < pq[j].request.Timestamp {
-		return true
-	} else if pq[i].request.Timestamp == pq[j].request.Timestamp {
+	if pq[i].request.Timestamp == pq[j].request.Timestamp {
+		if pq[i].request.ClientId == pq[i].request.ClientId {
+			return pq[i].txnId < pq[i].txnId
+		}
 		return pq[i].request.ClientId < pq[i].request.ClientId
-	} else if pq[i].request.ClientId == pq[i].request.ClientId {
-		return pq[i].txnId < pq[i].txnId
-	} else {
-		return false
 	}
+	return pq[i].request.Timestamp < pq[j].request.Timestamp
 }
 
 func (pq MinHeap) Swap(i, j int) {

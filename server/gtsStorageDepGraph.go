@@ -123,17 +123,42 @@ func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	}
 }
 
+// return true if txnId1 < txnId2
+func (s *GTSStorageDepGraph) less(txnId1 string, txnId2 string) bool {
+	request1 := s.txnStore[txnId1].readAndPrepareRequestOp.request
+	request2 := s.txnStore[txnId2].readAndPrepareRequestOp.request
+	if request1.Timestamp == request2.Timestamp {
+		if request1.ClientId == request2.ClientId {
+			return txnId1 < txnId2
+		}
+		return request1.ClientId < request1.ClientId
+	}
+	return request1.Timestamp < request2.Timestamp
+}
+
 func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
-	available := true
-	// read write conflict
+	// write read conflict
 	for rk := range op.readKeyMap {
-		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-			log.Debugf("txn %v read write conflict key %v with %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
-			available = false
-			break
+		for txnId := range s.kvStore[rk].PreparedTxnWrite {
+			if s.less(txnId, op.txnId) {
+				log.Debugf("txn %v read write conflict key %v with older %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+				return false
+			}
 		}
 	}
-	return available
+	return true
+}
+
+// return true if there is a waiting txn has write read conflict with the txn
+func (s *GTSStorageDepGraph) checkWaitingTxnHasWriteReadConflict(op *ReadAndPrepareOp) bool {
+	for rk := range op.readKeyMap {
+		for txnId := range s.kvStore[rk].WaitingItem {
+			if _, exist := s.txnStore[txnId].readAndPrepareRequestOp.writeKeyMap[rk]; exist {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
@@ -147,9 +172,6 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 			s.server.executor.ReleaseReadOnlyTxn <- op
 		}
 		return
-	}
-	if s.graph.AddNode(txnId, op.keyMap) {
-		s.readyToCommitTxn[txnId] = true
 	}
 	s.recordPrepared(op)
 	s.setPrepareResult(op)
@@ -174,14 +196,21 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	s.txnStore[txnId].startTime = time.Now()
 
 	available := s.checkKeysAvailable(op)
-	hasWaiting := s.hasWaitingTxn(op)
+	writeReadConflict := s.checkWaitingTxnHasWriteReadConflict(op)
 
-	if available && !hasWaiting {
+	canPrepare := available && !writeReadConflict
+	if s.server.IsLeader() && !op.request.Txn.ReadOnly && (canPrepare || !op.passedTimestamp) {
+		if s.graph.AddNode(txnId, op.keyMap) {
+			s.readyToCommitTxn[txnId] = true
+		}
+	}
+
+	if canPrepare {
 		s.prepared(op)
 	} else {
 		if !op.passedTimestamp {
 			s.txnStore[txnId].status = WAITING
-			log.Debugf("txn %v cannot prepare available %v, hasWaiting %v", txnId, available, hasWaiting)
+			log.Debugf("txn %v cannot prepare available %v", txnId, available)
 			s.addToQueue(op.keyMap, op)
 		} else {
 			s.txnStore[txnId].status = ABORT
@@ -204,7 +233,6 @@ func (s *GTSStorageDepGraph) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == ABORT {
 			log.Debugf("txn %v fast path prepare but slow path abort, abort", msg.TxnId)
-			s.getNextCommitListByCommitOrAbort(msg.TxnId)
 			s.releaseKeyAndCheckPrepare(msg.TxnId)
 		}
 		break
@@ -221,18 +249,12 @@ func (s *GTSStorageDepGraph) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		if msg.Status == PREPARED {
-			if s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap) {
-				s.readyToCommitTxn[msg.TxnId] = true
-			}
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
 	case INIT:
 		log.Debugf("txn %v fast path not stated slow path status %v ", msg.TxnId, msg.Status)
 		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == PREPARED {
-			if s.graph.AddNode(msg.TxnId, s.txnStore[msg.TxnId].readAndPrepareRequestOp.keyMap) {
-				s.readyToCommitTxn[msg.TxnId] = true
-			}
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
 		break
@@ -247,7 +269,6 @@ func (s *GTSStorageDepGraph) applyReplicatedCommitResult(msg ReplicationMsg) {
 
 	switch s.txnStore[msg.TxnId].status {
 	case PREPARED:
-		s.getNextCommitListByCommitOrAbort(msg.TxnId)
 		s.releaseKeyAndCheckPrepare(msg.TxnId)
 	case WAITING:
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
