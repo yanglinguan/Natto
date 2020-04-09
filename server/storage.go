@@ -51,21 +51,22 @@ type ReplicationMsg struct {
 }
 
 type TxnInfo struct {
-	readAndPrepareRequestOp *ReadAndPrepareOp
-	prepareResultOp         *PrepareResultOp
-	status                  TxnStatus
-	receiveFromCoordinator  bool
-	sendToClient            bool
-	sendToCoordinator       bool
-	commitOrder             int
-	waitingTxnKey           int
-	waitingTxnDep           int
-	startTime               time.Time
-	preparedTime            time.Time
-	commitTime              time.Time
-	canReorder              int
-	isFastPrepare           bool
-	inQueue                 bool
+	readAndPrepareRequestOp          *ReadAndPrepareOp
+	prepareResultOp                  *PrepareResultOp
+	status                           TxnStatus
+	receiveFromCoordinator           bool
+	sendToClient                     bool
+	sendToCoordinator                bool
+	commitOrder                      int
+	waitingTxnKey                    int
+	waitingTxnDep                    int
+	startTime                        time.Time
+	preparedTime                     time.Time
+	commitTime                       time.Time
+	canReorder                       int
+	isFastPrepare                    bool
+	inQueue                          bool
+	hasWaitingButNoWriteReadConflict bool
 }
 
 type KeyInfo struct {
@@ -192,7 +193,7 @@ func (s AbstractStorage) printCommitOrder() {
 	}
 
 	for i, info := range txnInfo {
-		s := fmt.Sprintf("%v %v %v %v %v %v %v %v\n",
+		s := fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v\n",
 			txnId[i],
 			info.waitingTxnKey,
 			info.waitingTxnDep,
@@ -200,7 +201,10 @@ func (s AbstractStorage) printCommitOrder() {
 			info.commitTime.Sub(info.preparedTime).Nanoseconds(),
 			info.commitTime.Sub(info.startTime).Nanoseconds(),
 			info.canReorder,
-			info.isFastPrepare)
+			info.isFastPrepare,
+			info.readAndPrepareRequestOp.request.Timestamp,
+			info.hasWaitingButNoWriteReadConflict,
+		)
 		_, err = file.WriteString(s)
 		if err != nil {
 			log.Fatalf("Cannot write to file %v", err)

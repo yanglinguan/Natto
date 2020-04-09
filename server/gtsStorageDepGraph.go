@@ -197,6 +197,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 
 	available := s.checkKeysAvailable(op)
 	writeReadConflict := s.checkWaitingTxnHasWriteReadConflict(op)
+	hasWaiting := s.hasWaitingTxn(op)
 
 	canPrepare := available && !writeReadConflict
 	if s.server.IsLeader() && !op.request.Txn.ReadOnly && (canPrepare || !op.passedTimestamp) {
@@ -206,6 +207,9 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	}
 
 	if canPrepare {
+		if hasWaiting && !writeReadConflict {
+			s.txnStore[txnId].hasWaitingButNoWriteReadConflict = true
+		}
 		s.prepared(op)
 	} else {
 		if !op.passedTimestamp {
