@@ -36,7 +36,7 @@ func (s *GTSStorageDepGraph) getNextCommitListByCommitOrAbort(txnId string) {
 	for _, txn := range s.graph.GetNext() {
 		log.Debugf("txn %v can commit now", txn)
 		if _, exist := s.readyToCommitTxn[txn]; exist {
-			log.Debugf("txnId is already in ready to commit txn")
+			log.Debugf("txnId is already in ready to commit txn", txnId)
 			continue
 		}
 
@@ -200,7 +200,7 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	hasWaiting := s.hasWaitingTxn(op)
 
 	canPrepare := available && !writeReadConflict
-	if s.server.IsLeader() && !op.request.Txn.ReadOnly && (canPrepare || !op.passedTimestamp) {
+	if s.server.IsLeader() && (!op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly()) && (canPrepare || !op.passedTimestamp) {
 		if s.graph.AddNode(txnId, op.keyMap) {
 			s.readyToCommitTxn[txnId] = true
 		}
