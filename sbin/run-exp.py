@@ -42,8 +42,8 @@ def run_exp(i):
         p.join(6 * 60)
         if p.is_alive():
             print("config " + f + " is still running after 10 min, kill it")
-            notification("Warning: " + f + " is running over 10 min. Experiment terminated")
             subprocess.call([bin_path + "stop.py", "-c", f])
+            notification("Warning: " + f + " is running over 10 min. Experiment terminated")
             p.terminate()
             p.join()
 
