@@ -69,7 +69,7 @@ def notification(message):
     mail = smtplib.SMTP('smtp.gmail.com', 587)
     mail.ehlo()
     mail.starttls()
-    mail.login(args.email, args.password)
+    mail.login(args.senderEmail, args.password)
     mail.sendmail(args.senderEmail, args.receiverEmail, message)
     mail.close()
 
