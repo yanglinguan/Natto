@@ -158,6 +158,7 @@ def analyse_abort_rate(txn_map):
 
 
 def analyse(dir_name):
+    print(dir_name)
     path = dir_name
     analyse_waiting(path)
     txn_map = load_statistic(path)
