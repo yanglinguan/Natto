@@ -25,7 +25,7 @@ args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
-timeout = 6 * 60
+timeout = 10 * 60
 
 
 def run_exp(i):
@@ -37,17 +37,19 @@ def run_exp(i):
         for f in lists:
             if f.endswith(".json"):
                 run_list.append(f)
-
+    finishes = 0
     for f in run_list:
         p = multiprocessing.Process(target=run, name="run", args=(i, f))
         p.start()
         p.join(timeout)
         if p.is_alive():
-            print("config " + f + " is still running after " + str(timeout/60) + "min, kill it")
+            print("config " + f + " is still running after " + str(timeout/60) + " min, kill it")
             subprocess.call([bin_path + "stop.py", "-c", f])
-            notification("Warning: " + f + " is running over 10 min. Experiment terminated")
             p.terminate()
             p.join()
+            return finishes, False, f
+        finishes = finishes + 1
+    return finishes, True, ""
 
 
 def run(i, f):
@@ -77,10 +79,18 @@ def notification(message):
 
 
 def main():
-    for i in range(1):
-        run_exp(i)
+    finishes = 0
 
-    notification("experiment is finish")
+    for i in range(1):
+        finish, succ, failed = run_exp(i)
+        if succ:
+            finishes += finish
+        else:
+            notification("error " + failed + " exp failed")
+            return
+
+    if finishes > 1:
+        notification("experiment is finish")
 
 
 if __name__ == "__main__":
