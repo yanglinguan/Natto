@@ -47,7 +47,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 
 	s.txnStore[txnId].startTime = time.Now()
 
-	if !op.request.Txn.ReadOnly {
+	if !op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly() {
 		s.setReadResult(op)
 	}
 

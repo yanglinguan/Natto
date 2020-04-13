@@ -51,6 +51,7 @@ type Configuration interface {
 	GetFastPath() bool
 	GetSuperMajority() int
 	GetIsReadOnly() bool
+	GetCheckWaiting() bool
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -154,6 +155,8 @@ type FileConfiguration struct {
 	username string
 	identity string
 	runDir   string
+
+	checkWaiting bool // for gts-graph, check the waiting txn there is write-read conflict
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -356,6 +359,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.isFastPath = v.(bool)
 		} else if key == "readOnly" {
 			f.isReadOnly = v.(bool)
+		} else if key == "checkWaiting" {
+			f.checkWaiting = v.(bool)
 		}
 	}
 }
@@ -645,4 +650,8 @@ func (f *FileConfiguration) GetSuperMajority() int {
 
 func (f *FileConfiguration) GetIsReadOnly() bool {
 	return f.isReadOnly
+}
+
+func (f *FileConfiguration) GetCheckWaiting() bool {
+	return f.checkWaiting
 }
