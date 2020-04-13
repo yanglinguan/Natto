@@ -22,6 +22,7 @@
     "mode": "occ",
     "fastPath": false,
     "readOnly": false,
+    "checkWaiting": false,
     "totalKey": 3,
     "delay": "200ms",
     "RPCPoolSize": 0,

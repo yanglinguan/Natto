@@ -138,10 +138,19 @@ func (s *GTSStorageDepGraph) less(txnId1 string, txnId2 string) bool {
 
 func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
 	// write read conflict
-	for rk := range op.readKeyMap {
-		for txnId := range s.kvStore[rk].PreparedTxnWrite {
-			if s.less(txnId, op.txnId) {
-				log.Debugf("txn %v read write conflict key %v with older %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+	if s.server.config.GetCheckWaiting() {
+		for rk := range op.readKeyMap {
+			for txnId := range s.kvStore[rk].PreparedTxnWrite {
+				if s.less(txnId, op.txnId) {
+					log.Debugf("txn %v read write conflict key %v with older %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+					return false
+				}
+			}
+		}
+	} else {
+		for rk := range op.readKeyMap {
+			if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+				log.Debugf("txn %v read write conflict key %v with %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
 				return false
 			}
 		}
@@ -173,6 +182,11 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 		}
 		return
 	}
+	if !s.server.config.GetCheckWaiting() {
+		if s.graph.AddNode(txnId, op.keyMap) {
+			s.readyToCommitTxn[txnId] = true
+		}
+	}
 	s.recordPrepared(op)
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(txnId)
@@ -199,17 +213,22 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	writeReadConflict := s.checkWaitingTxnHasWriteReadConflict(op)
 	hasWaiting := s.hasWaitingTxn(op)
 
-	canPrepare := available && !writeReadConflict
-	if s.server.IsLeader() && (!op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly()) && (canPrepare || !op.passedTimestamp) {
-		if s.graph.AddNode(txnId, op.keyMap) {
-			s.readyToCommitTxn[txnId] = true
+	canPrepare := false
+	if s.server.config.GetCheckWaiting() {
+		canPrepare = available && !writeReadConflict
+		if canPrepare && hasWaiting && !writeReadConflict {
+			s.txnStore[txnId].hasWaitingButNoWriteReadConflict = true
 		}
+		if s.server.IsLeader() && (!op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly()) && (canPrepare || !op.passedTimestamp) {
+			if s.graph.AddNode(txnId, op.keyMap) {
+				s.readyToCommitTxn[txnId] = true
+			}
+		}
+	} else {
+		canPrepare = available && !hasWaiting
 	}
 
 	if canPrepare {
-		if hasWaiting && !writeReadConflict {
-			s.txnStore[txnId].hasWaitingButNoWriteReadConflict = true
-		}
 		s.prepared(op)
 	} else {
 		if !op.passedTimestamp {
