@@ -70,6 +70,61 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 	}
 }
 
+func (s *GTSStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool) {
+	// first check if there is high priority txn in front holding the same keys
+	// readKeyMap store the keys in this partition
+	// read-write conflict
+
+	for rk := range op.readKeyMap {
+		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			// there is high priority txn before it
+			log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
+				op.txnId, rk)
+			return false, make(map[int]bool)
+		}
+	}
+
+	// write-read, write-write conflict
+	for wk := range op.writeKeyMap {
+		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
+			log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
+				op.txnId, wk)
+			return false, make(map[int]bool)
+		}
+	}
+
+	// if txn does not has conflict with other high priority txn in this partition
+	// check if there is a conflict with low priority txn in the other partition
+	// find out the conditions to prepare
+
+	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op)
+
+	return true, overlapPartition
+}
+
+func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
+	log.Debugf("PREPARED txn %v", op.txnId)
+	s.removeFromQueue(op)
+	// record the prepared keys
+	txnId := op.txnId
+	if len(condition) > 0 {
+		s.txnStore[txnId].status = CONDITIONAL_PREPARED
+	} else {
+		s.txnStore[txnId].status = PREPARED
+	}
+	s.setReadResult(op)
+	// with read-only optimization, do not need send the result to coordinator
+	if s.server.config.GetIsReadOnly() && op.request.Txn.ReadOnly {
+		if s.txnStore[txnId].inQueue {
+			s.server.executor.ReleaseReadOnlyTxn <- op
+		}
+		return
+	}
+	s.recordPrepared(op)
+	s.setPrepareResult(op, condition)
+	s.replicatePreparedResult(op.txnId)
+}
+
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	log.Infof("PROCESSING txn %v priority %v", op.txnId, op.request.Txn.HighPriority)
 	txnId := op.txnId
@@ -104,9 +159,16 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 			s.prepared(op, condition)
 		} else {
 			// wait
-			log.Debugf("txn %v high priority wait", txnId)
-			s.txnStore[txnId].status = WAITING
-			s.addToQueue(op.keyMap, op)
+			if !op.passedTimestamp {
+				s.txnStore[txnId].status = WAITING
+				log.Debugf("txn %v cannot prepare available wait", txnId)
+				s.addToQueue(op.keyMap, op)
+			} else {
+				s.txnStore[txnId].status = ABORT
+				log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
+				//	s.setReadResult(op)
+				s.selfAbort(op)
+			}
 		}
 
 	} else {

@@ -101,7 +101,7 @@ func (s *GTSStorageDepGraph) Commit(op *CommitRequestOp) {
 
 func (s *GTSStorageDepGraph) abortProcessedTxn(txnId string) {
 	switch s.txnStore[txnId].status {
-	case PREPARED:
+	case PREPARED, CONDITIONAL_PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
 		s.replicateCommitResult(txnId, nil)
@@ -136,27 +136,46 @@ func (s *GTSStorageDepGraph) less(txnId1 string, txnId2 string) bool {
 	return request1.Timestamp < request2.Timestamp
 }
 
-func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
-	// write read conflict
-	if s.server.config.GetCheckWaiting() {
-		for rk := range op.readKeyMap {
-			for txnId := range s.kvStore[rk].PreparedTxnWrite {
-				if s.less(txnId, op.txnId) {
-					log.Debugf("txn %v read write conflict key %v with older %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
-					return false
-				}
-			}
-		}
-	} else {
-		for rk := range op.readKeyMap {
-			if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-				log.Debugf("txn %v read write conflict key %v with %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
-				return false
-			}
+func (s *GTSStorageDepGraph) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool) {
+
+	// first check if there is high priority txn in the front
+	for rk := range op.readKeyMap {
+		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			log.Debugf("txn %v read write conflict key %v with %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+			return false, make(map[int]bool)
 		}
 	}
-	return true
+
+	// if txn does not has conflict with other high priority txn in this partition
+	// check if there is a conflict with low priority txn in the other partition
+	// find out the conditions to prepare
+
+	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op)
+
+	return true, overlapPartition
 }
+
+//func (s *GTSStorageDepGraph) checkKeysAvailable(op *ReadAndPrepareOp) bool {
+//	// write read conflict
+//	if s.server.config.GetCheckWaiting() {
+//		for rk := range op.readKeyMap {
+//			for txnId := range s.kvStore[rk].PreparedTxnWrite {
+//				if s.less(txnId, op.txnId) {
+//					log.Debugf("txn %v read write conflict key %v with older %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+//					return false
+//				}
+//			}
+//		}
+//	} else {
+//		for rk := range op.readKeyMap {
+//			if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+//				log.Debugf("txn %v read write conflict key %v with %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+//				return false
+//			}
+//		}
+//	}
+//	return true
+//}
 
 // return true if there is a waiting txn has write read conflict with the txn
 func (s *GTSStorageDepGraph) checkWaitingTxnHasWriteReadConflict(op *ReadAndPrepareOp) bool {
@@ -170,7 +189,7 @@ func (s *GTSStorageDepGraph) checkWaitingTxnHasWriteReadConflict(op *ReadAndPrep
 	return false
 }
 
-func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
+func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 	log.Infof("DEP graph prepared %v", op.txnId)
 	s.removeFromQueue(op)
 	txnId := op.txnId
@@ -188,7 +207,7 @@ func (s *GTSStorageDepGraph) prepared(op *ReadAndPrepareOp) {
 		}
 	}
 	s.recordPrepared(op)
-	s.setPrepareResult(op)
+	s.setPrepareResult(op, condition)
 	s.replicatePreparedResult(txnId)
 }
 
@@ -209,39 +228,77 @@ func (s *GTSStorageDepGraph) Prepare(op *ReadAndPrepareOp) {
 	}
 	s.txnStore[txnId].startTime = time.Now()
 
-	available := s.checkKeysAvailable(op)
-	writeReadConflict := s.checkWaitingTxnHasWriteReadConflict(op)
 	hasWaiting := s.hasWaitingTxn(op)
-
-	canPrepare := false
-	if s.server.config.GetCheckWaiting() {
-		canPrepare = available && !writeReadConflict
-		if canPrepare && hasWaiting && !writeReadConflict {
-			s.txnStore[txnId].hasWaitingButNoWriteReadConflict = true
+	canPrepare := !hasWaiting
+	condition := make(map[int]bool)
+	if op.request.Txn.HighPriority {
+		if !hasWaiting {
+			canPrepare, condition = s.checkKeysAvailableForHighPriorityTxn(op)
 		}
-		if s.server.IsLeader() && (!op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly()) && (canPrepare || !op.passedTimestamp) {
-			if s.graph.AddNode(txnId, op.keyMap) {
-				s.readyToCommitTxn[txnId] = true
+		_, exist := condition[s.server.partitionId]
+		// if txn only conflict with low priority txn on this partition, then wait
+		if canPrepare && (len(condition) != 1 || !exist) {
+			// prepare
+			s.prepared(op, condition)
+		} else {
+			if !op.passedTimestamp {
+				s.txnStore[txnId].status = WAITING
+				log.Debugf("txn %v cannot prepare available wait", txnId)
+				s.addToQueue(op.keyMap, op)
+			} else {
+				s.txnStore[txnId].status = ABORT
+				log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
+				//	s.setReadResult(op)
+				s.selfAbort(op)
 			}
 		}
 	} else {
-		canPrepare = available && !hasWaiting
-	}
-
-	if canPrepare {
-		s.prepared(op)
-	} else {
-		if !op.passedTimestamp {
-			s.txnStore[txnId].status = WAITING
-			log.Debugf("txn %v cannot prepare available %v", txnId, available)
-			s.addToQueue(op.keyMap, op)
+		if !hasWaiting {
+			canPrepare = s.checkKeysAvailableForLowPriorityTxn(op)
+		}
+		if canPrepare {
+			// prepare
+			s.prepared(op, condition)
 		} else {
+			// abort
+			log.Debugf("txn %v low priority abort", txnId)
 			s.txnStore[txnId].status = ABORT
-			log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
-			//	s.setReadResult(op)
 			s.selfAbort(op)
 		}
 	}
+	//available := s.checkKeysAvailable(op)
+	//writeReadConflict := s.checkWaitingTxnHasWriteReadConflict(op)
+	//hasWaiting := s.hasWaitingTxn(op)
+	//
+	//canPrepare := false
+	//if s.server.config.GetCheckWaiting() {
+	//	canPrepare = available && !writeReadConflict
+	//	if canPrepare && hasWaiting && !writeReadConflict {
+	//		s.txnStore[txnId].hasWaitingButNoWriteReadConflict = true
+	//	}
+	//	if s.server.IsLeader() && (!op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly()) && (canPrepare || !op.passedTimestamp) {
+	//		if s.graph.AddNode(txnId, op.keyMap) {
+	//			s.readyToCommitTxn[txnId] = true
+	//		}
+	//	}
+	//} else {
+	//	canPrepare = available && !hasWaiting
+	//}
+	//
+	//if canPrepare {
+	//	s.prepared(op)
+	//} else {
+	//	if !op.passedTimestamp {
+	//		s.txnStore[txnId].status = WAITING
+	//		log.Debugf("txn %v cannot prepare available %v", txnId, available)
+	//		s.addToQueue(op.keyMap, op)
+	//	} else {
+	//		s.txnStore[txnId].status = ABORT
+	//		log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
+	//		//	s.setReadResult(op)
+	//		s.selfAbort(op)
+	//	}
+	//}
 }
 
 func (s *GTSStorageDepGraph) applyReplicatedPrepareResult(msg ReplicationMsg) {

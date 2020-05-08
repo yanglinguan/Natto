@@ -19,7 +19,12 @@ func NewOccStorage(server *Server) *OccStorage {
 	return o
 }
 
-func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
+func (s *OccStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool) {
+	log.Fatalf("occ storage: all txn should be low priority txn")
+	return false, make(map[int]bool)
+}
+
+func (s *OccStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 	txnId := op.txnId
 	s.txnStore[txnId].status = PREPARED
 	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
@@ -27,7 +32,7 @@ func (s *OccStorage) prepared(op *ReadAndPrepareOp) {
 		return
 	}
 	s.recordPrepared(op)
-	s.setPrepareResult(op)
+	s.setPrepareResult(op, condition)
 	s.replicatePreparedResult(op.txnId)
 }
 
@@ -51,10 +56,10 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 		s.setReadResult(op)
 	}
 
-	available := s.checkKeysAvailable(op)
+	available := s.checkKeysAvailableForLowPriorityTxn(op)
 
 	if available {
-		s.prepared(op)
+		s.prepared(op, make(map[int]bool))
 	} else {
 		s.txnStore[txnId].status = ABORT
 		s.selfAbort(op)
