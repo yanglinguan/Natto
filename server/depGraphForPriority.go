@@ -21,6 +21,9 @@ func NewDepGraph(v int) *DepGraph {
 }
 
 func (g *DepGraph) addEdge(s int, t int) {
+	if s == t {
+		return
+	}
 	g.adjList[s] = append(g.adjList[s], t)
 }
 
