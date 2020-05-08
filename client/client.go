@@ -317,6 +317,7 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 			ParticipatedPartitionIds: participatedPartitions,
 			CoordPartitionId:         int32(-1),
 			ReadOnly:                 true,
+			HighPriority:             op.priority,
 		}
 
 		request := &rpc.ReadAndPrepareRequest{
@@ -376,6 +377,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(coordinatorPartitionId),
 		ReadOnly:                 len(op.writeKeyList) == 0,
+		HighPriority:             op.priority,
 	}
 
 	c.addTxnIfNotExist(op.txnId, t)
@@ -395,6 +397,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			ParticipatedPartitionIds: participatedPartitions,
 			CoordPartitionId:         int32(coordinatorPartitionId),
 			ReadOnly:                 len(op.writeKeyList) == 0,
+			HighPriority:             op.priority,
 		}
 
 		request := &rpc.ReadAndPrepareRequest{
@@ -572,7 +575,7 @@ func (c *Client) PrintTxnStatisticData() {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.executions[txn.execCount].rpcTxn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
@@ -581,6 +584,7 @@ func (c *Client) PrintTxnStatisticData() {
 			keyList,
 			txn.execCount,
 			txn.executions[txn.execCount].rpcTxn.ReadOnly,
+			txn.executions[txn.execCount].rpcTxn.HighPriority,
 		)
 		_, err = file.WriteString(s)
 		if err != nil {
