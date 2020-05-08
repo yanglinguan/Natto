@@ -483,6 +483,8 @@ func (s *AbstractStorage) overlapPartitions(txnId1 string, txnId2 string) map[in
 		}
 	}
 
+	log.Debugf("txn %v and txn %v overlap partition %v", txnId1, txnId2)
+
 	return result
 }
 
@@ -523,7 +525,7 @@ func (s *AbstractStorage) findOverlapPartitionsWithLowPriorityTxn(op *ReadAndPre
 			}
 		}
 	}
-
+	log.Debugf("txn %v conflict low priority txn %v", op.txnId, conflictLowPriorityTxn)
 	for txnId := range conflictLowPriorityTxn {
 		pIdMap := s.overlapPartitions(op.txnId, txnId)
 		for pId := range pIdMap {

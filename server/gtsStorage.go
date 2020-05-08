@@ -22,7 +22,7 @@ func NewGTSStorage(server *Server) *GTSStorage {
 func (s *GTSStorage) Commit(op *CommitRequestOp) {
 	txnId := op.request.TxnId
 	log.Infof("COMMITTED: %v", txnId)
-	if txnInfo, exist := s.txnStore[txnId]; !exist || txnInfo.status != PREPARED {
+	if txnInfo, exist := s.txnStore[txnId]; !exist || (txnInfo.status != PREPARED && txnInfo.status != CONDITIONAL_PREPARED) {
 		log.WithFields(log.Fields{
 			"txnId":  txnId,
 			"status": txnInfo.status,
@@ -99,15 +99,18 @@ func (s *GTSStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) 
 
 	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op)
 
+	log.Debugf("txn %v keys are available condition %v", op.txnId, overlapPartition)
+
 	return true, overlapPartition
 }
 
 func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
-	log.Debugf("PREPARED txn %v", op.txnId)
+	log.Debugf("PREPARED txn %v priority %v condition %v", op.txnId, op.request.Txn.HighPriority, condition)
 	s.removeFromQueue(op)
 	// record the prepared keys
 	txnId := op.txnId
 	if len(condition) > 0 {
+		log.Debugf("txn %v conditional prepare %v", op.txnId, condition)
 		s.txnStore[txnId].status = CONDITIONAL_PREPARED
 	} else {
 		s.txnStore[txnId].status = PREPARED

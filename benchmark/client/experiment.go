@@ -64,7 +64,7 @@ func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duratio
 		i++
 	}
 	p := rand.Intn(100)
-	priority := p < 10
+	priority := p < client.Config.GetHighPriorityRate()
 	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId, priority)
 
 	if isAbort {
