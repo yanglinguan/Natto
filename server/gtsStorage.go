@@ -50,7 +50,7 @@ func (s *GTSStorage) Commit(op *CommitRequestOp) {
 
 func (s *GTSStorage) abortProcessedTxn(txnId string) {
 	switch s.txnStore[txnId].status {
-	case PREPARED:
+	case PREPARED, CONDITIONAL_PREPARED:
 		log.Infof("ABORT: %v (coordinator) PREPARED", txnId)
 		s.txnStore[txnId].status = ABORT
 		s.replicateCommitResult(txnId, nil)
@@ -71,7 +71,7 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 }
 
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("PROCESSING txn %v", op.txnId)
+	log.Infof("PROCESSING txn %v priority %v", op.txnId, op.request.Txn.HighPriority)
 	txnId := op.txnId
 	if info, exist := s.txnStore[txnId]; exist && info.status != INIT {
 		log.Infof("txn %v is already has status %v", txnId, s.txnStore[txnId].status)
@@ -89,22 +89,40 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	}
 	s.txnStore[txnId].startTime = time.Now()
 
-	canPrepare := s.checkKeysAvailable(op)
-
 	hasWaiting := s.hasWaitingTxn(op)
+	canPrepare := !hasWaiting
+	condition := make(map[int]bool)
+	if op.request.Txn.HighPriority {
 
-	if canPrepare && !hasWaiting {
-		s.prepared(op)
-	} else {
-		if !op.passedTimestamp {
+		if !hasWaiting {
+			canPrepare, condition = s.checkKeysAvailableForHighPriorityTxn(op)
+		}
+		_, exist := condition[s.server.partitionId]
+		// if txn only conflict with low priority txn on this partition, then wait
+		if canPrepare && (len(condition) != 1 || !exist) {
+			// prepare
+			s.prepared(op, condition)
+		} else {
+			// wait
+			log.Debugf("txn %v high priority wait", txnId)
 			s.txnStore[txnId].status = WAITING
 			s.addToQueue(op.keyMap, op)
+		}
+
+	} else {
+		if !hasWaiting {
+			canPrepare = s.checkKeysAvailableForLowPriorityTxn(op)
+		}
+		if canPrepare {
+			// prepare
+			s.prepared(op, condition)
 		} else {
+			// abort
+			log.Debugf("txn %v low priority abort", txnId)
 			s.txnStore[txnId].status = ABORT
-			//s.setReadResult(op)
-			log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
 			s.selfAbort(op)
 		}
+
 	}
 }
 
@@ -116,7 +134,7 @@ func (s *GTSStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
 	}
 	log.Debugf("txn %v fast path status %v, slow path status %v", msg.TxnId, s.txnStore[msg.TxnId].status, msg.Status)
 	switch s.txnStore[msg.TxnId].status {
-	case PREPARED:
+	case PREPARED, CONDITIONAL_PREPARED:
 		s.txnStore[msg.TxnId].status = msg.Status
 		if msg.Status == ABORT {
 			log.Debugf("CONFLICT: txn %v fast path prepare but slow path abort, abort", msg.TxnId)
@@ -157,7 +175,7 @@ func (s *GTSStorage) applyReplicatedCommitResult(msg ReplicationMsg) {
 	s.txnStore[msg.TxnId].receiveFromCoordinator = true
 	s.txnStore[msg.TxnId].isFastPrepare = msg.IsFastPathSuccess
 	switch s.txnStore[msg.TxnId].status {
-	case PREPARED:
+	case PREPARED, CONDITIONAL_PREPARED:
 		s.releaseKeyAndCheckPrepare(msg.TxnId)
 	case WAITING:
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)

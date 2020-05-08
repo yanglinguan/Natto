@@ -34,6 +34,8 @@ type TwoPCInfo struct {
 	//slowPathPreparePartition map[int]*PrepareResultOp
 	fastPathPreparePartition map[int]*FastPrepareStatus
 	partitionPrepareResult   map[int]*PartitionStatus
+
+	conditionGraph *DepGraph
 }
 
 type Coordinator struct {
@@ -94,6 +96,7 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 			writeDataReplicated:      false,
 			fastPathPreparePartition: make(map[int]*FastPrepareStatus),
 			partitionPrepareResult:   make(map[int]*PartitionStatus),
+			conditionGraph:           NewDepGraph(c.server.config.GetTotalPartition()),
 		}
 	}
 	return c.txnStore[txnId]
@@ -195,6 +198,12 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 		return
 	}
 
+	if TxnStatus(result.Request.PrepareStatus) == CONDITIONAL_PREPARED {
+		for c := range result.Request.Conditions {
+			twoPCInfo.conditionGraph.addEdge(c, int(result.Request.PartitionId))
+		}
+	}
+
 	pId := int(result.Request.PartitionId)
 	if _, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
 		log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
@@ -277,6 +286,16 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	} else {
 		if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
 			len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.partitionPrepareResult) {
+			if info.readAndPrepareOp.request.Txn.HighPriority {
+				if info.conditionGraph.isCyclic() {
+					log.Debugf("txn %v condition has cycle, abort", info.txnId)
+					info.status = ABORT
+					c.sendToParticipantsAndClient(info)
+				}
+				log.Debugf("txn %v no cycle detected", info.txnId)
+				//topoOrder := info.conditionGraph.topoSort()
+				//for
+			}
 			if c.checkReadKeyVersion(info) {
 				log.Debugf("txn %v commit coordinator after check version", info.txnId)
 				info.status = COMMIT

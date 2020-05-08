@@ -24,6 +24,7 @@ message Transaction {
     repeated int32 participatedPartitionIds = 4;
     int32 coordPartitionId = 5; // Coordination partition id
     bool readOnly = 6;
+    bool highPriority = 7;
 }
 
 message ReadAndPrepareRequest {
@@ -63,6 +64,7 @@ message PrepareResultRequest {
     repeated KeyVersion writeKeyVerList = 3;
     int32 partitionId = 4;
     int32 prepareStatus = 5;
+    repeated int32 conditions = 6;
 }
 
 message PrepareResultReply {

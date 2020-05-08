@@ -89,6 +89,9 @@ type Configuration interface {
 	GetSSHIdentity() string
 	GetSSHUsername() string
 	GetRunDir() string
+
+	GetPriority() bool
+	GetHighPriorityRate() int
 }
 
 type FileConfiguration struct {
@@ -157,6 +160,8 @@ type FileConfiguration struct {
 	runDir   string
 
 	checkWaiting bool // for gts-graph, check the waiting txn there is write-read conflict
+
+	highPriorityRate int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -327,6 +332,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.postTweetRatio = int(retwis["postTweetRatio"].(float64))
 				f.loadTimelineRatio = int(retwis["loadTimelineRatio"].(float64))
 			}
+			f.highPriorityRate = int(workload["highPriority"].(float64))
 		} else if key == "seed" {
 			f.seed = int64(v.(float64))
 			if f.seed == 0 {
@@ -654,4 +660,12 @@ func (f *FileConfiguration) GetIsReadOnly() bool {
 
 func (f *FileConfiguration) GetCheckWaiting() bool {
 	return f.checkWaiting
+}
+
+func (f *FileConfiguration) GetPriority() bool {
+	return f.highPriorityRate < 100 && f.highPriorityRate > 0
+}
+
+func (f *FileConfiguration) GetHighPriorityRate() int {
+	return f.highPriorityRate
 }

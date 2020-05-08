@@ -40,7 +40,8 @@
         "followUnfollowRatio": 15,
         "postTweetRatio": 30,
         "loadTimelineRatio": 50
-      }
+      },
+      "highPriority": 10
     },
     "seed": 0,
     "queueLen": 10240,

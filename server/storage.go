@@ -24,6 +24,7 @@ type TxnStatus int32
 const (
 	INIT TxnStatus = iota
 	WAITING
+	CONDITIONAL_PREPARED
 	PREPARED
 	COMMIT
 	ABORT
@@ -70,12 +71,14 @@ type TxnInfo struct {
 }
 
 type KeyInfo struct {
-	Value            string
-	Version          uint64
-	WaitingOp        *list.List
-	WaitingItem      map[string]*list.Element
-	PreparedTxnRead  map[string]bool
-	PreparedTxnWrite map[string]bool
+	Value                       string
+	Version                     uint64
+	WaitingOp                   *list.List
+	WaitingItem                 map[string]*list.Element
+	PreparedTxnRead             map[string]bool
+	PreparedTxnWrite            map[string]bool
+	PreparedLowPriorityTxnRead  map[string]bool
+	PreparedLowPriorityTxnWrite map[string]bool
 }
 
 type Storage interface {
@@ -90,16 +93,32 @@ type Storage interface {
 }
 
 type AbstractMethod interface {
-	checkKeysAvailable(op *ReadAndPrepareOp) bool
-	prepared(op *ReadAndPrepareOp)
+	//checkKeysAvailable(op *ReadAndPrepareOp) bool
+	checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool)
+	prepared(op *ReadAndPrepareOp, condition map[int]bool)
 	abortProcessedTxn(txnId string)
 	applyReplicatedPrepareResult(msg ReplicationMsg)
 	applyReplicatedCommitResult(msg ReplicationMsg)
 }
 
+type PriorityTxnInfo struct {
+	lowPriorityTxnRead   map[string]bool
+	lowPriorityTxnWrite  map[string]bool
+	highPriorityTxnRead  map[string]bool
+	highPriorityTxnWrite map[string]bool
+}
+
+func NewPriorityTxnInfo() *PriorityTxnInfo {
+	return &PriorityTxnInfo{
+		lowPriorityTxnRead:   make(map[string]bool),
+		lowPriorityTxnWrite:  make(map[string]bool),
+		highPriorityTxnRead:  make(map[string]bool),
+		highPriorityTxnWrite: make(map[string]bool),
+	}
+}
+
 type AbstractStorage struct {
 	Storage
-
 	abstractMethod AbstractMethod
 
 	kvStore                map[string]*KeyInfo
@@ -108,6 +127,9 @@ type AbstractStorage struct {
 	committed              int
 	waitPrintStatusRequest *PrintStatusRequestOp
 	totalCommit            int
+
+	// reorder the high priority txn at index 0, low priority txn at index 1
+	otherPartitionKey map[string]*PriorityTxnInfo
 }
 
 func NewAbstractStorage(server *Server) *AbstractStorage {
@@ -310,7 +332,7 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 }
 
 // set prepared or abort result
-func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
+func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp, condition map[int]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalln("txn %v txnInfo should be created, and INIT status", txnId)
@@ -319,6 +341,12 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 	if s.txnStore[txnId].prepareResultOp != nil {
 		return
 	}
+	conditionList := make([]int32, len(condition))
+	i := 0
+	for pId := range condition {
+		conditionList[i] = int32(pId)
+		i++
+	}
 
 	prepareResult := &rpc.PrepareResultRequest{
 		TxnId:           txnId,
@@ -326,6 +354,7 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp) {
 		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 		PartitionId:     int32(s.server.partitionId),
 		PrepareStatus:   int32(s.txnStore[txnId].status),
+		Conditions:      conditionList,
 	}
 
 	if s.txnStore[txnId].status == PREPARED {
@@ -369,18 +398,43 @@ func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp)
 
 func (s *AbstractStorage) releaseKey(txnId string) {
 	txnInfo := s.txnStore[txnId]
+	highPriority := txnInfo.readAndPrepareRequestOp.request.Txn.HighPriority
 	// remove prepared read and write key
 	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
 		if isPrepared {
 			log.Debugf("txn %v release read key %v", txnId, rk)
-			delete(s.kvStore[rk].PreparedTxnRead, txnId)
+			if highPriority {
+				delete(s.kvStore[rk].PreparedTxnRead, txnId)
+			} else {
+				delete(s.kvStore[rk].PreparedLowPriorityTxnRead, txnId)
+			}
 		}
 	}
 
 	for wk, isPrepared := range txnInfo.readAndPrepareRequestOp.writeKeyMap {
 		if isPrepared {
 			log.Debugf("txn %v release write key %v", txnId, wk)
-			delete(s.kvStore[wk].PreparedTxnWrite, txnId)
+			if highPriority {
+				delete(s.kvStore[wk].PreparedTxnWrite, txnId)
+			} else {
+				delete(s.kvStore[wk].PreparedLowPriorityTxnWrite, txnId)
+			}
+		}
+	}
+
+	for _, rk := range txnInfo.readAndPrepareRequestOp.otherPartitionReadKey {
+		if highPriority {
+			delete(s.otherPartitionKey[rk].highPriorityTxnRead, txnId)
+		} else {
+			delete(s.otherPartitionKey[rk].lowPriorityTxnRead, txnId)
+		}
+	}
+
+	for _, wk := range txnInfo.readAndPrepareRequestOp.otherPartitionWriteKey {
+		if highPriority {
+			delete(s.otherPartitionKey[wk].highPriorityTxnWrite, txnId)
+		} else {
+			delete(s.otherPartitionKey[wk].lowPriorityTxnWrite, txnId)
 		}
 	}
 }
@@ -412,30 +466,161 @@ func (s *AbstractStorage) ReleaseReadOnly(op *ReadAndPrepareOp) {
 	}
 }
 
-// check if all keys are available
-func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
-	available := true
+func (s *AbstractStorage) overlapPartitions(txnId1 string, txnId2 string) map[int]bool {
+	p1 := make(map[int]bool)
+	for key := range s.txnStore[txnId1].readAndPrepareRequestOp.allKeys {
+		pId := s.server.config.GetPartitionIdByKey(key)
+		p1[pId] = true
+	}
+	result := make(map[int]bool)
+	for key := range s.txnStore[txnId2].readAndPrepareRequestOp.allKeys {
+		pId := s.server.config.GetPartitionIdByKey(key)
+		if _, exist := p1[pId]; exist {
+			result[pId] = true
+		}
+	}
+
+	return result
+}
+
+func (s *AbstractStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool) {
+	// first check if there is high priority txn in front holding the same keys
+	// readKeyMap store the keys in this partition
+	// read-write conflict
+	overlapPartition := make(map[int]bool)
+
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-			log.Debugf("txn %v cannot prepare because of cannot get read key %v: %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
-			available = false
-			break
+			// there is high priority txn before it
+			log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
+				op.txnId, rk)
+			return false, overlapPartition
+		}
+	}
+
+	// write-read, write-write conflict
+	for wk := range op.writeKeyMap {
+		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
+			log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
+				op.txnId, wk)
+			return false, overlapPartition
+		}
+	}
+
+	// if txn does not has conflict with other high priority txn in this partition
+	// check if there is a conflict with low priority txn in the other partition
+	// find out the conditions to prepare
+
+	conflictLowPriorityTxn := make(map[string]bool)
+	for rk := range op.readKeyMap {
+		for txnId := range s.kvStore[rk].PreparedLowPriorityTxnWrite {
+			conflictLowPriorityTxn[txnId] = true
 		}
 	}
 
 	for wk := range op.writeKeyMap {
-		if !available ||
-			len(s.kvStore[wk].PreparedTxnRead) > 0 ||
-			len(s.kvStore[wk].PreparedTxnWrite) > 0 {
-			log.Debugf("txn %v cannot prepare because of cannot get write key %v: read %v write %v",
-				op.txnId, wk, s.kvStore[wk].PreparedTxnRead, s.kvStore[wk].PreparedTxnWrite)
-			available = false
-			break
+		for txnId := range s.kvStore[wk].PreparedLowPriorityTxnWrite {
+			conflictLowPriorityTxn[txnId] = true
+		}
+		for txnId := range s.kvStore[wk].PreparedLowPriorityTxnRead {
+			conflictLowPriorityTxn[txnId] = true
 		}
 	}
 
-	return available
+	for _, rk := range op.otherPartitionReadKey {
+		if _, exist := s.otherPartitionKey[rk]; exist {
+			for txnId := range s.otherPartitionKey[rk].lowPriorityTxnWrite {
+				conflictLowPriorityTxn[txnId] = true
+			}
+		}
+	}
+
+	for _, wk := range op.otherPartitionWriteKey {
+		if _, exist := s.otherPartitionKey[wk]; exist {
+			for txnId := range s.otherPartitionKey[wk].lowPriorityTxnWrite {
+				conflictLowPriorityTxn[txnId] = true
+			}
+
+			for txnId := range s.otherPartitionKey[wk].lowPriorityTxnRead {
+				conflictLowPriorityTxn[txnId] = true
+			}
+		}
+	}
+
+	for txnId := range conflictLowPriorityTxn {
+		pIdMap := s.overlapPartitions(op.txnId, txnId)
+		for pId := range pIdMap {
+			overlapPartition[pId] = true
+		}
+	}
+
+	return true, overlapPartition
 }
+
+func (s *AbstractStorage) checkKeysAvailableForLowPriorityTxn(op *ReadAndPrepareOp) bool {
+	for rk := range op.readKeyMap {
+		if len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 || len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			log.Debugf("txn %v (read) : there is txn holding (write) hold key %v", op.txnId, rk)
+			return false
+		}
+	}
+
+	for wk := range op.writeKeyMap {
+		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnWrite) > 0 ||
+			len(s.kvStore[wk].PreparedTxnRead) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnRead) > 0 {
+			log.Debugf("txn %v (write) : there is txn hold key %v", op.txnId, wk)
+			return false
+		}
+	}
+
+	for _, rk := range op.otherPartitionReadKey {
+		if _, exist := s.otherPartitionKey[rk]; exist {
+			if len(s.otherPartitionKey[rk].highPriorityTxnWrite) > 0 {
+				log.Debugf("txn %v (read) : there is high priority txn (other partition) conflict key %v",
+					op.txnId, rk)
+				return false
+			}
+		}
+	}
+
+	for _, wk := range op.otherPartitionWriteKey {
+		if _, exist := s.otherPartitionKey[wk]; exist {
+			if len(s.otherPartitionKey[wk].highPriorityTxnWrite) > 0 ||
+				len(s.otherPartitionKey[wk].highPriorityTxnRead) > 0 {
+				log.Debugf("txn %v (write) : there is high priority txn (other partition) conflict key %v",
+					op.txnId, wk)
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// check if all keys are available
+//func (s *AbstractStorage) checkKeysAvailable(op *ReadAndPrepareOp) bool {
+//	available := true
+//	for rk := range op.readKeyMap {
+//		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+//			log.Debugf("txn %v cannot prepare because of cannot get read key %v: %v", op.txnId, rk, s.kvStore[rk].PreparedTxnWrite)
+//			available = false
+//			break
+//		}
+//	}
+//
+//	for wk := range op.writeKeyMap {
+//		if !available ||
+//			len(s.kvStore[wk].PreparedTxnRead) > 0 ||
+//			len(s.kvStore[wk].PreparedTxnWrite) > 0 {
+//			log.Debugf("txn %v cannot prepare because of cannot get write key %v: read %v write %v",
+//				op.txnId, wk, s.kvStore[wk].PreparedTxnRead, s.kvStore[wk].PreparedTxnWrite)
+//			available = false
+//			break
+//		}
+//	}
+//
+//	return available
+//}
 
 // check if there is txn waiting for keys
 func (s *AbstractStorage) hasWaitingTxn(op *ReadAndPrepareOp) bool {
@@ -457,11 +642,41 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 	txnId := op.txnId
 	for rk := range op.readKeyMap {
 		op.readKeyMap[rk] = true
-		s.kvStore[rk].PreparedTxnRead[txnId] = true
+		if op.request.Txn.HighPriority {
+			s.kvStore[rk].PreparedTxnRead[txnId] = true
+		} else {
+			s.kvStore[rk].PreparedLowPriorityTxnRead[txnId] = true
+		}
 	}
 	for wk := range op.writeKeyMap {
 		op.writeKeyMap[wk] = true
-		s.kvStore[wk].PreparedTxnWrite[txnId] = true
+		if op.request.Txn.HighPriority {
+			s.kvStore[wk].PreparedTxnWrite[txnId] = true
+		} else {
+			s.kvStore[wk].PreparedLowPriorityTxnWrite[txnId] = true
+		}
+	}
+
+	for _, rk := range op.otherPartitionReadKey {
+		if _, exist := s.otherPartitionKey[rk]; !exist {
+			s.otherPartitionKey[rk] = NewPriorityTxnInfo()
+		}
+		if op.request.Txn.HighPriority {
+			s.otherPartitionKey[rk].highPriorityTxnRead[txnId] = true
+		} else {
+			s.otherPartitionKey[rk].lowPriorityTxnRead[txnId] = true
+		}
+	}
+
+	for _, wk := range op.otherPartitionWriteKey {
+		if _, exist := s.otherPartitionKey[wk]; !exist {
+			s.otherPartitionKey[wk] = NewPriorityTxnInfo()
+		}
+		if op.request.Txn.HighPriority {
+			s.otherPartitionKey[wk].highPriorityTxnWrite[txnId] = true
+		} else {
+			s.otherPartitionKey[wk].lowPriorityTxnWrite[txnId] = true
+		}
 	}
 }
 
@@ -478,12 +693,16 @@ func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {
 	}
 }
 
-func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
+func (s *AbstractStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 	log.Debugf("PREPARED txn %v", op.txnId)
 	s.removeFromQueue(op)
 	// record the prepared keys
 	txnId := op.txnId
-	s.txnStore[txnId].status = PREPARED
+	if len(condition) > 0 {
+		s.txnStore[txnId].status = CONDITIONAL_PREPARED
+	} else {
+		s.txnStore[txnId].status = PREPARED
+	}
 	s.setReadResult(op)
 	// with read-only optimization, do not need send the result to coordinator
 	if s.server.config.GetIsReadOnly() && op.request.Txn.ReadOnly {
@@ -493,7 +712,7 @@ func (s *AbstractStorage) prepared(op *ReadAndPrepareOp) {
 		return
 	}
 	s.recordPrepared(op)
-	s.setPrepareResult(op)
+	s.setPrepareResult(op, condition)
 	s.replicatePreparedResult(op.txnId)
 }
 
@@ -550,16 +769,20 @@ func (s *AbstractStorage) checkPrepare(key string) {
 		}
 
 		// check if the txn can acquire all the keys
-		canPrepare := s.abstractMethod.checkKeysAvailable(op)
 		hasWaiting := s.hasWaitingTxn(op)
-		if !canPrepare || hasWaiting {
+		canPrepare := !hasWaiting
+		condition := make(map[int]bool)
+		if !hasWaiting {
+			canPrepare, condition = s.checkKeysAvailableForHighPriorityTxn(op)
+		}
+		if !canPrepare {
 			log.Infof("cannot prepare %v had waiting %v, can prepare %v when release key %v",
 				op.txnId, hasWaiting, canPrepare, key)
 			break
 		}
 
 		log.Infof("can prepare %v when key %v is released", op.txnId, key)
-		s.abstractMethod.prepared(op)
+		s.abstractMethod.prepared(op, condition)
 	}
 }
 
@@ -639,7 +862,7 @@ func (s *AbstractStorage) selfAbort(op *ReadAndPrepareOp) {
 	if op.request.Txn.ReadOnly && s.server.config.GetIsReadOnly() {
 		return
 	}
-	s.setPrepareResult(op)
+	s.setPrepareResult(op, make(map[int]bool))
 	s.replicatePreparedResult(op.txnId)
 }
 

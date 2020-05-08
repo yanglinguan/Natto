@@ -50,6 +50,7 @@ type SendOp struct {
 	readResult   map[string]string
 	isAbort      bool
 	wait         chan bool
+	priority     bool
 }
 
 func (o *SendOp) BlockOwner() bool {
@@ -145,13 +146,14 @@ func (c *Client) genTxnIdToServer() string {
 	return "c" + strconv.Itoa(c.clientId) + "-" + strconv.Itoa(c.count)
 }
 
-func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string) (map[string]string, bool) {
+func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string, priority bool) (map[string]string, bool) {
 	sendOp := &SendOp{
 		txnId:        c.getTxnId(txnId),
 		readKeyList:  readKeyList,
 		writeKeyList: writeKeyList,
 		readResult:   make(map[string]string),
 		wait:         make(chan bool, 1),
+		priority:     priority,
 	}
 
 	c.sendTxnRequest <- sendOp
@@ -227,7 +229,7 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
-	if c.Config.GetServerMode() == configuration.GTSReorder {
+	if c.Config.GetPriority() {
 		for _, key := range op.readKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
 			logrus.Debugf("read key %v, pId %v", key, pId)
@@ -240,7 +242,7 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 			participants[pId] = true
 		}
 
-		// if reorder enabled, send the all keys to partitions
+		// if the priority optimization enable, send the all keys to partitions
 		for pId := range participants {
 			if _, exist := partitionSet[pId]; !exist {
 				partitionSet[pId] = make([][]string, 2)
@@ -295,6 +297,7 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(-1), // with read-only optimization, read-only txn does not need send to coord
 		ReadOnly:                 true,
+		HighPriority:             op.priority,
 	}
 
 	c.addTxnIfNotExist(op.txnId, t)

@@ -80,5 +80,11 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 }
 
 func (ts *TimestampScheduler) Schedule(op *ReadAndPrepareOp) {
+	if !op.request.Txn.HighPriority {
+		log.Debugf("low priority txn %v do not need schedule", op.txnId)
+		ts.server.executor.PrepareTxn <- op
+		return
+	}
+
 	ts.pendingOp <- op
 }

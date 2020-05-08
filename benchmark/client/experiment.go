@@ -4,6 +4,7 @@ import (
 	"Carousel-GTS/benchmark/workload"
 	"Carousel-GTS/client"
 	"github.com/sirupsen/logrus"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -62,7 +63,9 @@ func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duratio
 		writeKeyList[i] = key
 		i++
 	}
-	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId)
+	p := rand.Intn(100)
+	priority := p < 10
+	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId, priority)
 
 	if isAbort {
 		retry, waitTime := client.Abort(txn.TxnId)
