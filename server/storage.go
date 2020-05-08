@@ -134,11 +134,12 @@ type AbstractStorage struct {
 
 func NewAbstractStorage(server *Server) *AbstractStorage {
 	s := &AbstractStorage{
-		kvStore:     make(map[string]*KeyInfo),
-		server:      server,
-		txnStore:    make(map[string]*TxnInfo),
-		committed:   0,
-		totalCommit: 0,
+		kvStore:           make(map[string]*KeyInfo),
+		server:            server,
+		txnStore:          make(map[string]*TxnInfo),
+		committed:         0,
+		totalCommit:       0,
+		otherPartitionKey: make(map[string]*PriorityTxnInfo),
 	}
 
 	return s
