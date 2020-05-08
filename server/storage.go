@@ -147,12 +147,14 @@ func NewAbstractStorage(server *Server) *AbstractStorage {
 func (s *AbstractStorage) LoadKeys(keys []string) {
 	for _, key := range keys {
 		s.kvStore[key] = &KeyInfo{
-			Value:            key,
-			Version:          0,
-			WaitingOp:        list.New(),
-			WaitingItem:      make(map[string]*list.Element),
-			PreparedTxnRead:  make(map[string]bool),
-			PreparedTxnWrite: make(map[string]bool),
+			Value:                       key,
+			Version:                     0,
+			WaitingOp:                   list.New(),
+			WaitingItem:                 make(map[string]*list.Element),
+			PreparedTxnRead:             make(map[string]bool),
+			PreparedTxnWrite:            make(map[string]bool),
+			PreparedLowPriorityTxnWrite: make(map[string]bool),
+			PreparedLowPriorityTxnRead:  make(map[string]bool),
 		}
 	}
 }
