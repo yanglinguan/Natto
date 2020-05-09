@@ -322,7 +322,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 
 func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
 	if info.resultSent {
-		log.Warnf("txn %v result is sent", info.txnId)
+		log.Debugf("txn %v result is sent", info.txnId)
 		return
 	}
 	info.resultSent = true
