@@ -143,7 +143,7 @@ func (c *Coordinator) handleCommitRequest(op *CommitRequestOp) {
 		return
 	}
 
-	if twoPCInfo.readAndPrepareOp.request.Txn.ReadOnly {
+	if len(op.request.WriteKeyValList) == 0 {
 		log.Debugf("txn %v is readOnly, do not need to replicate write data", txnId)
 		twoPCInfo.writeDataReplicated = true
 	} else {
