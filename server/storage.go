@@ -426,6 +426,9 @@ func (s *AbstractStorage) releaseKey(txnId string) {
 	}
 
 	for _, rk := range txnInfo.readAndPrepareRequestOp.otherPartitionReadKey {
+		if _, exist := s.otherPartitionKey[rk]; !exist {
+			continue
+		}
 		if highPriority {
 			delete(s.otherPartitionKey[rk].highPriorityTxnRead, txnId)
 		} else {
@@ -434,6 +437,9 @@ func (s *AbstractStorage) releaseKey(txnId string) {
 	}
 
 	for _, wk := range txnInfo.readAndPrepareRequestOp.otherPartitionWriteKey {
+		if _, exist := s.otherPartitionKey[wk]; !exist {
+			continue
+		}
 		if highPriority {
 			delete(s.otherPartitionKey[wk].highPriorityTxnWrite, txnId)
 		} else {
