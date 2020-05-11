@@ -77,6 +77,7 @@ def load_statistic(dir_name):
         if f.endswith(".statistic"):
             lines = open(os.path.join(path, f), "r").readlines()
             for line in lines:
+                line = line.strip()
                 if line.startswith("#"):
                     continue
                 items = line.split(",")
@@ -220,8 +221,14 @@ def analyse_abort_rate(txn_map):
     commit_high = 0
     commit_low = 0
     count = 0
+    count_high = 0
+    count_low = 0
     for txn_id, value in txn_map.items():
         count += 1
+        if value["priority"]:
+            count_high += 1
+        else:
+            count_low += 1
         if value["commit"]:
             commit += 1
             if value["priority"]:
@@ -230,8 +237,8 @@ def analyse_abort_rate(txn_map):
                 commit_low += 1
 
     commit_rate = float(commit) / count
-    commit_high_rate = float(commit_high) / count
-    commit_low_rate = float(commit_low) / count
+    commit_high_rate = float(commit_high) / count_high
+    commit_low_rate = float(commit_low) / count_low
     print("Commit rate: " + str(commit_rate))
 
     if commit_high == 0 or commit_low == 0:
