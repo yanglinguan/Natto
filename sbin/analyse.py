@@ -81,13 +81,20 @@ def load_statistic(dir_name):
                     continue
                 items = line.split(",")
                 txn_id = items[0]
-                commit = bool(int(items[1]))
+                commit = int(items[1]) == 1
                 latency = float(items[2]) / 1000000  # ms
                 start = float(items[3])
                 end = float(items[4])
+                priority = False
+                if len(items) > 8:
+                    priority = items[8] == "true"
                 if start < min_start:
                     min_start = start
-                txn_map[txn_id] = {"commit": commit, "latency": latency, "start": start, "end": end}
+                txn_map[txn_id] = {"commit": commit,
+                                   "latency": latency,
+                                   "start": start,
+                                   "end": end,
+                                   "priority": priority}
 
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
@@ -99,9 +106,15 @@ def load_statistic(dir_name):
 
 def analyse_latency(txn_map):
     latency = []
+    latency_high = []
+    latency_low = []
     for txn_id, value in txn_map.items():
         if value["commit"]:
             latency.append(value["latency"])
+            if value["priority"]:
+                latency_high.append(value["latency"])
+            else:
+                latency_low.append(value["latency"])
 
     median = numpy.percentile(latency, 50)
     p90 = numpy.percentile(latency, 90)
@@ -110,16 +123,61 @@ def analyse_latency(txn_map):
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
-    latency.sort()
-
-    result = {"median": median, "p90": p90, "p95": p95, "p10": p10, "p99": p99, "avg": avg, "latency": latency}
-
     print("10 per (ms): " + str(p10))
     print("median (ms): " + str(median))
     print("90 per (ms): " + str(p90))
     print("95 per (ms): " + str(p95))
     print("99 per (ms): " + str(p99))
     print("avg (ms): " + str(avg))
+
+    latency.sort()
+
+    result = {"median": median, "p90": p90, "p95": p95, "p10": p10, "p99": p99, "avg": avg, "latency": latency}
+
+    if len(latency_high) == 0 or len(latency_low) == 0:
+        return result
+
+    median = numpy.percentile(latency_high, 50)
+    p90 = numpy.percentile(latency_high, 90)
+    p95 = numpy.percentile(latency_high, 95)
+    p99 = numpy.percentile(latency_high, 99)
+    p10 = numpy.percentile(latency_high, 10)
+    avg = numpy.average(latency_high)
+    latency_high.sort()
+    result["median_high"] = median
+    result["p90_high"] = p90
+    result["p95_high"] = p95
+    result["p99_high"] = p99
+    result["p10_high"] = p10
+    result["avg_high"] = avg
+    result["latency_high"] = latency_high
+    print("10 per (ms) high: " + str(p10))
+    print("median (ms) high: " + str(median))
+    print("90 per (ms) high: " + str(p90))
+    print("95 per (ms) high: " + str(p95))
+    print("99 per (ms) high: " + str(p99))
+    print("avg (ms) high: " + str(avg))
+
+    median = numpy.percentile(latency_low, 50)
+    p90 = numpy.percentile(latency_low, 90)
+    p95 = numpy.percentile(latency_low, 95)
+    p99 = numpy.percentile(latency_low, 99)
+    p10 = numpy.percentile(latency_low, 10)
+    avg = numpy.average(latency_low)
+    latency_low.sort()
+    result["median_low"] = median
+    result["p90_low"] = p90
+    result["p95_low"] = p95
+    result["p99_low"] = p99
+    result["p10_low"] = p10
+    result["avg_low"] = avg
+    result["latency_low"] = latency_low
+    print("10 per (ms) low: " + str(p10))
+    print("median (ms) low: " + str(median))
+    print("90 per (ms) low: " + str(p90))
+    print("95 per (ms) low: " + str(p95))
+    print("99 per (ms) low: " + str(p99))
+    print("avg (ms) low: " + str(avg))
 
     return result
 
@@ -128,6 +186,8 @@ def analyse_throughput(txn_map):
     min_time = sys.maxsize
     max_time = -sys.maxsize - 1
     count = 0
+    count_high = 0
+    count_low = 0
     for txn_id, value in txn_map.items():
         if value["start"] < min_time:
             min_time = value["start"]
@@ -136,25 +196,49 @@ def analyse_throughput(txn_map):
             max_time = value["start"]
         if value["commit"]:
             count += 1
+            if value["priority"]:
+                count_high += 1
+            else:
+                count_low += 1
 
     throughput = float(count * 1000000000) / (max_time - min_time)
+    throughput_high = float(count_high * 1000000000) / (max_time - min_time)
+    throughput_low = float(count_low * 1000000000) / (max_time - min_time)
     print("start time " + str(min_time) + "; end time" + str(max_time))
     print("commit throughput (txn/s): " + str(throughput))
-    return throughput
+
+    if throughput_high == 0 or throughput_low == 0:
+        return throughput, throughput_low, throughput_high
+
+    print("commit throughput high (txn/s): " + str(throughput_high))
+    print("commit throughput low (txn/s): " + str(throughput_low))
+    return throughput, throughput_low, throughput_high
 
 
 def analyse_abort_rate(txn_map):
     commit = 0
-    abort = 0
+    commit_high = 0
+    commit_low = 0
+    count = 0
     for txn_id, value in txn_map.items():
+        count += 1
         if value["commit"]:
             commit += 1
-        else:
-            abort += 1
+            if value["priority"]:
+                commit_high += 1
+            else:
+                commit_low += 1
 
-    commit_rate = float(commit) / (abort + commit)
+    commit_rate = float(commit) / count
+    commit_high_rate = float(commit_high) / count
+    commit_low_rate = float(commit_low) / count
     print("Commit rate: " + str(commit_rate))
-    return commit_rate
+
+    if commit_high == 0 or commit_low == 0:
+        return commit_rate, commit_low_rate, commit_high_rate
+    print("Commit rate high: " + str(commit_high_rate))
+    print("Commit rate low: " + str(commit_low_rate))
+    return commit_rate, commit_low_rate, commit_high_rate
 
 
 def analyse(dir_name):
@@ -163,11 +247,16 @@ def analyse(dir_name):
     analyse_waiting(path)
     txn_map = load_statistic(path)
     result = analyse_latency(txn_map)
-    throughput = analyse_throughput(txn_map)
-    commit_rate = analyse_abort_rate(txn_map)
+    throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
+    commit_rate, commit_rate_low, commit_rate_high = analyse_abort_rate(txn_map)
 
     result["throughput"] = throughput
     result["commit_rate"] = commit_rate
+    if throughput_low != 0 and throughput_low != 0:
+        result["throughput_low"] = throughput_low
+        result["throughput_high"] = throughput_high
+        result["commit_rate_low"] = commit_rate_low
+        result["commit_rate_high"] = commit_rate_high
 
     file_name = os.path.basename(path)
     with open(file_name + ".result", "w") as f:
