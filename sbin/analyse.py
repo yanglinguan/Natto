@@ -203,14 +203,15 @@ def analyse_throughput(txn_map):
                 count_low += 1
 
     throughput = float(count * 1000000000) / (max_time - min_time)
-    throughput_high = float(count_high * 1000000000) / (max_time - min_time)
-    throughput_low = float(count_low * 1000000000) / (max_time - min_time)
+
     print("start time " + str(min_time) + "; end time" + str(max_time))
     print("commit throughput (txn/s): " + str(throughput))
 
-    if throughput_high == 0 or throughput_low == 0:
-        return throughput, throughput_low, throughput_high
+    if count_high == 0 or count_low == 0:
+        return throughput, 0, 0
 
+    throughput_high = float(count_high * 1000000000) / (max_time - min_time)
+    throughput_low = float(count_low * 1000000000) / (max_time - min_time)
     print("commit throughput high (txn/s): " + str(throughput_high))
     print("commit throughput low (txn/s): " + str(throughput_low))
     return throughput, throughput_low, throughput_high
@@ -237,12 +238,14 @@ def analyse_abort_rate(txn_map):
                 commit_low += 1
 
     commit_rate = float(commit) / count
-    commit_high_rate = float(commit_high) / count_high
-    commit_low_rate = float(commit_low) / count_low
+
     print("Commit rate: " + str(commit_rate))
 
     if commit_high == 0 or commit_low == 0:
-        return commit_rate, commit_low_rate, commit_high_rate
+        return commit_rate, 0, 0
+
+    commit_high_rate = float(commit_high) / count_high
+    commit_low_rate = float(commit_low) / count_low
     print("Commit rate high: " + str(commit_high_rate))
     print("Commit rate low: " + str(commit_low_rate))
     return commit_rate, commit_low_rate, commit_high_rate
