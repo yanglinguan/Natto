@@ -463,6 +463,7 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	op.result = result.Result
 	if c.Config.GetTargetRate() > 0 {
 		if op.result || c.Config.GetRetryMode() == configuration.OFF {
+			logrus.Warnf("txn %v latency %v", op.txnId, latency)
 			op.expectWait = c.tryToMaintainTxnTargetRate(latency)
 		}
 	}
