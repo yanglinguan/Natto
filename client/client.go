@@ -452,6 +452,7 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	result := <-ongoingTxn.commitReply
 
 	ongoingTxn.endTime = time.Now()
+	latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
 	if result.Result {
 		ongoingTxn.commitResult = 1
 
@@ -460,7 +461,6 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
 	}
 	op.result = result.Result
-	latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
 	if c.Config.GetTargetRate() > 0 {
 		if op.result || c.Config.GetRetryMode() == configuration.OFF {
 			op.expectWait = c.tryToMaintainTxnTargetRate(latency)
@@ -641,7 +641,11 @@ func (c *Client) tryToMaintainTxnTargetRate(latency time.Duration) time.Duration
 			expectWait = 0
 		}
 
-		return expectWait
+		if expectWait > 0 {
+			return expectWait
+		} else {
+			return 0
+		}
 	} else {
 		leg := latency - c.durationPerTxn
 		if tmp := c.timeLeg + leg; tmp > c.timeLeg {
