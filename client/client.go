@@ -103,7 +103,10 @@ func NewClient(clientId int, configFile string) *Client {
 		lock:               sync.Mutex{},
 		count:              0,
 		timeLeg:            time.Duration(0),
-		durationPerTxn:     time.Duration(int64(time.Second) / int64(config.GetTargetRate())),
+	}
+
+	if c.Config.GetTargetRate() > 0 {
+		c.durationPerTxn = time.Duration(int64(time.Second) / int64(config.GetTargetRate()))
 	}
 
 	if c.Config.GetConnectionPoolSize() == 0 {
