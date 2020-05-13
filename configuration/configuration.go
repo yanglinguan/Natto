@@ -92,6 +92,7 @@ type Configuration interface {
 
 	GetPriority() bool
 	GetHighPriorityRate() int
+	GetTargetRate() int
 }
 
 type FileConfiguration struct {
@@ -162,6 +163,7 @@ type FileConfiguration struct {
 	checkWaiting bool // for gts-graph, check the waiting txn there is write-read conflict
 
 	highPriorityRate int
+	targetRate       int // client sends at this target rate
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -192,7 +194,7 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	partitionNum := int(config["partitions"].(float64))
 	serverNum := int(config["nums"].(float64))
 	f.replicationFactor = int(config["replicationFactor"].(float64))
-	f.isReplication = f.replicationFactor != 1
+	//f.isReplication = f.replicationFactor != 1
 	f.failure = config["failure"].(float64)
 	f.superMajority = int(math.Ceil(f.failure*1.5) + 1)
 	f.dcNum = serverNum / f.replicationFactor
@@ -367,6 +369,10 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.isReadOnly = v.(bool)
 		} else if key == "checkWaiting" {
 			f.checkWaiting = v.(bool)
+		} else if key == "replication" {
+			f.isReplication = v.(bool)
+		} else if key == "targetRate" {
+			f.targetRate = int(v.(float64))
 		}
 	}
 }
@@ -668,4 +674,8 @@ func (f *FileConfiguration) GetPriority() bool {
 
 func (f *FileConfiguration) GetHighPriorityRate() int {
 	return f.highPriorityRate
+}
+
+func (f *FileConfiguration) GetTargetRate() int {
+	return f.targetRate
 }

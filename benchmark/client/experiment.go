@@ -56,7 +56,7 @@ func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
 	o.wg.Done()
 }
 
-func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration) {
+func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration, time.Duration) {
 	writeKeyList := make([]string, len(txn.WriteData))
 	i := 0
 	for key := range txn.WriteData {
@@ -69,7 +69,7 @@ func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duratio
 
 	if isAbort {
 		retry, waitTime := client.Abort(txn.TxnId)
-		return false, retry, waitTime
+		return false, retry, waitTime, 0
 	}
 
 	txn.GenWriteData(readResult)
@@ -103,12 +103,13 @@ func (e *CloseLoopExperiment) Execute() {
 	c := 0
 	txn := e.workload.GenTxn()
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
-		commit, retry, waitTime := execTxn(e.client, txn)
+		commit, retry, waitTime, expWait := execTxn(e.client, txn)
 		if !commit && retry {
 			logrus.Infof("RETRY txn %v wait time %v", txn.TxnId, waitTime)
 			time.Sleep(waitTime)
 			continue
 		}
+		time.Sleep(expWait)
 		d = time.Since(s)
 		txn = e.workload.GenTxn()
 		c++

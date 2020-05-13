@@ -64,6 +64,7 @@ type CommitOp struct {
 	result        bool
 	retry         bool
 	waitTime      time.Duration
+	expectWait    time.Duration // try to keep the target rate
 }
 
 func (o *CommitOp) BlockOwner() bool {
@@ -83,7 +84,9 @@ type Client struct {
 	txnStore map[string]*Transaction
 	lock     sync.Mutex
 
-	count int
+	count          int
+	timeLeg        time.Duration
+	durationPerTxn time.Duration
 }
 
 func NewClient(clientId int, configFile string) *Client {
@@ -99,6 +102,8 @@ func NewClient(clientId int, configFile string) *Client {
 		txnStore:           make(map[string]*Transaction),
 		lock:               sync.Mutex{},
 		count:              0,
+		timeLeg:            time.Duration(0),
+		durationPerTxn:     time.Duration(int64(time.Second) / int64(config.GetTargetRate())),
 	}
 
 	if c.Config.GetConnectionPoolSize() == 0 {
@@ -424,17 +429,18 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	go c.waitReadAndPrepareRequest(op, execution)
 }
 
-func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration) {
+func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration, time.Duration) {
 	commitOp := &CommitOp{
 		txnId:         c.getTxnId(txnId),
 		writeKeyValue: writeKeyValue,
 		wait:          make(chan bool, 1),
 		retry:         false,
+		expectWait:    time.Duration(0),
 	}
 
 	c.commitTxnRequest <- commitOp
 	commitOp.BlockOwner()
-	return commitOp.result, commitOp.retry, commitOp.waitTime
+	return commitOp.result, commitOp.retry, commitOp.waitTime, commitOp.expectWait
 }
 
 func (c *Client) Abort(txnId string) (bool, time.Duration) {
@@ -448,12 +454,18 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	ongoingTxn.endTime = time.Now()
 	if result.Result {
 		ongoingTxn.commitResult = 1
+
 	} else {
 		ongoingTxn.commitResult = 0
 		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
 	}
 	op.result = result.Result
-
+	latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
+	if c.Config.GetTargetRate() > 0 {
+		if op.result || c.Config.GetRetryMode() == configuration.OFF {
+			op.expectWait = c.tryToMaintainTxnTargetRate(latency)
+		}
+	}
 	op.wait <- true
 }
 
@@ -531,15 +543,29 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 func (c *Client) PrintServerStatus(commitTxn []int) {
 	var wg sync.WaitGroup
-	for sId := range c.connections {
-		pId := c.Config.GetPartitionIdByServerId(sId)
-		committed := commitTxn[pId]
-		request := &rpc.PrintStatusRequest{
-			CommittedTxn: int32(committed),
+	if c.Config.GetReplication() {
+		for sId := range c.connections {
+			pId := c.Config.GetPartitionIdByServerId(sId)
+			committed := commitTxn[pId]
+			request := &rpc.PrintStatusRequest{
+				CommittedTxn: int32(committed),
+			}
+			sender := NewPrintStatusRequestSender(request, sId, c)
+			wg.Add(1)
+			go sender.Send(&wg)
 		}
-		sender := NewPrintStatusRequestSender(request, sId, c)
-		wg.Add(1)
-		go sender.Send(&wg)
+	} else {
+		totalPartition := c.Config.GetTotalPartition()
+		for pId := 0; pId < totalPartition; pId++ {
+			sId := c.Config.GetLeaderIdByPartitionId(pId)
+			committed := commitTxn[pId]
+			request := &rpc.PrintStatusRequest{
+				CommittedTxn: int32(committed),
+			}
+			sender := NewPrintStatusRequestSender(request, sId, c)
+			wg.Add(1)
+			go sender.Send(&wg)
+		}
 	}
 	wg.Wait()
 }
@@ -601,4 +627,27 @@ func (c *Client) PrintTxnStatisticData() {
 func (c *Client) HeartBeat(dstServerId int) int {
 	sender := NewHeartBeatSender(dstServerId, c)
 	return sender.Send()
+}
+
+func (c *Client) tryToMaintainTxnTargetRate(latency time.Duration) time.Duration {
+	if latency < c.durationPerTxn {
+		expectWait := c.durationPerTxn - latency
+
+		if c.timeLeg <= expectWait {
+			expectWait -= c.timeLeg
+			c.timeLeg = 0
+		} else {
+			c.timeLeg -= expectWait
+			expectWait = 0
+		}
+
+		return expectWait
+	} else {
+		leg := latency - c.durationPerTxn
+		if tmp := c.timeLeg + leg; tmp > c.timeLeg {
+			// Overflow
+			c.timeLeg = tmp
+		}
+		return 0
+	}
 }

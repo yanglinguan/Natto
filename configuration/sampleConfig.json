@@ -23,6 +23,7 @@
     "fastPath": false,
     "readOnly": false,
     "checkWaiting": false,
+    "replication": true,
     "totalKey": 3,
     "delay": "200ms",
     "RPCPoolSize": 0,
@@ -33,6 +34,7 @@
     "duration": 30,
     "totalTxn": 1000,
     "zipfAlpha": 0.75,
+    "targetRate": 100,
     "workload": {
       "type": "ycsbt",
       "retwis": {
