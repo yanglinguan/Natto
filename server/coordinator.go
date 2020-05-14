@@ -332,6 +332,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			// then we do not need to check the version
 			if info.commitRequest.request.IsReadAnyReplica {
 				if !c.checkReadKeyVersion(info) {
+					log.Debugf("txn %v version check fail %v", info.txnId)
 					info.status = ABORT
 					c.sendRequest <- info
 					return
@@ -382,7 +383,7 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 		info := <-c.sendRequest
 		if info.resultSent {
 			log.Debugf("txn %v result is sent", info.txnId)
-			return
+			continue
 		}
 		info.resultSent = true
 		log.Debugf("txn %v send result %v to client and partition", info.txnId, info.status)
@@ -395,7 +396,7 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 
 			// with read only optimization, coordinator do not need to send to participant
 			if info.readAndPrepareOp.request.Txn.ReadOnly && c.server.config.GetIsReadOnly() {
-				return
+				continue
 			}
 
 			request := &rpc.AbortRequest{
@@ -424,7 +425,7 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 			// if it is read only txn and optimization is enabled, coordinator only to reply the result to client
 			// do not need to send to partitions, because partitions does not hold the lock of the keys
 			if info.readAndPrepareOp.request.Txn.ReadOnly && c.server.config.GetIsReadOnly() {
-				return
+				continue
 			}
 
 			partitionWriteKV := make(map[int][]*rpc.KeyValue)
