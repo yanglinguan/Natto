@@ -428,7 +428,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			Timestamp:        maxDelay,
 			ClientId:         "c" + strconv.Itoa(c.clientId),
 		}
-		if request.IsNotParticipant {
+		if request.IsNotParticipant || !c.Config.GetFastPath() {
 			// only send to the leader of non-participant partition
 			sId := c.Config.GetLeaderIdByPartitionId(pId)
 			sender := NewReadAndPrepareSender(request, execution, sId, c)
