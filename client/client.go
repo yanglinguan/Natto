@@ -4,6 +4,7 @@ import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/connection"
 	"Carousel-GTS/rpc"
+	"Carousel-GTS/server"
 	"Carousel-GTS/utils"
 	"fmt"
 	"github.com/sirupsen/logrus"
@@ -27,10 +28,12 @@ type Transaction struct {
 }
 
 type ExecutionRecord struct {
-	rpcTxn              *rpc.Transaction
-	readAndPrepareReply chan *rpc.ReadAndPrepareReply
-	readKeyValueVersion []*rpc.KeyValueVersion
-	isAbort             bool
+	rpcTxn               *rpc.Transaction
+	readAndPrepareReply  chan *rpc.ReadAndPrepareReply
+	readKeyValueVersion  []*rpc.KeyValueVersion
+	isAbort              bool
+	isConditionalPrepare bool
+	readFromReplica      bool
 }
 
 func NewExecutionRecord(rpcTxn *rpc.Transaction) *ExecutionRecord {
@@ -174,14 +177,22 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txn
 func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecord) {
 	// wait for result
 	result := make(map[string]*rpc.KeyValueVersion)
+	readLeader := make(map[string]bool)
 	for {
 		readAndPrepareReply := <-execution.readAndPrepareReply
-		execution.isAbort = execution.isAbort || readAndPrepareReply.IsAbort
+		execution.isAbort = execution.isAbort || readAndPrepareReply.Status == int32(server.ABORT)
+		execution.isConditionalPrepare = execution.isConditionalPrepare ||
+			(!execution.isAbort && readAndPrepareReply.Status == int32(server.CONDITIONAL_PREPARED))
 		for _, kv := range readAndPrepareReply.KeyValVerList {
 			if value, exist := result[kv.Key]; exist && value.Version >= kv.Version {
+				if readAndPrepareReply.IsLeader {
+					readLeader[kv.Key] = readAndPrepareReply.IsLeader
+				}
 				continue
 			}
+
 			result[kv.Key] = kv
+			readLeader[kv.Key] = readAndPrepareReply.IsLeader
 			//execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 		}
 
@@ -191,8 +202,10 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecor
 	}
 	op.isAbort = execution.isAbort
 	if !execution.isAbort {
-		for _, kv := range result {
-			op.readResult[kv.Key] = kv.Value
+		for key, kv := range result {
+			op.readResult[key] = kv.Value
+			execution.readFromReplica = execution.readFromReplica || !readLeader[key]
+			execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 		}
 	}
 
@@ -499,7 +512,7 @@ func (c *Client) isRetryTxn(execNum int64) (bool, time.Duration) {
 func (c *Client) handleCommitRequest(op *CommitOp) {
 	ongoingTxn, execution := c.getTxnAndExecution(op.txnId)
 
-	if len(op.writeKeyValue) == 0 && c.Config.GetIsReadOnly() {
+	if len(op.writeKeyValue) == 0 && c.Config.GetIsReadOnly() && !execution.isConditionalPrepare {
 		ongoingTxn.endTime = time.Now()
 		logrus.Debugf("read only txn %v commit", op.txnId)
 		ongoingTxn.commitResult = 1
@@ -521,15 +534,18 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		}
 		i++
 	}
-
-	readKeyVerList := make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
-	i = 0
-	for _, kv := range execution.readKeyValueVersion {
-		readKeyVerList[i] = &rpc.KeyVersion{
-			Key:     kv.Key,
-			Version: kv.Version,
+	readKeyVerList := make([]*rpc.KeyVersion, 0)
+	// if all keys read from leader, we do not need to send read version to coordinator
+	if execution.readFromReplica {
+		readKeyVerList := make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
+		i = 0
+		for _, kv := range execution.readKeyValueVersion {
+			readKeyVerList[i] = &rpc.KeyVersion{
+				Key:     kv.Key,
+				Version: kv.Version,
+			}
+			i++
 		}
-		i++
 	}
 
 	request := &rpc.CommitRequest{
@@ -537,7 +553,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 		WriteKeyValList:  writeKeyValueList,
 		IsCoordinator:    false,
 		ReadKeyVerList:   readKeyVerList,
-		IsReadAnyReplica: false,
+		IsReadAnyReplica: execution.readFromReplica,
 	}
 
 	coordinatorId := c.Config.GetLeaderIdByPartitionId(int(execution.rpcTxn.CoordPartitionId))

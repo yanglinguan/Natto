@@ -40,7 +40,7 @@ func (r *Raft) run() {
 			continue
 		}
 
-		r.handleReplicatedOp(data)
+		go r.handleReplicatedOp(data)
 	}
 }
 

@@ -36,6 +36,22 @@ func (s *OccStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 	s.replicatePreparedResult(op.txnId)
 }
 
+func (s *OccStorage) checkKeyAvailable(op *ReadAndPrepareOp) bool {
+	for rk := range op.readKeyMap {
+		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			return false
+		}
+	}
+
+	for wk := range op.writeKeyMap {
+		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 	txnId := op.txnId
 	if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status != INIT {
@@ -56,7 +72,7 @@ func (s *OccStorage) Prepare(op *ReadAndPrepareOp) {
 		s.setReadResult(op)
 	}
 
-	available := s.checkKeysAvailableForLowPriorityTxn(op)
+	available := s.checkKeyAvailable(op)
 
 	if available {
 		s.prepared(op, make(map[int]bool))

@@ -48,6 +48,8 @@ type Coordinator struct {
 	AbortRequest      chan *AbortRequestOp
 	Replication       chan ReplicationMsg
 	FastPrepareResult chan *FastPrepareResultOp
+
+	sendRequest chan string
 }
 
 func NewCoordinator(server *Server) *Coordinator {
@@ -61,9 +63,12 @@ func NewCoordinator(server *Server) *Coordinator {
 		AbortRequest:      make(chan *AbortRequestOp, queueLen),
 		Replication:       make(chan ReplicationMsg, queueLen),
 		FastPrepareResult: make(chan *FastPrepareResultOp, queueLen),
+		sendRequest:       make(chan string, queueLen),
 	}
 
 	go c.run()
+
+	go c.sendToParticipantsAndClient()
 
 	return c
 }
@@ -109,7 +114,8 @@ func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
 		if c.server.IsLeader() {
 			c.txnStore[msg.TxnId].writeDataReplicated = true
 			if c.txnStore[msg.TxnId].status == COMMIT {
-				c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
+				c.sendRequest <- msg.TxnId
+				//c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
 			}
 		} else {
 			c.initTwoPCInfoIfNotExist(msg.TxnId)
@@ -136,9 +142,9 @@ func (c *Coordinator) handleCommitRequest(op *CommitRequestOp) {
 
 	twoPCInfo.commitRequest = op
 
-	if twoPCInfo.status == ABORT {
+	if twoPCInfo.status == ABORT || twoPCInfo.status == COMMIT {
 		log.Infof("TXN %v already aborted", txnId)
-		op.result = false
+		op.result = twoPCInfo.status == COMMIT
 		op.wait <- true
 		return
 	}
@@ -286,108 +292,175 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
 		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
-			c.sendToParticipantsAndClient(info)
+			c.sendRequest <- info.txnId
+			//c.sendToParticipantsAndClient(info)
 		}
 	} else {
-		if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
-			len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.partitionPrepareResult) {
+		if info.status == INIT {
+			if info.readAndPrepareOp == nil {
+				log.Debugf("txn %v does not receive the read and prepare request from client", info.txnId)
+				return
+			}
+			if len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) != len(info.partitionPrepareResult) {
+				log.Debugf("txn %v does not receive all partitions prepare result", info.txnId)
+				return
+			}
 			if info.readAndPrepareOp.request.Txn.HighPriority {
 				if info.conditionGraph.isCyclic() {
 					log.Debugf("txn %v condition has cycle, abort", info.txnId)
 					info.status = ABORT
-					c.sendToParticipantsAndClient(info)
+					c.sendRequest <- info.txnId
+					return
 				}
 				log.Debugf("txn %v no cycle detected", info.txnId)
-				//topoOrder := info.conditionGraph.topoSort()
-				//for
 			}
-			if c.checkReadKeyVersion(info) {
-				log.Debugf("txn %v commit coordinator after check version", info.txnId)
+			if info.readAndPrepareOp.request.Txn.ReadOnly && c.server.config.GetIsReadOnly() {
+				// if this is read only txn, it is prepared we do not need to check version
+				// we also do not need to wait client commit request
 				info.status = COMMIT
-				if info.writeDataReplicated {
-					c.sendToParticipantsAndClient(info)
-				} else {
-					log.Debugf("txn %v write data not replicated yet cannot send out the commit result", info.txnId)
-				}
-			} else {
-				log.Debugf("txn %v abort coordinator, due to read version invalid",
-					info.txnId)
-				info.status = ABORT
-
-				c.sendToParticipantsAndClient(info)
+				c.sendRequest <- info.txnId
+				return
 			}
+			// other wise this is read write txn, we need to wait client commit request
+			if info.commitRequest == nil {
+				log.Debugf("txn %v does not receive commit request from client", info.txnId)
+				return
+			}
+
+			// when the commit request is received and all partition results are prepared
+			// if client read from any replica we need to check the prepared version. if it reads from leader
+			// then we do not need to check the version
+			if info.commitRequest.request.IsReadAnyReplica {
+				if !c.checkReadKeyVersion(info) {
+					info.status = ABORT
+					c.sendRequest <- info.txnId
+					return
+				}
+			}
+
+			info.status = COMMIT
+			c.sendRequest <- info.txnId
 		}
+		//if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
+		//	len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.partitionPrepareResult) {
+		//	if info.readAndPrepareOp.request.Txn.HighPriority {
+		//		if info.conditionGraph.isCyclic() {
+		//			log.Debugf("txn %v condition has cycle, abort", info.txnId)
+		//			info.status = ABORT
+		//			c.sendRequest <- info.txnId
+		//			//c.sendToParticipantsAndClient(info)
+		//		}
+		//		log.Debugf("txn %v no cycle detected", info.txnId)
+		//		//topoOrder := info.conditionGraph.topoSort()
+		//		//for
+		//	}
+		//	if c.checkReadKeyVersion(info) {
+		//		log.Debugf("txn %v commit coordinator after check version", info.txnId)
+		//		info.status = COMMIT
+		//		if info.writeDataReplicated {
+		//			c.sendRequest <- info.txnId
+		//			//c.sendToParticipantsAndClient(info)
+		//		} else {
+		//			log.Debugf("txn %v write data not replicated yet cannot send out the commit result", info.txnId)
+		//		}
+		//	} else {
+		//		log.Debugf("txn %v abort coordinator, due to read version invalid",
+		//			info.txnId)
+		//		info.status = ABORT
+		//		c.sendRequest <- info.txnId
+		//		//c.sendToParticipantsAndClient(info)
+		//	}
+		//}
 	}
 }
 
-func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
-	if info.resultSent {
-		log.Debugf("txn %v result is sent", info.txnId)
-		return
-	}
-	info.resultSent = true
-	switch info.status {
-	case ABORT:
-		if info.commitRequest != nil {
-			info.commitRequest.result = false
-			info.commitRequest.wait <- true
+func (c *Coordinator) sendToParticipantsAndClient() {
+	for {
+		txnId := <-c.sendRequest
+		info := c.txnStore[txnId]
+		if info.resultSent {
+			log.Debugf("txn %v result is sent", info.txnId)
+			return
 		}
-		request := &rpc.AbortRequest{
-			TxnId:         info.txnId,
-			IsCoordinator: true,
-		}
+		info.resultSent = true
+		switch info.status {
+		case ABORT:
+			if info.commitRequest != nil {
+				info.commitRequest.result = false
+				info.commitRequest.wait <- true
+			}
 
-		for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
-			if int(pId) == c.server.partitionId {
-				op := NewAbortRequestOp(request)
-				c.server.executor.AbortTxn <- op
-			} else {
-				serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
-				sender := NewAbortRequestSender(request, serverId, c.server)
-				go sender.Send()
+			// with read only optimization, coordinator do not need to send to participant
+			if info.readAndPrepareOp.request.Txn.ReadOnly && c.server.config.GetIsReadOnly() {
+				return
 			}
-		}
-		break
-	case COMMIT:
-		// unblock the client
-		info.commitRequest.result = true
-		info.commitRequest.wait <- true
-		partitionWriteKV := make(map[int][]*rpc.KeyValue)
-		for _, kv := range info.commitRequest.request.WriteKeyValList {
-			pId := c.server.config.GetPartitionIdByKey(kv.Key)
-			if _, exist := partitionWriteKV[pId]; !exist {
-				partitionWriteKV[pId] = make([]*rpc.KeyValue, 0)
-			}
-			partitionWriteKV[pId] = append(partitionWriteKV[pId], kv)
-		}
-		partitionReadVersion := make(map[int][]*rpc.KeyVersion)
-		for _, kv := range info.commitRequest.request.ReadKeyVerList {
-			pId := c.server.config.GetPartitionIdByKey(kv.Key)
-			if _, exist := partitionReadVersion[pId]; !exist {
-				partitionReadVersion[pId] = make([]*rpc.KeyVersion, 0)
-			}
-			partitionReadVersion[pId] = append(partitionReadVersion[pId], kv)
-		}
 
-		for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
-			request := &rpc.CommitRequest{
-				TxnId:             info.txnId,
-				WriteKeyValList:   partitionWriteKV[int(pId)],
-				IsCoordinator:     true,
-				ReadKeyVerList:    partitionReadVersion[int(pId)],
-				IsReadAnyReplica:  false,
-				IsFastPathSuccess: info.partitionPrepareResult[int(pId)].isFastPrepare,
+			request := &rpc.AbortRequest{
+				TxnId:         info.txnId,
+				IsCoordinator: true,
 			}
-			if int(pId) == c.server.partitionId {
-				op := NewCommitRequestOp(request)
-				c.server.executor.CommitTxn <- op
-			} else {
-				log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
-				serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
-				sender := NewCommitRequestSender(request, serverId, c.server)
-				go sender.Send()
+
+			for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
+				if int(pId) == c.server.partitionId {
+					op := NewAbortRequestOp(request)
+					c.server.executor.AbortTxn <- op
+				} else {
+					serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
+					sender := NewAbortRequestSender(request, serverId, c.server)
+					go sender.Send()
+				}
 			}
+
+			break
+		case COMMIT:
+			// unblock the client
+			if info.commitRequest != nil {
+				info.commitRequest.result = true
+				info.commitRequest.wait <- true
+			}
+			// if it is read only txn and optimization is enabled, coordinator only to reply the result to client
+			// do not need to send to partitions, because partitions does not hold the lock of the keys
+			if info.readAndPrepareOp.request.Txn.ReadOnly && c.server.config.GetIsReadOnly() {
+				return
+			}
+
+			partitionWriteKV := make(map[int][]*rpc.KeyValue)
+			for _, kv := range info.commitRequest.request.WriteKeyValList {
+				pId := c.server.config.GetPartitionIdByKey(kv.Key)
+				if _, exist := partitionWriteKV[pId]; !exist {
+					partitionWriteKV[pId] = make([]*rpc.KeyValue, 0)
+				}
+				partitionWriteKV[pId] = append(partitionWriteKV[pId], kv)
+			}
+			partitionReadVersion := make(map[int][]*rpc.KeyVersion)
+			for _, kv := range info.commitRequest.request.ReadKeyVerList {
+				pId := c.server.config.GetPartitionIdByKey(kv.Key)
+				if _, exist := partitionReadVersion[pId]; !exist {
+					partitionReadVersion[pId] = make([]*rpc.KeyVersion, 0)
+				}
+				partitionReadVersion[pId] = append(partitionReadVersion[pId], kv)
+			}
+
+			for _, pId := range info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds {
+				request := &rpc.CommitRequest{
+					TxnId:             info.txnId,
+					WriteKeyValList:   partitionWriteKV[int(pId)],
+					IsCoordinator:     true,
+					ReadKeyVerList:    partitionReadVersion[int(pId)],
+					IsReadAnyReplica:  false,
+					IsFastPathSuccess: info.partitionPrepareResult[int(pId)].isFastPrepare,
+				}
+				if int(pId) == c.server.partitionId {
+					op := NewCommitRequestOp(request)
+					c.server.executor.CommitTxn <- op
+				} else {
+					log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
+					serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
+					sender := NewCommitRequestSender(request, serverId, c.server)
+					go sender.Send()
+				}
+			}
+			break
 		}
-		break
 	}
 }

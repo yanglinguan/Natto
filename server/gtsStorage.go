@@ -116,16 +116,18 @@ func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 		s.txnStore[txnId].status = PREPARED
 	}
 	s.setReadResult(op)
-	// with read-only optimization, do not need send the result to coordinator
+	// with read-only optimization, we do not need to record the prepared
+	// and do not need to replicate
 	if s.server.config.GetIsReadOnly() && op.request.Txn.ReadOnly {
 		if s.txnStore[txnId].inQueue {
 			s.server.executor.ReleaseReadOnlyTxn <- op
 		}
-		return
+		s.setPrepareResult(op, condition)
+	} else {
+		s.recordPrepared(op)
+		s.setPrepareResult(op, condition)
+		s.replicatePreparedResult(op.txnId)
 	}
-	s.recordPrepared(op)
-	s.setPrepareResult(op, condition)
-	s.replicatePreparedResult(op.txnId)
 }
 
 func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
@@ -151,7 +153,6 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	canPrepare := !hasWaiting
 	condition := make(map[int]bool)
 	if op.request.Txn.HighPriority {
-
 		if !hasWaiting {
 			canPrepare, condition = s.checkKeysAvailableForHighPriorityTxn(op)
 		}
@@ -175,6 +176,10 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 		}
 
 	} else {
+		if !op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly() {
+			s.setReadResult(op)
+		}
+
 		if !hasWaiting {
 			canPrepare = s.checkKeysAvailableForLowPriorityTxn(op)
 		}
