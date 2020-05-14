@@ -49,7 +49,7 @@ type Coordinator struct {
 	Replication       chan ReplicationMsg
 	FastPrepareResult chan *FastPrepareResultOp
 
-	sendRequest chan string
+	sendRequest chan *TwoPCInfo
 }
 
 func NewCoordinator(server *Server) *Coordinator {
@@ -63,7 +63,7 @@ func NewCoordinator(server *Server) *Coordinator {
 		AbortRequest:      make(chan *AbortRequestOp, queueLen),
 		Replication:       make(chan ReplicationMsg, queueLen),
 		FastPrepareResult: make(chan *FastPrepareResultOp, queueLen),
-		sendRequest:       make(chan string, queueLen),
+		sendRequest:       make(chan *TwoPCInfo, queueLen),
 	}
 
 	go c.run()
@@ -114,7 +114,7 @@ func (c *Coordinator) handleReplicationMsg(msg ReplicationMsg) {
 		if c.server.IsLeader() {
 			c.txnStore[msg.TxnId].writeDataReplicated = true
 			if c.txnStore[msg.TxnId].status == COMMIT {
-				c.sendRequest <- msg.TxnId
+				c.sendRequest <- c.txnStore[msg.TxnId]
 				//c.sendToParticipantsAndClient(c.txnStore[msg.TxnId])
 			}
 		} else {
@@ -292,7 +292,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 	if info.status == ABORT {
 		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
-			c.sendRequest <- info.txnId
+			c.sendRequest <- info
 			//c.sendToParticipantsAndClient(info)
 		}
 	} else {
@@ -309,7 +309,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				if info.conditionGraph.isCyclic() {
 					log.Debugf("txn %v condition has cycle, abort", info.txnId)
 					info.status = ABORT
-					c.sendRequest <- info.txnId
+					c.sendRequest <- info
 					return
 				}
 				log.Debugf("txn %v no cycle detected", info.txnId)
@@ -318,7 +318,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				// if this is read only txn, it is prepared we do not need to check version
 				// we also do not need to wait client commit request
 				info.status = COMMIT
-				c.sendRequest <- info.txnId
+				c.sendRequest <- info
 				return
 			}
 			// other wise this is read write txn, we need to wait client commit request
@@ -333,7 +333,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			if info.commitRequest.request.IsReadAnyReplica {
 				if !c.checkReadKeyVersion(info) {
 					info.status = ABORT
-					c.sendRequest <- info.txnId
+					c.sendRequest <- info
 					return
 				}
 			}
@@ -341,7 +341,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			log.Debugf("txn %v can commit replicate data %v", info.status)
 			info.status = COMMIT
 			if info.writeDataReplicated {
-				c.sendRequest <- info.txnId
+				c.sendRequest <- info
 			}
 		}
 		//if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
@@ -379,8 +379,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 
 func (c *Coordinator) sendToParticipantsAndClient() {
 	for {
-		txnId := <-c.sendRequest
-		info := c.txnStore[txnId]
+		info := <-c.sendRequest
 		if info.resultSent {
 			log.Debugf("txn %v result is sent", info.txnId)
 			return
