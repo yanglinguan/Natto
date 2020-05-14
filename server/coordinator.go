@@ -338,8 +338,11 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				}
 			}
 
+			log.Debugf("txn %v can commit replicate data %v", info.status)
 			info.status = COMMIT
-			c.sendRequest <- info.txnId
+			if info.writeDataReplicated {
+				c.sendRequest <- info.txnId
+			}
 		}
 		//if info.status == INIT && info.readAndPrepareOp != nil && info.commitRequest != nil &&
 		//	len(info.readAndPrepareOp.request.Txn.ParticipatedPartitionIds) == len(info.partitionPrepareResult) {
@@ -383,6 +386,7 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 			return
 		}
 		info.resultSent = true
+		log.Debugf("txn %v send result %v to client and partition", info.txnId, info.status)
 		switch info.status {
 		case ABORT:
 			if info.commitRequest != nil {
