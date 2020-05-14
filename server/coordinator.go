@@ -331,6 +331,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			// if client read from any replica we need to check the prepared version. if it reads from leader
 			// then we do not need to check the version
 			if info.commitRequest.request.IsReadAnyReplica {
+				log.Debugf("txn %v need to check version", info.txnId)
 				if !c.checkReadKeyVersion(info) {
 					log.Debugf("txn %v version check fail %v", info.txnId)
 					info.status = ABORT
