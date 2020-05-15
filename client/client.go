@@ -133,7 +133,8 @@ func (c *Client) Start() {
 func (c *Client) sendReadAndPrepareRequest() {
 	for {
 		op := <-c.sendTxnRequest
-		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() {
+		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() &&
+			!c.Config.GetPriority() {
 			c.handleReadOnlyRequest(op)
 		} else {
 			c.handleReadAndPrepareRequest(op)
@@ -428,7 +429,9 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 			Timestamp:        maxDelay,
 			ClientId:         "c" + strconv.Itoa(c.clientId),
 		}
-		if request.IsNotParticipant || !c.Config.GetFastPath() {
+
+		if request.IsNotParticipant || (request.Txn.ReadOnly && c.Config.GetIsReadOnly()) ||
+			!c.Config.GetFastPath() {
 			// only send to the leader of non-participant partition
 			sId := c.Config.GetLeaderIdByPartitionId(pId)
 			sender := NewReadAndPrepareSender(request, execution, sId, c)

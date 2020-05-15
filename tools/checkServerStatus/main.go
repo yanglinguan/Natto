@@ -32,7 +32,7 @@ func parseClientLog(client *client.Client) []int {
 	_ = filepath.Walk(dirPath, func(path string, f os.FileInfo, _ error) error {
 		if !f.IsDir() {
 			if filepath.Ext(f.Name()) == ".statistic" {
-				logrus.Debugf("path %v file %v", path, f.Name())
+				//logrus.Debugf("path %v file %v", path, f.Name())
 				files = append(files, path)
 			}
 		}
@@ -42,7 +42,7 @@ func parseClientLog(client *client.Client) []int {
 	result := make([]int, client.Config.GetTotalPartition())
 	for _, fName := range files {
 		lines := readFile(fName)
-		logrus.Debugf("file %v lines %v", fName, len(lines))
+		//logrus.Debugf("file %v lines %v", fName, len(lines))
 		for _, line := range lines {
 			items := strings.Split(line, ",")
 			readOnly, err := strconv.ParseBool(items[7])
