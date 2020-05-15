@@ -233,16 +233,21 @@ func (s AbstractStorage) printCommitOrder() {
 				info.hasWaitingButNoWriteReadConflict,
 			)
 		} else {
-			log.Warnf("txn %v info %v order %v", txnId[i], info, i)
-			line = fmt.Sprintf("%v %v %v %v %v %v %v\n",
-				txnId[i],
-				info.waitingTxnKey,
-				info.waitingTxnDep,
-				info.canReorder,
-				info.isFastPrepare,
-				0,
-				info.hasWaitingButNoWriteReadConflict,
-			)
+			if info == nil {
+				log.Warnf("txn %v info %v order %v total commit %v, len %v",
+					txnId[i], info, i, s.totalCommit, len(s.txnStore))
+			} else {
+
+				line = fmt.Sprintf("%v %v %v %v %v %v %v\n",
+					txnId[i],
+					info.waitingTxnKey,
+					info.waitingTxnDep,
+					info.canReorder,
+					info.isFastPrepare,
+					0,
+					info.hasWaitingButNoWriteReadConflict,
+				)
+			}
 		}
 		_, err = file.WriteString(line)
 		if err != nil {
