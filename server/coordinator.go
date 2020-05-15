@@ -289,6 +289,7 @@ func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
 }
 
 func (c *Coordinator) checkResult(info *TwoPCInfo) {
+	log.Debugf("txn %v check result status %v", info.txnId, info.status)
 	if info.status == ABORT {
 		if info.readAndPrepareOp != nil {
 			log.Infof("txn %v is aborted", info.txnId)
