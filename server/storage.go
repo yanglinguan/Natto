@@ -865,9 +865,9 @@ func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 		}
 		s.initTxnIfNotExist(msg)
 		if !s.server.config.GetFastPath() {
-			if s.txnStore[msg.TxnId].status != INIT {
-				log.Fatalf("txn %v in follower should be INIT but it is %v", msg.TxnId, s.txnStore[msg.TxnId].status)
-			}
+			//if s.txnStore[msg.TxnId].status != INIT {
+			//	log.Fatalf("txn %v in follower should be INIT but it is %v", msg.TxnId, s.txnStore[msg.TxnId].status)
+			//}
 			s.txnStore[msg.TxnId].status = msg.Status
 			break
 		}
