@@ -233,6 +233,7 @@ func (s AbstractStorage) printCommitOrder() {
 				info.hasWaitingButNoWriteReadConflict,
 			)
 		} else {
+			log.Warnf("txn %v info %v", txnId[i], info)
 			line = fmt.Sprintf("%v %v %v %v %v %v %v\n",
 				txnId[i],
 				info.waitingTxnKey,
