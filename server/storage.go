@@ -233,13 +233,10 @@ func (s AbstractStorage) printCommitOrder() {
 				info.hasWaitingButNoWriteReadConflict,
 			)
 		} else {
-			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v\n",
+			line = fmt.Sprintf("%v %v %v %v %v %v %v\n",
 				txnId[i],
 				info.waitingTxnKey,
 				info.waitingTxnDep,
-				info.preparedTime.Sub(info.startTime).Nanoseconds(),
-				info.commitTime.Sub(info.preparedTime).Nanoseconds(),
-				info.commitTime.Sub(info.startTime).Nanoseconds(),
 				info.canReorder,
 				info.isFastPrepare,
 				0,
