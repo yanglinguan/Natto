@@ -26,6 +26,8 @@ func NewPrepareResultSender(request *rpc.PrepareResultRequest, dstServerId int, 
 }
 
 func (p *PrepareResultSender) Send() {
+	logrus.Infof("SEND PrepareResult %v partition %v result %v to %v",
+		p.request.TxnId, p.request.PartitionId, p.request.PrepareStatus, p.dstServerId)
 	conn := p.server.connections[p.dstServerId]
 	logrus.Infof("SEND PrepareResult %v partition %v result %v to %v",
 		p.request.TxnId, p.request.PartitionId, p.request.PrepareStatus, conn.GetDstAddr())
