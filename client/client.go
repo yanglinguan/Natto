@@ -380,6 +380,8 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	leaderIdList := c.Config.GetLeaderIdListByDataCenterId(c.clientDataCenterId)
 	coordinatorPartitionId := c.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
+	logrus.Debugf("txn %v client datacenterId %v local leader %v coordinatorId %v",
+		op.txnId, c.clientDataCenterId, leaderIdList, coordinatorPartitionId)
 	for _, lId := range leaderIdList {
 		pLId := c.Config.GetPartitionIdByServerId(lId)
 		if _, exist := partitionSet[pLId]; exist {

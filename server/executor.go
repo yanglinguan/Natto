@@ -75,6 +75,8 @@ func (e *Executor) sendPreparedResultToCoordinator() {
 		if op.CoordPartitionId == e.server.partitionId {
 			e.server.coordinator.PrepareResult <- op
 		} else {
+			logrus.Debugf("txn %v coordPartitionId %v",
+				op.Request.TxnId, op.CoordPartitionId)
 			coordinatorId := e.server.config.GetLeaderIdByPartitionId(op.CoordPartitionId)
 			if coordinatorId == -1 {
 				logrus.Fatalf("txn %v coordinatorId is invalid coordPartitionId %v",
