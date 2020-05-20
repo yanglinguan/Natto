@@ -123,7 +123,9 @@ func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 			s.server.executor.ReleaseReadOnlyTxn <- op
 		}
 		s.setPrepareResult(op, condition)
-		s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
+		if s.server.config.GetPriority() {
+			s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
+		}
 	} else {
 		s.recordPrepared(op)
 		s.setPrepareResult(op, condition)
