@@ -36,6 +36,7 @@ func NewExecutor(server *Server) *Executor {
 		PrepareResult:  make(chan *PrepareResultOp, queueLen),
 		PrintStatus:    make(chan *PrintStatusRequestOp, 1),
 		ReplicationTxn: make(chan ReplicationMsg, queueLen),
+		TimerExpire:    make(chan *ReadAndPrepareOp, queueLen),
 	}
 
 	go e.run()
