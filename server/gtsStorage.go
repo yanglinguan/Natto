@@ -245,7 +245,7 @@ func (s *GTSStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		}
 		// the state is INIT which means server does not process the txn yet
 		// but it is possible that txn is already in the high priority queue
-		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 && msg.HighPriority {
+		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 {
 			s.removeHighPriorityTxn(msg.TxnId)
 		}
 		break
@@ -268,7 +268,7 @@ func (s *GTSStorage) applyReplicatedCommitResult(msg ReplicationMsg) {
 	case INIT:
 		// the state is INIT which means server does not process the txn yet
 		// but it is possible that txn is already in the high priority queue
-		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 && msg.HighPriority {
+		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 {
 			s.removeHighPriorityTxn(msg.TxnId)
 		}
 		break

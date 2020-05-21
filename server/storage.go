@@ -49,7 +49,7 @@ type ReplicationMsg struct {
 	IsFastPathSuccess       bool
 	IsFromCoordinator       bool
 	TotalCommit             int
-	HighPriority            bool
+	//HighPriority            bool
 }
 
 type TxnInfo struct {
@@ -723,7 +723,7 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 		Status:            s.txnStore[txnId].status,
 		MsgType:           PrepareResultMsg,
 		IsFromCoordinator: false,
-		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
+		//HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 
 	if replicationMsg.Status == PREPARED {
@@ -837,7 +837,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 		IsFromCoordinator: false,
 		WriteData:         writeData,
 		IsFastPathSuccess: s.txnStore[txnId].isFastPrepare,
-		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
+		//HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
