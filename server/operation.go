@@ -35,6 +35,10 @@ type ReadAndPrepareOp struct {
 
 	passedTimestamp bool
 	txnId           string
+
+	selfAbort    bool // true: there is a conflict high priority txn within
+	allReadKeys  map[string]bool
+	allWriteKeys map[string]bool
 }
 
 func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareOp {
@@ -84,6 +88,8 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *Re
 		otherPartitionWriteKey: make([]string, 0),
 		passedTimestamp:        false,
 		txnId:                  request.Txn.TxnId,
+		allReadKeys:            make(map[string]bool),
+		allWriteKeys:           make(map[string]bool),
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
@@ -100,6 +106,12 @@ func (o *ReadAndPrepareOp) processKey(keys []string, server *Server, keyType Key
 		}
 		o.partitionKeys[pId][key] = true
 		o.allKeys[key] = true
+		if keyType == WRITE {
+			o.allWriteKeys[key] = false
+		} else if keyType == READ {
+			o.allReadKeys[key] = false
+		}
+
 		if !server.storage.HasKey(key) {
 			if keyType == WRITE {
 				o.otherPartitionWriteKey = append(o.otherPartitionWriteKey, key)

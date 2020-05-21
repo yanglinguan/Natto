@@ -18,18 +18,20 @@ func (s *NoScheduler) Schedule(op *ReadAndPrepareOp) {
 }
 
 type TimestampScheduler struct {
-	server        *Server
-	priorityQueue *PriorityQueue
-	pendingOp     chan *ReadAndPrepareOp
-	timer         *time.Timer
+	server          *Server
+	priorityQueue   *PriorityQueue
+	pendingOp       chan *ReadAndPrepareOp
+	timer           *time.Timer
+	highPriorityBST *BinarySearchTree
 }
 
 func NewTimestampScheduler(server *Server) *TimestampScheduler {
 	ts := &TimestampScheduler{
-		server:        server,
-		priorityQueue: NewPriorityQueue(),
-		pendingOp:     make(chan *ReadAndPrepareOp, server.config.GetQueueLen()),
-		timer:         time.NewTimer(0),
+		server:          server,
+		priorityQueue:   NewPriorityQueue(),
+		pendingOp:       make(chan *ReadAndPrepareOp, server.config.GetQueueLen()),
+		timer:           time.NewTimer(0),
+		highPriorityBST: NewBinarySearchTree(server.config.GetTimeWindow()),
 	}
 
 	go ts.run()
@@ -53,11 +55,17 @@ func (ts *TimestampScheduler) resetTimer() {
 		nextTime := nextOp.request.Timestamp
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
+			op := ts.priorityQueue.Pop()
 			if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
-				ts.server.executor.TimerExpire <- ts.priorityQueue.Pop()
-			} else {
-				ts.server.executor.PrepareTxn <- ts.priorityQueue.Pop()
+				if op.request.Txn.HighPriority {
+					ts.highPriorityBST.Remove(op)
+				} else {
+					if ts.highPriorityBST.SearchConflictTxnWithinTimeWindow(op) {
+						op.selfAbort = true
+					}
+				}
 			}
+			ts.server.executor.PrepareTxn <- op
 		} else {
 			ts.timer.Reset(time.Duration(diff))
 			break
@@ -75,6 +83,9 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 	}
 
 	ts.priorityQueue.Push(op)
+	if op.request.Txn.HighPriority && ts.server.config.GetTimeWindow() > 0 {
+		ts.highPriorityBST.Insert(op)
+	}
 	if op.index == 0 {
 		if !ts.timer.Stop() && len(ts.timer.C) > 0 {
 			<-ts.timer.C
