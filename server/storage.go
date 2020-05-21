@@ -804,7 +804,7 @@ func (s *AbstractStorage) Abort(op *AbortRequestOp) {
 			status:                  ABORT,
 			receiveFromCoordinator:  true,
 		}
-		if s.server.config.GetPriority() && txnInfo.readAndPrepareRequestOp.request.Txn.HighPriority {
+		if s.server.config.GetPriority() {
 			s.removeHighPriorityTxn(txnId)
 		}
 		s.replicateCommitResult(txnId, nil)
