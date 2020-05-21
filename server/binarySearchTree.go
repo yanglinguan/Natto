@@ -85,7 +85,11 @@ func search(n *Node, op *ReadAndPrepareOp, timeWindow time.Duration) bool {
 
 	hTm := time.Unix(n.op.request.Timestamp, 0)
 	lTm := time.Unix(op.request.Timestamp, 0)
-	if lTm.Sub(hTm) < timeWindow {
+	duration := lTm.Sub(hTm)
+	if duration < 0 {
+		duration = hTm.Sub(lTm)
+	}
+	if duration < timeWindow {
 		if conflict(op, n.op) {
 			return true
 		}
