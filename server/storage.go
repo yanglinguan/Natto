@@ -555,14 +555,17 @@ func (s *AbstractStorage) findOverlapPartitionsWithLowPriorityTxn(op *ReadAndPre
 
 func (s *AbstractStorage) checkKeysAvailableForLowPriorityTxn(op *ReadAndPrepareOp) bool {
 	// check if there is a high priority txn with in 10ms
-	highTxn := s.highPriorityTxnQueue.Front().Value.(*ReadAndPrepareOp)
-	hTm := time.Unix(highTxn.request.Timestamp, 0)
-	lTm := time.Unix(op.request.Timestamp, 0)
-	if lTm.Sub(hTm) < s.server.config.GetTimeWindow() {
-		log.Debugf("txn %v is low priority within %vms there is a high priority txn %v",
-			op.txnId, 10, highTxn.txnId)
-		return false
+	if s.highPriorityTxnQueue.Len() > 0 {
+		highTxn := s.highPriorityTxnQueue.Front().Value.(*ReadAndPrepareOp)
+		hTm := time.Unix(highTxn.request.Timestamp, 0)
+		lTm := time.Unix(op.request.Timestamp, 0)
+		if lTm.Sub(hTm) < s.server.config.GetTimeWindow() {
+			log.Debugf("txn %v is low priority within %vms there is a high priority txn %v",
+				op.txnId, 10, highTxn.txnId)
+			return false
+		}
 	}
+
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 || len(s.kvStore[rk].PreparedTxnWrite) > 0 {
 			log.Debugf("txn %v (read) : there is txn holding (write) hold key %v", op.txnId, rk)
