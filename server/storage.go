@@ -560,7 +560,7 @@ func (s *AbstractStorage) checkKeysAvailableForLowPriorityTxn(op *ReadAndPrepare
 		hTm := time.Unix(highTxn.request.Timestamp, 0)
 		lTm := time.Unix(op.request.Timestamp, 0)
 		if lTm.Sub(hTm) < s.server.config.GetTimeWindow() {
-			log.Debugf("txn %v is low priority within %vms there is a high priority txn %v",
+			log.Warnf("txn %v is low priority within %vms there is a high priority txn %v",
 				op.txnId, 10, highTxn.txnId)
 			return false
 		}
