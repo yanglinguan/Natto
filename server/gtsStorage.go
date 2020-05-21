@@ -156,6 +156,11 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	canPrepare := !hasWaiting
 	condition := make(map[int]bool)
 	if op.request.Txn.HighPriority {
+		// remove from high priority queue
+		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 {
+			s.removeHighPriorityTxn(op.txnId)
+		}
+
 		if !hasWaiting {
 			canPrepare, condition = s.checkKeysAvailableForHighPriorityTxn(op)
 		}
@@ -238,6 +243,11 @@ func (s *GTSStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
 		if msg.Status == PREPARED {
 			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		}
+		// the state is INIT which means server does not process the txn yet
+		// but it is possible that txn is already in the high priority queue
+		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 && msg.HighPriority {
+			s.removeHighPriorityTxn(msg.TxnId)
+		}
 		break
 	}
 }
@@ -250,9 +260,18 @@ func (s *GTSStorage) applyReplicatedCommitResult(msg ReplicationMsg) {
 	switch s.txnStore[msg.TxnId].status {
 	case PREPARED, CONDITIONAL_PREPARED:
 		s.releaseKeyAndCheckPrepare(msg.TxnId)
+		break
 	case WAITING:
 		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
 		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
+		break
+	case INIT:
+		// the state is INIT which means server does not process the txn yet
+		// but it is possible that txn is already in the high priority queue
+		if s.server.config.GetPriority() && s.server.config.GetTimeWindow() > 0 && msg.HighPriority {
+			s.removeHighPriorityTxn(msg.TxnId)
+		}
+		break
 	}
 	s.txnStore[msg.TxnId].status = msg.Status
 	if msg.Status == COMMIT {

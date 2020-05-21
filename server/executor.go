@@ -22,6 +22,8 @@ type Executor struct {
 	ReplicationTxn chan ReplicationMsg
 
 	ReleaseReadOnlyTxn chan *ReadAndPrepareOp
+
+	TimerExpire chan *ReadAndPrepareOp
 }
 
 func NewExecutor(server *Server) *Executor {
@@ -51,6 +53,11 @@ func NewExecutor(server *Server) *Executor {
 func (e *Executor) run() {
 	for {
 		select {
+		case op := <-e.TimerExpire:
+			if op.request.Txn.HighPriority {
+				e.server.storage.AddHighPriorityTxn(op)
+			}
+			e.PrepareTxn <- op
 		case op := <-e.PrepareTxn:
 			e.server.storage.Prepare(op)
 		case op := <-e.AbortTxn:

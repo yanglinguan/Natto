@@ -35,6 +35,7 @@
     "totalTxn": 1000,
     "zipfAlpha": 0.75,
     "targetRate": 100,
+    "timeWindow": 10,
     "workload": {
       "type": "ycsbt",
       "retwis": {

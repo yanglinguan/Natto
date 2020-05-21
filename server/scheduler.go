@@ -53,7 +53,11 @@ func (ts *TimestampScheduler) resetTimer() {
 		nextTime := nextOp.request.Timestamp
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
-			ts.server.executor.PrepareTxn <- ts.priorityQueue.Pop()
+			if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
+				ts.server.executor.TimerExpire <- ts.priorityQueue.Pop()
+			} else {
+				ts.server.executor.PrepareTxn <- ts.priorityQueue.Pop()
+			}
 		} else {
 			ts.timer.Reset(time.Duration(diff))
 			break

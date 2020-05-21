@@ -52,6 +52,7 @@ type Configuration interface {
 	GetSuperMajority() int
 	GetIsReadOnly() bool
 	GetCheckWaiting() bool
+	GetTimeWindow() time.Duration
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -164,6 +165,7 @@ type FileConfiguration struct {
 
 	highPriorityRate int
 	targetRate       int // client sends at this target rate
+	timeWindow       time.Duration
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -373,6 +375,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.isReplication = v.(bool)
 		} else if key == "targetRate" {
 			f.targetRate = int(v.(float64))
+		} else if key == "timeWindow" {
+			f.timeWindow = time.Duration(int64(v.(float64)) * int64(time.Millisecond))
 		}
 	}
 }
@@ -678,4 +682,8 @@ func (f *FileConfiguration) GetHighPriorityRate() int {
 
 func (f *FileConfiguration) GetTargetRate() int {
 	return f.targetRate
+}
+
+func (f *FileConfiguration) GetTimeWindow() time.Duration {
+	return f.timeWindow
 }

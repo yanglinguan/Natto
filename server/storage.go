@@ -49,6 +49,7 @@ type ReplicationMsg struct {
 	IsFastPathSuccess       bool
 	IsFromCoordinator       bool
 	TotalCommit             int
+	HighPriority            bool
 }
 
 type TxnInfo struct {
@@ -90,6 +91,7 @@ type Storage interface {
 	HasKey(key string) bool
 	ApplyReplicationMsg(msg ReplicationMsg)
 	ReleaseReadOnly(op *ReadAndPrepareOp)
+	AddHighPriorityTxn(op *ReadAndPrepareOp)
 }
 
 type AbstractMethod interface {
@@ -130,16 +132,21 @@ type AbstractStorage struct {
 
 	// reorder the high priority txn at index 0, low priority txn at index 1
 	otherPartitionKey map[string]*PriorityTxnInfo
+
+	highPriorityTxnQueue *list.List
+	highPriorityTxnMap   map[string]*list.Element
 }
 
 func NewAbstractStorage(server *Server) *AbstractStorage {
 	s := &AbstractStorage{
-		kvStore:           make(map[string]*KeyInfo),
-		server:            server,
-		txnStore:          make(map[string]*TxnInfo),
-		committed:         0,
-		totalCommit:       0,
-		otherPartitionKey: make(map[string]*PriorityTxnInfo),
+		kvStore:              make(map[string]*KeyInfo),
+		server:               server,
+		txnStore:             make(map[string]*TxnInfo),
+		committed:            0,
+		totalCommit:          0,
+		otherPartitionKey:    make(map[string]*PriorityTxnInfo),
+		highPriorityTxnQueue: list.New(),
+		highPriorityTxnMap:   make(map[string]*list.Element),
 	}
 
 	return s
@@ -547,6 +554,15 @@ func (s *AbstractStorage) findOverlapPartitionsWithLowPriorityTxn(op *ReadAndPre
 }
 
 func (s *AbstractStorage) checkKeysAvailableForLowPriorityTxn(op *ReadAndPrepareOp) bool {
+	// check if there is a high priority txn with in 10ms
+	highTxn := s.highPriorityTxnQueue.Front().Value.(*ReadAndPrepareOp)
+	hTm := time.Unix(highTxn.request.Timestamp, 0)
+	lTm := time.Unix(op.request.Timestamp, 0)
+	if lTm.Sub(hTm) < s.server.config.GetTimeWindow() {
+		log.Debugf("txn %v is low priority within %vms there is a high priority txn %v",
+			op.txnId, 10, highTxn.txnId)
+		return false
+	}
 	for rk := range op.readKeyMap {
 		if len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 || len(s.kvStore[rk].PreparedTxnWrite) > 0 {
 			log.Debugf("txn %v (read) : there is txn holding (write) hold key %v", op.txnId, rk)
@@ -704,6 +720,7 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 		Status:            s.txnStore[txnId].status,
 		MsgType:           PrepareResultMsg,
 		IsFromCoordinator: false,
+		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 
 	if replicationMsg.Status == PREPARED {
@@ -784,6 +801,9 @@ func (s *AbstractStorage) Abort(op *AbortRequestOp) {
 			status:                  ABORT,
 			receiveFromCoordinator:  true,
 		}
+		if s.server.config.GetPriority() && txnInfo.readAndPrepareRequestOp.request.Txn.HighPriority {
+			s.removeHighPriorityTxn(txnId)
+		}
 		s.replicateCommitResult(txnId, nil)
 	}
 }
@@ -814,6 +834,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 		IsFromCoordinator: false,
 		WriteData:         writeData,
 		IsFastPathSuccess: s.txnStore[txnId].isFastPrepare,
+		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
@@ -902,4 +923,19 @@ func (s *AbstractStorage) ApplyReplicationMsg(msg ReplicationMsg) {
 		log.Fatalf("invalid msg type %v", msg.Status)
 		break
 	}
+}
+
+func (s *AbstractStorage) AddHighPriorityTxn(op *ReadAndPrepareOp) {
+	e := s.highPriorityTxnQueue.PushBack(op)
+	s.highPriorityTxnMap[op.txnId] = e
+}
+
+func (s *AbstractStorage) removeHighPriorityTxn(txnId string) {
+	if _, exist := s.highPriorityTxnMap[txnId]; !exist {
+		log.Debugf("txn %v high priority does not exist in queue", txnId)
+		return
+	}
+
+	e := s.highPriorityTxnMap[txnId]
+	s.highPriorityTxnQueue.Remove(e)
 }
