@@ -89,9 +89,10 @@ func search(n *Node, op *ReadAndPrepareOp, timeWindow time.Duration) bool {
 	duration := lTm.Sub(hTm)
 
 	if duration < 0 {
+		logrus.Warnf("here")
 		duration = hTm.Sub(lTm)
 	}
-	logrus.Warnf("duration of txn %v and txn %v is %v", op.txnId, n.op.txnId)
+	logrus.Warnf("duration of txn %v and txn %v is %v", op.txnId, n.op.txnId, duration)
 	if duration < timeWindow {
 		if conflict(op, n.op) {
 			return true
