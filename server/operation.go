@@ -56,6 +56,8 @@ func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *R
 		sendToCoordinator: false,
 		passedTimestamp:   false,
 		txnId:             msg.TxnId,
+		allReadKeys:       make(map[string]bool),
+		allWriteKeys:      make(map[string]bool),
 	}
 	readKeyList := make([]string, len(msg.PreparedReadKeyVersion))
 	for i, kv := range msg.PreparedReadKeyVersion {
