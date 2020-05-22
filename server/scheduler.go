@@ -18,20 +18,20 @@ func (s *NoScheduler) Schedule(op *ReadAndPrepareOp) {
 }
 
 type TimestampScheduler struct {
-	server          *Server
-	priorityQueue   *PriorityQueue
-	pendingOp       chan *ReadAndPrepareOp
-	timer           *time.Timer
-	highPriorityBST *BinarySearchTree
+	server         *Server
+	priorityQueue  *PriorityQueue
+	pendingOp      chan *ReadAndPrepareOp
+	timer          *time.Timer
+	highPrioritySL *SkipList
 }
 
 func NewTimestampScheduler(server *Server) *TimestampScheduler {
 	ts := &TimestampScheduler{
-		server:          server,
-		priorityQueue:   NewPriorityQueue(),
-		pendingOp:       make(chan *ReadAndPrepareOp, server.config.GetQueueLen()),
-		timer:           time.NewTimer(0),
-		highPriorityBST: NewBinarySearchTree(server.config.GetTimeWindow()),
+		server:         server,
+		priorityQueue:  NewPriorityQueue(),
+		pendingOp:      make(chan *ReadAndPrepareOp, server.config.GetQueueLen()),
+		timer:          time.NewTimer(0),
+		highPrioritySL: NewSkipList(),
 	}
 
 	go ts.run()
@@ -49,6 +49,53 @@ func (ts *TimestampScheduler) run() {
 	}
 }
 
+func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
+	log.Warnf("find conflict txn %v txn %v", low, high)
+	for rk := range low.allReadKeys {
+		if _, exist := high.allReadKeys[rk]; exist {
+			log.Debugf("key %v : txn (low) %v read and txn (high) %v write", rk, low.txnId, high.txnId)
+			return true
+		}
+	}
+
+	for wk := range low.allWriteKeys {
+		if _, exist := high.allWriteKeys[wk]; exist {
+			return true
+		}
+		if _, exist := high.allReadKeys[wk]; exist {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareOp) {
+	cur := ts.highPrioritySL.Search(op, op.request.Timestamp)
+	for cur.forwards[0] != nil {
+		// if the high priority txn has smaller timestamp, then check the next one
+		// the low priority does not affect the high priority
+		if cur.forwards[0].score < op.request.Timestamp {
+			cur = cur.forwards[0]
+			continue
+		}
+
+		hTm := time.Unix(cur.forwards[0].score, 0)
+		lTm := time.Unix(op.request.Timestamp, 0)
+		duration := hTm.Sub(lTm)
+		if duration <= ts.server.config.GetTimeWindow() {
+			if conflict(op, cur.forwards[0].v.(*ReadAndPrepareOp)) {
+				op.selfAbort = true
+				break
+			}
+		} else {
+			// if over the time window, break
+			break
+		}
+		cur = cur.forwards[0]
+	}
+}
+
 func (ts *TimestampScheduler) resetTimer() {
 	nextOp := ts.priorityQueue.Peek()
 	for nextOp != nil {
@@ -58,12 +105,9 @@ func (ts *TimestampScheduler) resetTimer() {
 			op := ts.priorityQueue.Pop()
 			if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
 				if op.request.Txn.HighPriority {
-					ts.highPriorityBST.Remove(op)
+					ts.highPrioritySL.Delete(op, op.request.Timestamp)
 				} else {
-					if ts.highPriorityBST.SearchConflictTxnWithinTimeWindow(op) {
-						log.Warnf("txn %v low priority abort because high priority")
-						op.selfAbort = true
-					}
+
 				}
 			}
 			ts.server.executor.PrepareTxn <- op
@@ -85,7 +129,7 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 
 	ts.priorityQueue.Push(op)
 	if op.request.Txn.HighPriority && ts.server.config.GetTimeWindow() > 0 {
-		ts.highPriorityBST.Insert(op)
+		ts.highPrioritySL.Insert(op, op.request.Timestamp)
 	}
 	if op.index == 0 {
 		if !ts.timer.Stop() && len(ts.timer.C) > 0 {
