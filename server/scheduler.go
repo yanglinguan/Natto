@@ -61,6 +61,7 @@ func (ts *TimestampScheduler) resetTimer() {
 					ts.highPriorityBST.Remove(op)
 				} else {
 					if ts.highPriorityBST.SearchConflictTxnWithinTimeWindow(op) {
+						log.Warnf("txn %v low priority abort because high priority")
 						op.selfAbort = true
 					}
 				}
