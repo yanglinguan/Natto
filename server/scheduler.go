@@ -72,6 +72,9 @@ func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
 
 func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareOp) {
 	cur := ts.highPrioritySL.Search(op, op.request.Timestamp)
+	if cur == nil {
+		return
+	}
 	//log.Warnf("%v", cur.forwards[0])
 	for cur.forwards[0] != nil {
 		//log.Warnf("here")

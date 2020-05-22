@@ -7,6 +7,8 @@ import (
 func TestSkipList(t *testing.T) {
 	sl := NewSkipList()
 
+	t.Log(sl.Search("jack", 87))
+	t.Log("-----------------------------")
 	sl.Insert("leo", 95)
 	t.Log(sl.head.forwards[0])
 	t.Log(sl.head.forwards[0].forwards[0])
