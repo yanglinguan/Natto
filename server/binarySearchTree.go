@@ -55,6 +55,7 @@ func insertNode(node, newNode *Node) {
 }
 
 func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
+	logrus.Warnf("find conflict txn %v txn %v", low, high)
 	for rk := range low.allReadKeys {
 		if _, exist := high.allReadKeys[rk]; exist {
 			logrus.Debugf("key %v : txn (low) %v read and txn (high) %v write", rk, low.txnId, high.txnId)
@@ -86,14 +87,21 @@ func search(n *Node, op *ReadAndPrepareOp, timeWindow time.Duration) bool {
 	hTm := time.Unix(n.op.request.Timestamp, 0)
 	lTm := time.Unix(op.request.Timestamp, 0)
 	duration := lTm.Sub(hTm)
+
 	if duration < 0 {
 		duration = hTm.Sub(lTm)
 	}
+	logrus.Warnf("duration of txn %v and txn %v is %v", op.txnId, n.op.txnId)
 	if duration < timeWindow {
 		if conflict(op, n.op) {
 			return true
 		}
-		return search(n.left, op, timeWindow) || search(n.right, op, timeWindow)
+		hasConflict := search(n.left, op, timeWindow)
+		if hasConflict {
+			return true
+		} else {
+			return search(n.right, op, timeWindow)
+		}
 	} else {
 		return search(n.left, op, timeWindow)
 	}

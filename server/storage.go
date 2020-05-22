@@ -221,7 +221,7 @@ func (s AbstractStorage) printCommitOrder() {
 	for i, info := range txnInfo {
 		line := ""
 		if s.server.IsLeader() {
-			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v\n",
+			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v\n",
 				txnId[i],
 				info.waitingTxnKey,
 				info.waitingTxnDep,
@@ -232,6 +232,7 @@ func (s AbstractStorage) printCommitOrder() {
 				info.isFastPrepare,
 				info.readAndPrepareRequestOp.request.Timestamp,
 				info.hasWaitingButNoWriteReadConflict,
+				info.commitOrder,
 			)
 		} else {
 			if info == nil {
