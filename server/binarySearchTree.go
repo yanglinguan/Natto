@@ -93,7 +93,7 @@ func search(n *Node, op *ReadAndPrepareOp, timeWindow time.Duration) bool {
 		if conflict(op, n.op) {
 			return true
 		}
-		return search(n.left, op, timeWindow) && search(n.right, op, timeWindow)
+		return search(n.left, op, timeWindow) || search(n.right, op, timeWindow)
 	} else {
 		return search(n.left, op, timeWindow)
 	}
