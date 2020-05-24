@@ -52,7 +52,7 @@ func (ts *TimestampScheduler) run() {
 func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
 	//log.Warnf("find conflict txn %v txn %v", low, high)
 	for rk := range low.allReadKeys {
-		if _, exist := high.allReadKeys[rk]; exist {
+		if _, exist := high.allWriteKeys[rk]; exist {
 			log.Debugf("key %v : txn (low) %v read and txn (high) %v write", rk, low.txnId, high.txnId)
 			return true
 		}
@@ -89,10 +89,11 @@ func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepar
 		//lTm := time.Unix(op.request.Timestamp, 0)
 		duration := time.Duration(cur.forwards[0].score - op.request.Timestamp)
 		//duration := hTm.Sub(lTm)
-		//log.Warnf("high txn %v and low txn %v duration %v, %v %v", cur.forwards[0].v.(*ReadAndPrepareOp).txnId, op.txnId, duration)
+		log.Warnf("here1: high txn %v and low txn %v duration %v, %v %v", cur.forwards[0].v.(*ReadAndPrepareOp).txnId, op.txnId, duration)
 		if duration <= ts.server.config.GetTimeWindow() {
+			log.Warnf("here2: txn %v within duration", op.txnId)
 			if conflict(op, cur.forwards[0].v.(*ReadAndPrepareOp)) {
-				log.Warnf("txn %v self abort because of high priority txn %v",
+				log.Warnf("here3: txn %v self abort because of high priority txn %v",
 					op.txnId, cur.forwards[0].v.(*ReadAndPrepareOp).txnId)
 				op.selfAbort = true
 				break
