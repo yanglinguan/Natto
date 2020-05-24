@@ -214,7 +214,7 @@ func (s AbstractStorage) printAllTxn() {
 	for txnId, info := range s.txnStore {
 		line := ""
 		if s.server.IsLeader() {
-			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v %v\n",
+			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v\n",
 				txnId,
 				info.waitingTxnKey,
 				info.waitingTxnDep,
@@ -223,7 +223,7 @@ func (s AbstractStorage) printAllTxn() {
 				info.commitTime.Sub(info.startTime).Nanoseconds(),
 				info.canReorder,
 				info.isFastPrepare,
-				info.readAndPrepareRequestOp.request.Timestamp,
+				//info.readAndPrepareRequestOp.request.Timestamp,
 				info.hasWaitingButNoWriteReadConflict,
 				info.commitOrder,
 				info.selfAbort,
