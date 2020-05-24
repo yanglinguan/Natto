@@ -199,7 +199,59 @@ func (s *AbstractStorage) print() {
 		s.checkWaiting()
 		s.printCommitOrder()
 		s.printModifiedData()
+		s.printAllTxn()
 		s.waitPrintStatusRequest.wait <- true
+	}
+}
+
+func (s AbstractStorage) printAllTxn() {
+	fName := fmt.Sprintf("s%v_%v_allTxn.log", s.server.serverId, s.server.IsLeader())
+	file, err := os.Create(fName)
+	if err != nil || file == nil {
+		log.Fatal("Fails to create log file: statistic.log")
+		return
+	}
+	for txnId, info := range s.txnStore {
+		line := ""
+		if s.server.IsLeader() {
+			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v %v\n",
+				txnId,
+				info.waitingTxnKey,
+				info.waitingTxnDep,
+				info.preparedTime.Sub(info.startTime).Nanoseconds(),
+				info.commitTime.Sub(info.preparedTime).Nanoseconds(),
+				info.commitTime.Sub(info.startTime).Nanoseconds(),
+				info.canReorder,
+				info.isFastPrepare,
+				info.readAndPrepareRequestOp.request.Timestamp,
+				info.hasWaitingButNoWriteReadConflict,
+				info.commitOrder,
+				info.selfAbort,
+			)
+		} else {
+			if info == nil {
+				log.Warnf("txn %v info %v total commit %v, len %v",
+					txnId, info, s.totalCommit, len(s.txnStore))
+			} else {
+				line = fmt.Sprintf("%v %v %v %v %v %v %v\n",
+					txnId,
+					info.waitingTxnKey,
+					info.waitingTxnDep,
+					info.canReorder,
+					info.isFastPrepare,
+					0,
+					info.hasWaitingButNoWriteReadConflict,
+				)
+			}
+		}
+		_, err = file.WriteString(line)
+		if err != nil {
+			log.Fatalf("Cannot write to file %v", err)
+		}
+	}
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v", err)
 	}
 }
 
