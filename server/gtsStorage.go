@@ -154,6 +154,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 
 	if op.selfAbort {
 		s.txnStore[txnId].status = ABORT
+		s.txnStore[txnId].selfAbort = true
 		log.Debugf("txn %v self aborted", txnId)
 		//	s.setReadResult(op)
 		s.selfAbort(op)

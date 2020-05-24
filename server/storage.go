@@ -69,6 +69,7 @@ type TxnInfo struct {
 	isFastPrepare                    bool
 	inQueue                          bool
 	hasWaitingButNoWriteReadConflict bool
+	selfAbort                        bool
 }
 
 type KeyInfo struct {
@@ -221,7 +222,7 @@ func (s AbstractStorage) printCommitOrder() {
 	for i, info := range txnInfo {
 		line := ""
 		if s.server.IsLeader() {
-			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v\n",
+			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v %v\n",
 				txnId[i],
 				info.waitingTxnKey,
 				info.waitingTxnDep,
@@ -233,6 +234,7 @@ func (s AbstractStorage) printCommitOrder() {
 				info.readAndPrepareRequestOp.request.Timestamp,
 				info.hasWaitingButNoWriteReadConflict,
 				info.commitOrder,
+				info.selfAbort,
 			)
 		} else {
 			if info == nil {
