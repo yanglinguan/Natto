@@ -50,7 +50,7 @@ func (ts *TimestampScheduler) run() {
 }
 
 func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
-	log.Warnf("find conflict txn %v txn %v", low, high)
+	//log.Warnf("find conflict txn %v txn %v", low, high)
 	for rk := range low.allReadKeys {
 		if _, exist := high.allReadKeys[rk]; exist {
 			log.Debugf("key %v : txn (low) %v read and txn (high) %v write", rk, low.txnId, high.txnId)
