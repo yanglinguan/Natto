@@ -92,7 +92,8 @@ func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepar
 		//log.Warnf("high txn %v and low txn %v duration %v, %v %v", cur.forwards[0].v.(*ReadAndPrepareOp).txnId, op.txnId, duration)
 		if duration <= ts.server.config.GetTimeWindow() {
 			if conflict(op, cur.forwards[0].v.(*ReadAndPrepareOp)) {
-				//log.Warnf("txn %v self abort because of high priority txn")
+				log.Warnf("txn %v self abort because of high priority txn %v",
+					op.txnId, cur.forwards[0].v.(*ReadAndPrepareOp).txnId)
 				op.selfAbort = true
 				break
 			}
