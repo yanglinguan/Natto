@@ -74,29 +74,31 @@ func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
 
 func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareOp) {
 	cur := ts.highPrioritySL.Search(op, op.request.Timestamp)
-	if cur == nil {
-		return
-	}
+
 	//log.Warnf("txn %v : %v", op.txnId, cur.forwards[0])
-	for cur.forwards[0] != nil {
+	for cur != nil {
+		if cur.v == nil {
+			cur = cur.forwards[0]
+			continue
+		}
 		//log.Warnf("here")
 		// if the high priority txn has smaller timestamp, then check the next one
 		// the low priority does not affect the high priority
-		if cur.forwards[0].score < op.request.Timestamp {
+		if cur.score < op.request.Timestamp {
 			cur = cur.forwards[0]
 			continue
 		}
 
 		//hTm := time.Unix(cur.forwards[0].score, 0)
 		//lTm := time.Unix(op.request.Timestamp, 0)
-		duration := time.Duration(cur.forwards[0].score - op.request.Timestamp)
+		duration := time.Duration(cur.score - op.request.Timestamp)
 		//duration := hTm.Sub(lTm)
-		log.Warnf("here1: high txn %v and low txn %v duration %v, %v %v", cur.forwards[0].v.(*ReadAndPrepareOp).txnId, op.txnId, duration)
+		log.Warnf("here1: high txn %v and low txn %v duration %v, %v %v", cur.v.(*ReadAndPrepareOp).txnId, op.txnId, duration)
 		if duration <= ts.server.config.GetTimeWindow() {
 			log.Warnf("here2: txn %v within duration", op.txnId)
-			if conflict(op, cur.forwards[0].v.(*ReadAndPrepareOp)) {
+			if conflict(op, cur.v.(*ReadAndPrepareOp)) {
 				log.Warnf("here3: txn %v self abort because of high priority txn %v",
-					op.txnId, cur.forwards[0].v.(*ReadAndPrepareOp).txnId)
+					op.txnId, cur.v.(*ReadAndPrepareOp).txnId)
 				op.selfAbort = true
 				break
 			}
