@@ -134,11 +134,17 @@ func (ts *TimestampScheduler) resetTimer() {
 }
 
 func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
+	if !op.request.Txn.HighPriority && !ts.server.config.GetAssignLowPriorityTimestamp() {
+		if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
+			ts.checkConflictWithHighPriorityTxn(op)
+		}
+		ts.server.executor.PrepareTxn <- op
+		return
+	}
+
 	if op.request.Timestamp < time.Now().UnixNano() {
 		log.Infof("PASS Current time %v", op.txnId)
 		op.passedTimestamp = true
-		//ts.server.executor.AbortTxn <- NewAbortRequestOp(nil, op, false)
-		//return
 	}
 
 	ts.priorityQueue.Push(op)

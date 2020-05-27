@@ -251,7 +251,7 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
-	if c.Config.GetPriority() {
+	if c.Config.GetPriority() && !c.Config.GetAssignLowPriorityTimestamp() {
 		for _, key := range op.readKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
 			logrus.Debugf("read key %v, pId %v", key, pId)

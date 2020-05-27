@@ -490,8 +490,10 @@ func (s *AbstractStorage) releaseKey(txnId string) {
 			continue
 		}
 		if highPriority {
+			log.Debugf("txn %v release other ready key %v high", txnId, rk)
 			delete(s.otherPartitionKey[rk].highPriorityTxnRead, txnId)
 		} else {
+			log.Debugf("txn %v release other ready key %v high", txnId, rk)
 			delete(s.otherPartitionKey[rk].lowPriorityTxnRead, txnId)
 		}
 	}

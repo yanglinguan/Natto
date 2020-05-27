@@ -53,6 +53,7 @@ type Configuration interface {
 	GetIsReadOnly() bool
 	GetCheckWaiting() bool
 	GetTimeWindow() time.Duration
+	GetAssignLowPriorityTimestamp() bool
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -163,9 +164,10 @@ type FileConfiguration struct {
 
 	checkWaiting bool // for gts-graph, check the waiting txn there is write-read conflict
 
-	highPriorityRate int
-	targetRate       int // client sends at this target rate
-	timeWindow       time.Duration
+	highPriorityRate           int
+	targetRate                 int // client sends at this target rate
+	timeWindow                 time.Duration
+	AssignLowPriorityTimeStamp bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -377,6 +379,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.targetRate = int(v.(float64))
 		} else if key == "timeWindow" {
 			f.timeWindow = time.Duration(int64(v.(float64)) * int64(time.Millisecond))
+		} else if key == "lowPriorityTxnTimestamp" {
+			f.AssignLowPriorityTimeStamp = v.(bool)
 		}
 	}
 }
@@ -686,4 +690,8 @@ func (f *FileConfiguration) GetTargetRate() int {
 
 func (f *FileConfiguration) GetTimeWindow() time.Duration {
 	return f.timeWindow
+}
+
+func (f *FileConfiguration) GetAssignLowPriorityTimestamp() bool {
+	return f.AssignLowPriorityTimeStamp
 }

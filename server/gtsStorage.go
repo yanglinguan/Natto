@@ -75,33 +75,55 @@ func (s *GTSStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) 
 	// readKeyMap store the keys in this partition
 	// read-write conflict
 
-	for rk := range op.readKeyMap {
-		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-			// there is high priority txn before it
-			log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
-				op.txnId, rk)
-			return false, make(map[int]bool)
+	if s.server.config.GetAssignLowPriorityTimestamp() {
+		for rk := range op.readKeyMap {
+			if len(s.kvStore[rk].PreparedTxnWrite) > 0 || len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 {
+				return false, make(map[int]bool)
+			}
 		}
-	}
 
-	// write-read, write-write conflict
-	for wk := range op.writeKeyMap {
-		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
-			log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
-				op.txnId, wk)
-			return false, make(map[int]bool)
+		for wk := range op.writeKeyMap {
+			if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnWrite) > 0 {
+				return false, make(map[int]bool)
+			}
+
+			if len(s.kvStore[wk].PreparedTxnRead) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnRead) > 0 {
+				log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
+					op.txnId, wk)
+				return false, make(map[int]bool)
+			}
+
 		}
+
+		return true, make(map[int]bool)
+	} else {
+		for rk := range op.readKeyMap {
+			if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+				// there is high priority txn before it
+				log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
+					op.txnId, rk)
+				return false, make(map[int]bool)
+			}
+		}
+
+		// write-read, write-write conflict
+		for wk := range op.writeKeyMap {
+			if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
+				log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
+					op.txnId, wk)
+				return false, make(map[int]bool)
+			}
+		}
+
+		// if txn does not has conflict with other high priority txn in this partition
+		// check if there is a conflict with low priority txn in the other partition
+		// find out the conditions to prepare
+		overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op)
+
+		log.Debugf("txn %v keys are available condition %v", op.txnId, overlapPartition)
+
+		return true, overlapPartition
 	}
-
-	// if txn does not has conflict with other high priority txn in this partition
-	// check if there is a conflict with low priority txn in the other partition
-	// find out the conditions to prepare
-
-	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op)
-
-	log.Debugf("txn %v keys are available condition %v", op.txnId, overlapPartition)
-
-	return true, overlapPartition
 }
 
 func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
