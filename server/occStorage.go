@@ -38,13 +38,16 @@ func (s *OccStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 
 func (s *OccStorage) checkKeyAvailable(op *ReadAndPrepareOp) bool {
 	for rk := range op.readKeyMap {
-		if len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 {
+		if len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 || len(s.kvStore[rk].PreparedTxnWrite) > 0 {
 			return false
 		}
 	}
 
 	for wk := range op.writeKeyMap {
 		if len(s.kvStore[wk].PreparedLowPriorityTxnRead) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnWrite) > 0 {
+			return false
+		}
+		if len(s.kvStore[wk].PreparedTxnRead) > 0 || len(s.kvStore[wk].PreparedTxnWrite) > 0 {
 			return false
 		}
 	}
@@ -87,9 +90,9 @@ func (s *OccStorage) Commit(op *CommitRequestOp) {
 	log.Infof("COMMIT %v", txnId)
 	s.txnStore[txnId].status = COMMIT
 	s.txnStore[txnId].isFastPrepare = op.request.IsFastPathSuccess
-	s.replicateCommitResult(txnId, op.request.WriteKeyValList)
-	s.releaseKey(txnId)
 	s.writeToDB(op.request.WriteKeyValList)
+	s.releaseKey(txnId)
+	s.replicateCommitResult(txnId, op.request.WriteKeyValList)
 
 	s.txnStore[txnId].receiveFromCoordinator = true
 	s.txnStore[txnId].commitOrder = s.committed
