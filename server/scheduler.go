@@ -148,7 +148,7 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 	}
 
 	ts.priorityQueue.Push(op)
-	if op.request.Txn.HighPriority && ts.server.config.GetTimeWindow() > 0 {
+	if op.request.Txn.HighPriority && ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
 		ts.highPrioritySL.Insert(op, op.request.Timestamp)
 	}
 	if op.index == 0 {
