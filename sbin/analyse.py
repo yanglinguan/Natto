@@ -16,12 +16,12 @@ args = arg_parser.parse_args()
 # if args.config is not None:
 #     path = args.config
 
-low = 0 * 1000000000
-high = 90 * 1000000000
+# low = 0 * 1000000000
+# high = 90 * 1000000000
 
 
-# low = 15 * 1000000000
-# high = 75 * 1000000000
+low = 15 * 1000000000
+high = 75 * 1000000000
 
 
 def analyse_waiting(dir_name):
@@ -86,16 +86,22 @@ def load_statistic(dir_name):
                 latency = float(items[2]) / 1000000  # ms
                 start = float(items[3])
                 end = float(items[4])
+                read_only = items[7] == "true"
                 priority = False
+                fast_prepare = False
                 if len(items) > 8:
                     priority = items[8] == "true"
+                if len(items) > 9:
+                    fast_prepare = items[9] == "true"
                 if start < min_start:
                     min_start = start
                 txn_map[txn_id] = {"commit": commit,
                                    "latency": latency,
                                    "start": start,
                                    "end": end,
-                                   "priority": priority}
+                                   "priority": priority,
+                                   "fastPrepare": fast_prepare,
+                                   "readOnly": read_only}
 
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
@@ -251,6 +257,36 @@ def analyse_abort_rate(txn_map):
     return commit_rate, commit_low_rate, commit_high_rate
 
 
+def analyse_fast_prepare_rate(txn_map):
+    count_high = 0
+    count_low = 0
+    fast_prepare_high = 0
+    fast_prepare_low = 0
+    for txn_id, value in txn_map.items():
+        if value["readOnly"]:
+            continue
+        if value["priority"]:
+            count_high += 1
+            if value["fastPrepare"]:
+                fast_prepare_high += 1
+        else:
+            count_low += 1
+            if value["fastPrepare"]:
+                fast_prepare_low += 1
+
+    fast_prepare_rate = float(fast_prepare_high + fast_prepare_low) / (count_low + count_high)
+    print("fast path success rate: " + str(fast_prepare_rate))
+
+    if count_high == 0 or count_low == 0:
+        return fast_prepare_rate, 0, 0
+
+    fast_prepare_rate_high = float(fast_prepare_high) / count_high
+    fast_prepare_rate_low = float(fast_prepare_low) / count_low
+    print("fast path success rate high: " + str(fast_prepare_rate_high))
+    print("fast path success rate low: " + str(fast_prepare_rate_low))
+    return fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high
+
+
 def analyse(dir_name):
     print(dir_name)
     path = dir_name
@@ -259,14 +295,18 @@ def analyse(dir_name):
     result = analyse_latency(txn_map)
     throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
     commit_rate, commit_rate_low, commit_rate_high = analyse_abort_rate(txn_map)
+    fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high = analyse_fast_prepare_rate(txn_map)
 
     result["throughput"] = throughput
     result["commit_rate"] = commit_rate
+    result["fast_prepare_rate"] = fast_prepare_rate
     if throughput_low != 0 and throughput_low != 0:
         result["throughput_low"] = throughput_low
         result["throughput_high"] = throughput_high
         result["commit_rate_low"] = commit_rate_low
         result["commit_rate_high"] = commit_rate_high
+        result["fast_prepare_rate_low"] = fast_prepare_rate_low
+        result["fast_prepare_rate_high"] = fast_prepare_rate_high
 
     file_name = os.path.basename(path)
     with open(file_name + ".result", "w") as f:
