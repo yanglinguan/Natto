@@ -141,18 +141,20 @@ func (o *ReadAndPrepareOp) GetReply() *rpc.ReadAndPrepareReply {
 }
 
 type CommitRequestOp struct {
-	request   *rpc.CommitRequest
-	canCommit bool
-	wait      chan bool
-	result    bool
+	request     *rpc.CommitRequest
+	canCommit   bool
+	wait        chan bool
+	result      bool
+	fastPrepare bool
 }
 
 func NewCommitRequestOp(request *rpc.CommitRequest) *CommitRequestOp {
 	c := &CommitRequestOp{
-		request:   request,
-		canCommit: false,
-		wait:      make(chan bool, 1),
-		result:    false,
+		request:     request,
+		canCommit:   false,
+		wait:        make(chan bool, 1),
+		result:      false,
+		fastPrepare: false,
 	}
 
 	return c

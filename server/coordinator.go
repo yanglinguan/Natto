@@ -36,6 +36,7 @@ type TwoPCInfo struct {
 	partitionPrepareResult   map[int]*PartitionStatus
 
 	conditionGraph *DepGraph
+	fastPrepare    bool
 }
 
 type Coordinator struct {
@@ -343,6 +344,10 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 
 			log.Debugf("txn %v can commit replicate data %v", info.status)
 			info.status = COMMIT
+			info.fastPrepare = true
+			for _, p := range info.partitionPrepareResult {
+				info.fastPrepare = info.fastPrepare && p.isFastPrepare
+			}
 			if info.writeDataReplicated {
 				c.sendRequest <- info
 			}
@@ -423,6 +428,7 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 			if info.commitRequest != nil {
 				info.commitRequest.result = true
 				info.commitRequest.wait <- true
+				info.commitRequest.fastPrepare = info.fastPrepare
 			}
 			// if it is read only txn and optimization is enabled, coordinator only to reply the result to client
 			// do not need to send to partitions, because partitions does not hold the lock of the keys

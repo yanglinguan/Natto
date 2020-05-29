@@ -23,8 +23,8 @@ type Transaction struct {
 	startTime    time.Time
 	endTime      time.Time
 	execCount    int64
-
-	executions []*ExecutionRecord
+	fastPrepare  bool
+	executions   []*ExecutionRecord
 }
 
 type ExecutionRecord struct {
@@ -476,7 +476,7 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 	latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
 	if result.Result {
 		ongoingTxn.commitResult = 1
-
+		ongoingTxn.fastPrepare = result.FastPrepare
 	} else {
 		ongoingTxn.commitResult = 0
 		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
@@ -629,7 +629,7 @@ func (c *Client) PrintTxnStatisticData() {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.executions[txn.execCount].rpcTxn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
@@ -639,6 +639,7 @@ func (c *Client) PrintTxnStatisticData() {
 			txn.execCount,
 			txn.executions[txn.execCount].rpcTxn.ReadOnly,
 			txn.executions[txn.execCount].rpcTxn.HighPriority,
+			txn.fastPrepare,
 		)
 		_, err = file.WriteString(s)
 		if err != nil {

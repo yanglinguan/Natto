@@ -93,6 +93,7 @@ message CommitRequest {
 message CommitReply {
     bool result = 1;
     int32 leaderId = 2;
+    bool fastPrepare = 3;
 }
 
 message AbortRequest {

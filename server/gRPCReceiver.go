@@ -57,8 +57,9 @@ func (server *Server) Commit(ctx context.Context,
 	op.BlockOwner()
 	logrus.Infof("REPLY Commit %v %v", request.TxnId, request.IsCoordinator)
 	return &rpc.CommitReply{
-		Result:   op.result,
-		LeaderId: int32(server.GetLeaderServerId()),
+		Result:      op.result,
+		LeaderId:    int32(server.GetLeaderServerId()),
+		FastPrepare: op.fastPrepare,
 	}, nil
 }
 
