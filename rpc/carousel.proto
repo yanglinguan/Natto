@@ -56,6 +56,7 @@ message ReadAndPrepareReply {
     int32 leaderId = 2; // partition leader's network address
     bool isLeader = 3;
     int32 status = 4;
+    int32 abortReason = 5;
 }
 
 message PrepareResultRequest {
@@ -65,6 +66,7 @@ message PrepareResultRequest {
     int32 partitionId = 4;
     int32 prepareStatus = 5;
     repeated int32 conditions = 6;
+    int32 abortReason = 7;
 }
 
 message PrepareResultReply {
@@ -94,6 +96,7 @@ message CommitReply {
     bool result = 1;
     int32 leaderId = 2;
     bool fastPrepare = 3;
+    int32 abortReason = 4;
 }
 
 message AbortRequest {

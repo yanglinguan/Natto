@@ -34,6 +34,7 @@ type ExecutionRecord struct {
 	isAbort              bool
 	isConditionalPrepare bool
 	readFromReplica      bool
+	abortReason          server.AbortReason
 }
 
 func NewExecutionRecord(rpcTxn *rpc.Transaction) *ExecutionRecord {
@@ -196,10 +197,14 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecor
 			readLeader[kv.Key] = readAndPrepareReply.IsLeader
 			//execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 		}
+		if execution.isAbort {
+			execution.abortReason = server.AbortReason(readAndPrepareReply.AbortReason)
+		}
 
 		if execution.isAbort || len(result) == len(execution.rpcTxn.ReadKeyList) {
 			break
 		}
+
 	}
 	op.isAbort = execution.isAbort
 	if !execution.isAbort {
@@ -469,7 +474,7 @@ func (c *Client) Abort(txnId string) (bool, time.Duration) {
 	return c.isRetryTxn(txn.execCount + 1)
 }
 
-func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
+func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction, execution *ExecutionRecord) {
 	result := <-ongoingTxn.commitReply
 
 	ongoingTxn.endTime = time.Now()
@@ -479,6 +484,7 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction) {
 		ongoingTxn.fastPrepare = result.FastPrepare
 	} else {
 		ongoingTxn.commitResult = 0
+		execution.abortReason = server.AbortReason(result.AbortReason)
 		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
 	}
 	op.result = result.Result
@@ -566,7 +572,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 
 	go sender.Send()
 
-	go c.waitCommitReply(op, ongoingTxn)
+	go c.waitCommitReply(op, ongoingTxn, execution)
 }
 
 func (c *Client) PrintServerStatus(commitTxn []int) {
@@ -629,7 +635,7 @@ func (c *Client) PrintTxnStatisticData() {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.executions[txn.execCount].rpcTxn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
@@ -640,6 +646,7 @@ func (c *Client) PrintTxnStatisticData() {
 			txn.executions[txn.execCount].rpcTxn.ReadOnly,
 			txn.executions[txn.execCount].rpcTxn.HighPriority,
 			txn.fastPrepare,
+			txn.executions[txn.execCount].abortReason,
 		)
 		_, err = file.WriteString(s)
 		if err != nil {

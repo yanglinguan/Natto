@@ -146,6 +146,7 @@ type CommitRequestOp struct {
 	wait        chan bool
 	result      bool
 	fastPrepare bool
+	abortReason AbortReason
 }
 
 func NewCommitRequestOp(request *rpc.CommitRequest) *CommitRequestOp {

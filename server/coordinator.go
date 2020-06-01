@@ -37,6 +37,7 @@ type TwoPCInfo struct {
 
 	conditionGraph *DepGraph
 	fastPrepare    bool
+	abortReason    AbortReason
 }
 
 type Coordinator struct {
@@ -224,6 +225,7 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 	}
 
 	if TxnStatus(result.Request.PrepareStatus) == ABORT {
+		twoPCInfo.abortReason = AbortReason(result.Request.AbortReason)
 		twoPCInfo.status = ABORT
 	} else {
 		log.Debugf("txn %v partition %v slow path success", txnId, pId)
@@ -398,6 +400,7 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 		case ABORT:
 			if info.commitRequest != nil {
 				info.commitRequest.result = false
+				info.commitRequest.abortReason = info.abortReason
 				info.commitRequest.wait <- true
 			}
 

@@ -30,6 +30,13 @@ const (
 	ABORT
 )
 
+type AbortReason int32
+
+const (
+	PASSTIME AbortReason = iota
+	CONFLICTHIHG
+)
+
 type ReplicationMsgType int32
 
 // Message type
@@ -70,6 +77,7 @@ type TxnInfo struct {
 	inQueue                          bool
 	hasWaitingButNoWriteReadConflict bool
 	selfAbort                        bool
+	abortReason                      AbortReason
 }
 
 type KeyInfo struct {
@@ -389,6 +397,8 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 			}
 			op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 		}
+	} else {
+		op.reply.AbortReason = int32(s.txnStore[op.txnId].abortReason)
 	}
 
 	op.wait <- true

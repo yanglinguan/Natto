@@ -175,6 +175,10 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 	s.txnStore[txnId].startTime = time.Now()
 
 	if op.selfAbort {
+		if op.request.Txn.HighPriority {
+			log.Fatalf("high priority txn should not self abort")
+		}
+		s.txnStore[txnId].abortReason = CONFLICTHIHG
 		s.txnStore[txnId].status = ABORT
 		s.txnStore[txnId].selfAbort = true
 		log.Warnf("txn %v self aborted", txnId)
@@ -202,6 +206,7 @@ func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
 				log.Debugf("txn %v cannot prepare available wait", txnId)
 				s.addToQueue(op.keyMap, op)
 			} else {
+				s.txnStore[txnId].abortReason = PASSTIME
 				s.txnStore[txnId].status = ABORT
 				log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
 				//	s.setReadResult(op)
