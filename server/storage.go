@@ -37,6 +37,7 @@ const (
 	PASSTIME
 	CONFLICTHIHG
 	READVERSION
+	CYCLE
 )
 
 type ReplicationMsgType int32

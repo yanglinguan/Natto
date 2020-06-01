@@ -313,6 +313,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				if info.conditionGraph.isCyclic() {
 					log.Debugf("txn %v condition has cycle, abort", info.txnId)
 					info.status = ABORT
+					info.abortReason = CYCLE
 					c.sendRequest <- info
 					return
 				}
