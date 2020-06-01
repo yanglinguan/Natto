@@ -339,6 +339,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				if !c.checkReadKeyVersion(info) {
 					log.Debugf("txn %v version check fail %v", info.txnId)
 					info.status = ABORT
+					info.abortReason = READVERSION
 					c.sendRequest <- info
 					return
 				}

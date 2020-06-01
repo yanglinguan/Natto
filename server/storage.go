@@ -36,6 +36,7 @@ const (
 	NONE AbortReason = iota
 	PASSTIME
 	CONFLICTHIHG
+	READVERSION
 )
 
 type ReplicationMsgType int32
