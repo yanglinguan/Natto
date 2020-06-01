@@ -166,7 +166,7 @@ func (ts *TimestampScheduler) Schedule(op *ReadAndPrepareOp) {
 	//	return
 	//}
 	if op.request.Timestamp < time.Now().UnixNano() {
-		log.Infof("Before into queue PASS Current time %v", op.txnId)
+		log.Infof("Before into queue PASS %v", op.txnId)
 	}
 
 	ts.pendingOp <- op

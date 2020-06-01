@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"strconv"
+	"time"
 )
 
 func (server *Server) ReadAndPrepare(ctx context.Context,
@@ -15,6 +16,10 @@ func (server *Server) ReadAndPrepare(ctx context.Context,
 	if !server.IsLeader() && (!server.config.GetFastPath() || request.IsNotParticipant) {
 		logrus.Debugf("txn %v server %v is not leader", request.Txn.TxnId, server.serverAddress)
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
+	}
+
+	if request.Timestamp < time.Now().UnixNano() {
+		logrus.Infof("When receive PASS %v", request.Txn.TxnId)
 	}
 
 	requestOp := NewReadAndPrepareOp(request, server)
