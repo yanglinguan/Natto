@@ -33,7 +33,8 @@ const (
 type AbortReason int32
 
 const (
-	PASSTIME AbortReason = iota
+	NONE AbortReason = iota
+	PASSTIME
 	CONFLICTHIHG
 )
 
