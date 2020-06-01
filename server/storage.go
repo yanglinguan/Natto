@@ -453,6 +453,8 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp, condition map[i
 		}
 
 		op.sendToCoordinator = true
+	} else {
+		prepareResult.AbortReason = int32(s.txnStore[txnId].abortReason)
 	}
 
 	s.txnStore[txnId].prepareResultOp = NewPrepareRequestOp(prepareResult, int(op.request.Txn.CoordPartitionId))
