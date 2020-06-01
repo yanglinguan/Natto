@@ -60,6 +60,7 @@ func (server *Server) Commit(ctx context.Context,
 		Result:      op.result,
 		LeaderId:    int32(server.GetLeaderServerId()),
 		FastPrepare: op.fastPrepare,
+		AbortReason: int32(op.abortReason),
 	}, nil
 }
 
