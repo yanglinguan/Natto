@@ -331,6 +331,11 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 
 	_, execution := c.getTxnAndExecution(op.txnId)
 
+	logrus.Debugf("txn %v client's dc %v server's dc %v txn max delay %v extra delay %v",
+		op.txnId,
+		c.clientDataCenterId, serverDcIds,
+		c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds),
+		c.Config.GetDelay())
 	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
 	maxDelay += c.Config.GetDelay().Nanoseconds()
 	maxDelay += time.Now().UnixNano()
@@ -413,6 +418,11 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	_, execution := c.getTxnAndExecution(op.txnId)
 
+	logrus.Debugf("txn %v client's dc %v server's dc %v txn max delay %v extra delay %v",
+		op.txnId,
+		c.clientDataCenterId, serverDcIds,
+		c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds),
+		c.Config.GetDelay())
 	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
 	maxDelay += c.Config.GetDelay().Nanoseconds()
 	maxDelay += time.Now().UnixNano()
