@@ -85,7 +85,8 @@ func NewSingleConnect(dstServerAddr string) *SingleConnection {
 		conn:          nil,
 	}
 
-	conn, err := grpc.Dial(dstServerAddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(dstServerAddr, grpc.WithInsecure(),
+		grpc.WithReadBufferSize(0), grpc.WithWriteBufferSize(0))
 
 	if err != nil {
 		logrus.Fatalf("cannot not connect: %v", err)
