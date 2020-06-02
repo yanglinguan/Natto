@@ -258,9 +258,11 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 
 func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 	f.clients = int(config["nums"].(float64))
+	machines := config["machines"].([]interface{})
 	f.clientToDataCenterId = make([]int, f.clients)
 	for id := 0; id < f.clients; id++ {
-		dcId := id % f.dcNum
+		idx := id % len(machines)
+		dcId := idx % f.dcNum
 		f.clientToDataCenterId[id] = dcId
 	}
 }
