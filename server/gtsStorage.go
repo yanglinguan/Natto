@@ -144,8 +144,8 @@ func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 		if s.txnStore[txnId].inQueue {
 			s.server.executor.ReleaseReadOnlyTxn <- op
 		}
+		s.setPrepareResult(op, condition)
 		if s.server.config.GetPriority() && !s.server.config.GetAssignLowPriorityTimestamp() {
-			s.setPrepareResult(op, condition)
 			s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
 		}
 	} else {
