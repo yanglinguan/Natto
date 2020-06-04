@@ -161,7 +161,7 @@ func (c *Client) Start() {
 	go c.sendReadAndPrepareRequest()
 	go c.sendCommitRequest()
 
-	if c.Config.IsDynamicLatency() {
+	if c.Config.GetServerMode() != configuration.OCC && c.Config.IsDynamicLatency() {
 		if c.Config.IsProbeTime() {
 			go c.probingTime()
 			go c.processProbeTime()
