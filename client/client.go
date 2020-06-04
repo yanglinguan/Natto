@@ -471,14 +471,13 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 
 	_, execution := c.getTxnAndExecution(op.txnId)
 
-	logrus.Debugf("txn %v client's dc %v server's dc %v txn max delay %v extra delay %v",
-		op.txnId,
-		c.clientDataCenterId, serverDcIds,
-		c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds),
-		c.Config.GetDelay())
 	var maxDelay int64 = 0
 	if c.Config.IsDynamicLatency() {
 		maxDelay := c.predictOneWayLatency(serverList)
+		logrus.Debugf("txn %v client's dc %v server's dc %v server list %v txn max delay %v extra delay %v",
+			op.txnId,
+			c.clientDataCenterId, serverDcIds, serverList,
+			time.Duration(maxDelay))
 		maxDelay += c.Config.GetDelay().Nanoseconds()
 		maxDelay += time.Now().UnixNano()
 	} else {
@@ -567,14 +566,13 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	_, execution := c.getTxnAndExecution(op.txnId)
 
-	logrus.Debugf("txn %v client's dc %v server's dc %v txn max delay %v extra delay %v",
-		op.txnId,
-		c.clientDataCenterId, serverDcIds,
-		c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds),
-		c.Config.GetDelay())
 	var maxDelay int64 = 0
 	if c.Config.IsDynamicLatency() {
 		maxDelay := c.predictOneWayLatency(serverIdList)
+		logrus.Debugf("txn %v client's dc %v server's dc %v server list %v txn max delay %v extra delay %v",
+			op.txnId,
+			c.clientDataCenterId, serverDcIds, serverIdList,
+			time.Duration(maxDelay))
 		maxDelay += c.Config.GetDelay().Nanoseconds()
 		maxDelay += time.Now().UnixNano()
 	} else {
