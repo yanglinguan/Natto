@@ -62,7 +62,7 @@ for ip in machines:
 print(dc_ip_map)
 
 dc_delay_map = {}
-for dc_id, dst_list in enumerate(config["experiment"]["oneWayDelay"]):
+for dc_id, dst_list in enumerate(config["experiment"]["latency"]["oneWayDelay"]):
     if dc_id not in dc_delay_map:
         dc_delay_map[dc_id] = {}
     for dst_dc_id, dis in enumerate(dst_list):
@@ -70,6 +70,9 @@ for dc_id, dst_list in enumerate(config["experiment"]["oneWayDelay"]):
             dc_delay_map[dc_id][dst_dc_id] = dis
 
 print(dc_delay_map)
+
+variance = config["experiment"]["latency"]["variance"]
+distribution = config["experiment"]["latency"]["distribution"]
 
 # cmd prefix
 tc = 'sudo tc'
@@ -106,8 +109,12 @@ for dc_id in dc_ip_list:
             handle += 1
             shell_cmd += "%s 1:1 classid 1:%d htb rate %s;" % \
                          (class_cmd, handle, bandwidth)
-            shell_cmd += "%s %d: parent 1:%d netem delay %s;" % \
-                         (delay_cmd, handle, handle, delay)
+            if variance != "off":
+                shell_cmd += "%s %d: parent 1:%d netem delay %s %s distribution %s;" % \
+                             (delay_cmd, handle, handle, delay, variance, distribution)
+            else:
+                shell_cmd += "%s %d: parent 1:%d netem delay %s;" % \
+                             (delay_cmd, handle, handle, delay)
             for dst_ip in dst_ip_list:
                 shell_cmd += "%s %d protocol ip u32 match ip dst %s flowid 1:%d;" % \
                              (filter_cmd, handle, dst_ip, handle)
