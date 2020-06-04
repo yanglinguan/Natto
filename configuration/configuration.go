@@ -95,6 +95,13 @@ type Configuration interface {
 	GetPriority() bool
 	GetHighPriorityRate() int
 	GetTargetRate() int
+
+	IsDynamicLatency() bool
+	GetProbeWindowMinSize() int
+	GetProbeWindowLen() time.Duration
+	IsProbeBlocking() bool
+	GetProbeInterval() time.Duration
+	IsProbeTime() bool
 }
 
 type FileConfiguration struct {
@@ -168,6 +175,13 @@ type FileConfiguration struct {
 	targetRate                 int // client sends at this target rate
 	timeWindow                 time.Duration
 	AssignLowPriorityTimeStamp bool
+
+	dynamicLatency     bool
+	probeWindowLen     time.Duration
+	probeWindowMinSize int
+	probeInterval      time.Duration
+	probeBlocking      bool
+	probeTime          bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -383,6 +397,20 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.timeWindow = time.Duration(int64(v.(float64)) * int64(time.Millisecond))
 		} else if key == "lowPriorityTxnTimestamp" {
 			f.AssignLowPriorityTimeStamp = v.(bool)
+		} else if key == "dynamicLatency" {
+			items := v.(map[string]interface{})
+			f.dynamicLatency = items["mode"].(bool)
+			f.probeWindowLen, err = time.ParseDuration(items["probeWindowLen"].(string))
+			if err != nil {
+				log.Fatalf("probeWindowLen %v is invalid", v)
+			}
+			f.probeWindowMinSize = int(items["probeWindowMinSize"].(float64))
+			f.probeInterval, err = time.ParseDuration(items["probeInterval"].(string))
+			if err != nil {
+				log.Fatalf("probeInterval %v is invalid", v)
+			}
+			f.probeBlocking = items["blocking"].(bool)
+			f.probeTime = items["probeTime"].(bool)
 		}
 	}
 }
@@ -696,4 +724,28 @@ func (f *FileConfiguration) GetTimeWindow() time.Duration {
 
 func (f *FileConfiguration) GetAssignLowPriorityTimestamp() bool {
 	return f.AssignLowPriorityTimeStamp
+}
+
+func (f *FileConfiguration) IsDynamicLatency() bool {
+	return f.dynamicLatency
+}
+
+func (f *FileConfiguration) GetProbeWindowMinSize() int {
+	return f.probeWindowMinSize
+}
+
+func (f *FileConfiguration) GetProbeWindowLen() time.Duration {
+	return f.probeWindowLen
+}
+
+func (f *FileConfiguration) GetProbeInterval() time.Duration {
+	return f.probeInterval
+}
+
+func (f *FileConfiguration) IsProbeBlocking() bool {
+	return f.probeBlocking
+}
+
+func (f *FileConfiguration) IsProbeTime() bool {
+	return f.probeTime
 }

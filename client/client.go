@@ -3,6 +3,7 @@ package client
 import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/connection"
+	"Carousel-GTS/latencyPredictor"
 	"Carousel-GTS/rpc"
 	"Carousel-GTS/server"
 	"Carousel-GTS/utils"
@@ -15,6 +16,18 @@ import (
 	"sync"
 	"time"
 )
+
+type LatInfo struct {
+	addr   string        // replica network address
+	rt     time.Duration // roundtrip time including queuing delay
+	qDelay time.Duration // queuing delay (in ns) on the replica
+}
+
+type LatTimeInfo struct {
+	addr       string        // replica network address
+	rt         time.Duration // roundtrip time including queuing delay
+	timeOffset time.Duration // time offset between the clock time of sending (on client) and processing (on server)
+}
 
 type Transaction struct {
 	txnId        string
@@ -91,6 +104,11 @@ type Client struct {
 	count          int
 	timeLeg        time.Duration
 	durationPerTxn time.Duration
+
+	latencyPredictor *latencyPredictor.LatencyPredictor
+	probeC           chan *LatInfo
+	probeTimeC       chan *LatTimeInfo
+	latencyMap       []int64 // serverId -> latency (ms)
 }
 
 func NewClient(clientId int, configFile string) *Client {
@@ -123,12 +141,132 @@ func NewClient(clientId int, configFile string) *Client {
 		}
 	}
 
+	if c.Config.IsDynamicLatency() {
+		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
+			c.Config.GetServerAddress(),
+			c.Config.GetProbeWindowLen(),
+			c.Config.GetProbeWindowMinSize())
+		if c.Config.IsProbeTime() {
+			c.probeTimeC = make(chan *LatTimeInfo, c.Config.GetQueueLen())
+		} else {
+			c.probeC = make(chan *LatInfo, c.Config.GetQueueLen())
+		}
+
+	}
+
 	return c
 }
 
 func (c *Client) Start() {
 	go c.sendReadAndPrepareRequest()
 	go c.sendCommitRequest()
+
+	if c.Config.IsDynamicLatency() {
+		if c.Config.IsProbeTime() {
+			go c.probingTime()
+			go c.processProbeTime()
+		} else {
+			go c.probing()
+			go c.processProbe()
+		}
+	}
+}
+
+func (c *Client) processProbe() {
+	for {
+		latInfo := <-c.probeC
+		oneWayLat := (latInfo.rt + latInfo.qDelay) / 2
+		c.latencyPredictor.AddProbeRet(&latencyPredictor.ProbeRet{
+			Addr: latInfo.addr,
+			Rt:   oneWayLat,
+		})
+	}
+}
+
+func (c *Client) processProbeTime() {
+	for {
+		latTimeInfo := <-c.probeTimeC
+		c.latencyPredictor.AddProbeRet(&latencyPredictor.ProbeRet{
+			Addr: latTimeInfo.addr,
+			Rt:   latTimeInfo.timeOffset,
+		})
+	}
+}
+
+func (c *Client) probing() {
+	probeTimer := time.NewTimer(c.Config.GetProbeInterval())
+	for {
+		<-probeTimer.C
+		c.probe()
+		probeTimer.Reset(c.Config.GetProbeInterval())
+	}
+}
+
+func (c *Client) probingTime() {
+	probeTimer := time.NewTimer(c.Config.GetProbeInterval())
+	for {
+		<-probeTimer.C
+		c.probeTime()
+		probeTimer.Reset(c.Config.GetProbeInterval())
+	}
+}
+
+func (c *Client) probe() {
+	var wg sync.WaitGroup
+	for sId := range c.connections {
+		wg.Add(1)
+		go func(sId int) {
+			sender := NewProbeSender(sId, c)
+			start := time.Now()
+			queueingDelay := sender.Send()
+			rt := time.Since(start)
+			c.probeC <- &LatInfo{
+				addr:   c.Config.GetServerAddressByServerId(sId),
+				rt:     rt,
+				qDelay: time.Duration(queueingDelay),
+			}
+			wg.Done()
+		}(sId)
+	}
+
+	if c.Config.IsProbeBlocking() {
+		wg.Wait()
+	}
+}
+
+func (c *Client) probeTime() {
+	var wg sync.WaitGroup
+	for sId := range c.connections {
+		wg.Add(1)
+		go func(sId int) {
+			sender := NewProbeTimeSender(sId, c)
+			start := time.Now()
+			pTime := sender.Send()
+			rt := time.Since(start)
+			c.probeTimeC <- &LatTimeInfo{
+				addr:       c.Config.GetServerAddressByServerId(sId),
+				rt:         rt,
+				timeOffset: time.Duration(pTime - start.UnixNano()),
+			}
+			wg.Done()
+		}(sId)
+	}
+
+	if c.Config.IsProbeBlocking() {
+		wg.Wait()
+	}
+}
+
+func (c *Client) predictOneWayLatency(serverList []int) int64 {
+	var max int64 = 0
+	for _, sId := range serverList {
+		addr := c.Config.GetServerAddressByServerId(sId)
+		lat := c.latencyPredictor.PredictLat(addr)
+		if lat > max {
+			max = lat
+		}
+	}
+	return max
 }
 
 func (c *Client) sendReadAndPrepareRequest() {
@@ -308,10 +446,12 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 	partitionSet, participants := c.separatePartition(op)
 	participatedPartitions := make([]int32, len(participants))
 	serverDcIds := make(map[int]bool)
+	serverList := make([]int, 0)
 	i := 0
 	for pId := range participants {
 		participatedPartitions[i] = int32(pId)
 		serverId := c.Config.GetLeaderIdByPartitionId(pId)
+		serverList = append(serverList, serverId)
 		dcId := c.Config.GetDataCenterIdByServerId(serverId)
 		serverDcIds[dcId] = true
 		i++
@@ -336,9 +476,16 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 		c.clientDataCenterId, serverDcIds,
 		c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds),
 		c.Config.GetDelay())
-	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
-	maxDelay += c.Config.GetDelay().Nanoseconds()
-	maxDelay += time.Now().UnixNano()
+	var maxDelay int64 = 0
+	if c.Config.IsDynamicLatency() {
+		maxDelay := c.predictOneWayLatency(serverList)
+		maxDelay += c.Config.GetDelay().Nanoseconds()
+		maxDelay += time.Now().UnixNano()
+	} else {
+		maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
+		maxDelay += c.Config.GetDelay().Nanoseconds()
+		maxDelay += time.Now().UnixNano()
+	}
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range partitionSet {
@@ -376,11 +523,13 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	participatedPartitions := make([]int32, len(partitionSet))
 	serverDcIds := make(map[int]bool)
+	serverIdList := make([]int, 0)
 	i := 0
 	for pId := range participants {
 		participatedPartitions[i] = int32(pId)
 		serverList := c.Config.GetServerIdListByPartitionId(pId)
 		for _, sId := range serverList {
+			serverIdList = append(serverIdList, sId)
 			dcId := c.Config.GetDataCenterIdByServerId(sId)
 			serverDcIds[dcId] = true
 		}
@@ -423,9 +572,16 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 		c.clientDataCenterId, serverDcIds,
 		c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds),
 		c.Config.GetDelay())
-	maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
-	maxDelay += c.Config.GetDelay().Nanoseconds()
-	maxDelay += time.Now().UnixNano()
+	var maxDelay int64 = 0
+	if c.Config.IsDynamicLatency() {
+		maxDelay := c.predictOneWayLatency(serverIdList)
+		maxDelay += c.Config.GetDelay().Nanoseconds()
+		maxDelay += time.Now().UnixNano()
+	} else {
+		maxDelay := c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
+		maxDelay += c.Config.GetDelay().Nanoseconds()
+		maxDelay += time.Now().UnixNano()
+	}
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range partitionSet {

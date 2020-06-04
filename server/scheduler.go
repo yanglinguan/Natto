@@ -134,6 +134,11 @@ func (ts *TimestampScheduler) resetTimer() {
 }
 
 func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
+	if op.probe {
+		op.probeWait <- true
+		return
+	}
+
 	if !op.request.Txn.HighPriority && !ts.server.config.GetAssignLowPriorityTimestamp() {
 		if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
 			ts.checkConflictWithHighPriorityTxn(op)

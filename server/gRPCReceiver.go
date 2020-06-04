@@ -131,3 +131,23 @@ func (server *Server) HeartBeat(cts context.Context, request *rpc.Empty) (*rpc.P
 		LeaderId: int32(server.GetLeaderServerId()),
 	}, nil
 }
+
+func (server *Server) Probe(cts context.Context, request *rpc.ProbeReq) (*rpc.ProbeReply, error) {
+	op := NewReadAndPrepareOpForProbe()
+	start := time.Now()
+	server.scheduler.Schedule(op)
+	<-op.probeWait
+	queuingDelay := time.Since(start)
+	return &rpc.ProbeReply{
+		QueuingDelay: queuingDelay.Nanoseconds(),
+	}, nil
+}
+
+func (server *Server) ProbeTime(cts context.Context, request *rpc.ProbeReq) (*rpc.ProbeTimeReply, error) {
+	op := NewReadAndPrepareOpForProbe()
+	server.scheduler.Schedule(op)
+	<-op.probeWait
+	return &rpc.ProbeTimeReply{
+		ProcessTime: time.Now().UnixNano(),
+	}, nil
+}

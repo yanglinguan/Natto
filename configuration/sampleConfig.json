@@ -37,6 +37,14 @@
     "zipfAlpha": 0.75,
     "targetRate": 100,
     "timeWindow": 10,
+    "dynamicLatency": {
+      "mode": true,
+      "probeWindowLen": "1s",
+      "probeWindowMinSize": 10,
+      "probeInterval": "10ms",
+      "blocking": false,
+      "probeTime": false
+    },
     "workload": {
       "type": "ycsbt",
       "retwis": {

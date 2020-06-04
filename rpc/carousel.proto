@@ -15,6 +15,11 @@ service Carousel {
     rpc PrintStatus(PrintStatusRequest) returns (Empty) {}
 
     rpc HeartBeat(Empty) returns (PrepareResultReply) {}
+
+    //// Network Latency Monitoring
+    // For clients
+    rpc Probe(ProbeReq) returns (ProbeReply){}
+    rpc ProbeTime(ProbeReq) returns (ProbeTimeReply){}
 }
 
 message Transaction {
@@ -113,4 +118,15 @@ message PrintStatusRequest {
 }
 
 message Empty {
+}
+
+message ProbeReq{
+}
+
+message ProbeReply {
+    int64 queuingDelay = 1; //in ns
+}
+
+message ProbeTimeReply {
+    int64 processTime = 1; // in ns
 }

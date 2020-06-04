@@ -39,6 +39,17 @@ type ReadAndPrepareOp struct {
 	selfAbort    bool // true: there is a conflict high priority txn within
 	allReadKeys  map[string]bool
 	allWriteKeys map[string]bool
+
+	probeWait chan bool
+	probe     bool
+}
+
+func NewReadAndPrepareOpForProbe() *ReadAndPrepareOp {
+	r := &ReadAndPrepareOp{
+		probe:     true,
+		probeWait: make(chan bool, 1),
+	}
+	return r
 }
 
 func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareOp {
