@@ -18,8 +18,10 @@ func (server *Server) ReadAndPrepare(ctx context.Context,
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
 	}
 
-	if request.Timestamp < time.Now().UnixNano() {
-		logrus.Infof("When receive PASS %v", request.Txn.TxnId)
+	now := time.Now().UnixNano()
+	if request.Timestamp < now {
+		logrus.Infof("When receive PASS %v delta %v",
+			request.Txn.TxnId, time.Duration(now-request.Timestamp))
 	}
 
 	requestOp := NewReadAndPrepareOp(request, server)
