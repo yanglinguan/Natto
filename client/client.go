@@ -473,7 +473,7 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 
 	var maxDelay int64 = 0
 	if c.Config.IsDynamicLatency() {
-		maxDelay := c.predictOneWayLatency(serverList)
+		maxDelay := c.predictOneWayLatency(serverList) * 1000 // change to nanoseconds
 		logrus.Debugf("txn %v client's dc %v server's dc %v server list %v txn max delay %v extra delay %v",
 			op.txnId,
 			c.clientDataCenterId, serverDcIds, serverList,
@@ -568,7 +568,7 @@ func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 
 	var maxDelay int64 = 0
 	if c.Config.IsDynamicLatency() {
-		maxDelay := c.predictOneWayLatency(serverIdList)
+		maxDelay := c.predictOneWayLatency(serverIdList) * 1000 // change to nanoseconds
 		logrus.Debugf("txn %v client's dc %v server's dc %v server list %v txn max delay %v extra delay %v",
 			op.txnId,
 			c.clientDataCenterId, serverDcIds, serverIdList,
