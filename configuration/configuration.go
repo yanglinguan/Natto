@@ -316,8 +316,9 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
 			f.keyNum = int64(keyNum)
-		} else if key == "oneWayDelay" {
-			f.loadDataCenterDistance(v.([]interface{}))
+		} else if key == "latency" {
+			items := v.(map[string]interface{})
+			f.loadDataCenterDistance(items["oneWayDelay"].([]interface{}))
 		} else if key == "delay" {
 			f.delay, err = time.ParseDuration(v.(string))
 			if err != nil {

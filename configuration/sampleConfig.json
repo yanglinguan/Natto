@@ -63,11 +63,27 @@
       "maxRetry": 20,
       "maxSlot": 32
     },
-    "oneWayDelay" : [
-      ["0ms","50ms", "100ms"],
-      ["50ms", "0ms", "80ms"],
-      ["100ms", "80ms", "0ms"]
-    ],
+    "latency": {
+      "variance": "10ms",
+      "distribution": "pareto",
+      "oneWayDelay": [
+        [
+          "0ms",
+          "50ms",
+          "100ms"
+        ],
+        [
+          "50ms",
+          "0ms",
+          "80ms"
+        ],
+        [
+          "100ms",
+          "80ms",
+          "0ms"
+        ]
+      ]
+    },
     "ssh": {
       "username": "l69yang",
       "identity": ""
