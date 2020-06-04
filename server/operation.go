@@ -188,12 +188,14 @@ func NewAbortRequestOp(abortRequest *rpc.AbortRequest) *AbortRequestOp {
 }
 
 type PrepareResultOp struct {
+	txnId            string
 	Request          *rpc.PrepareResultRequest
 	CoordPartitionId int
 }
 
 func NewPrepareRequestOp(request *rpc.PrepareResultRequest, coordinatorPartitionId int) *PrepareResultOp {
 	p := &PrepareResultOp{
+		txnId:            request.TxnId,
 		Request:          request,
 		CoordPartitionId: coordinatorPartitionId,
 	}

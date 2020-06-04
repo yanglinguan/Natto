@@ -415,6 +415,7 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp, condition map[i
 	}
 
 	if s.txnStore[txnId].prepareResultOp != nil {
+		log.Debugf("txn %v prepare request is already exist", op.txnId)
 		return
 	}
 	conditionList := make([]int32, len(condition))

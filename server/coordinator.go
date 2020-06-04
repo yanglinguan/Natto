@@ -432,8 +432,8 @@ func (c *Coordinator) sendToParticipantsAndClient() {
 			// unblock the client
 			if info.commitRequest != nil {
 				info.commitRequest.result = true
-				info.commitRequest.wait <- true
 				info.commitRequest.fastPrepare = info.fastPrepare
+				info.commitRequest.wait <- true
 			}
 			// if it is read only txn and optimization is enabled, coordinator only to reply the result to client
 			// do not need to send to partitions, because partitions does not hold the lock of the keys

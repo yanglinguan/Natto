@@ -91,6 +91,9 @@ func (e *Executor) sendPreparedResultToCoordinator() {
 func (e *Executor) sendFastPrepareResultToCoordinator() {
 	for {
 		op := <-e.FastPrepareResult
+		if op.Request == nil {
+			logrus.Fatal("txn %v prepared result is nil", op.txnId)
+		}
 		logrus.Debugf("send fast prepare result %v to coordinator %v txn %v, isLeader %v, raft term %v ",
 			op.Request.PrepareStatus, op.CoordPartitionId, op.Request.TxnId, e.server.IsLeader(), e.server.raftNode.GetRaftTerm())
 		request := &rpc.FastPrepareResultRequest{
@@ -99,9 +102,8 @@ func (e *Executor) sendFastPrepareResultToCoordinator() {
 			RaftTerm:      e.server.raftNode.GetRaftTerm(),
 		}
 
-		fOp := NewFastPrepareRequestOp(request, op.CoordPartitionId)
-
 		if op.CoordPartitionId == e.server.partitionId && e.server.IsLeader() {
+			fOp := NewFastPrepareRequestOp(request, op.CoordPartitionId)
 			e.server.coordinator.FastPrepareResult <- fOp
 		} else {
 			coordinatorId := e.server.config.GetLeaderIdByPartitionId(op.CoordPartitionId)
