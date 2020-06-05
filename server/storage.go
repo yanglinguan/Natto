@@ -890,7 +890,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 		IsFromCoordinator: false,
 		WriteData:         writeData,
 		IsFastPathSuccess: s.txnStore[txnId].isFastPrepare,
-		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
+		//HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
