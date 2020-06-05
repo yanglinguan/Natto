@@ -59,7 +59,7 @@ type ReplicationMsg struct {
 	IsFastPathSuccess       bool
 	IsFromCoordinator       bool
 	TotalCommit             int
-	//HighPriority            bool
+	HighPriority            bool
 }
 
 type TxnInfo struct {
@@ -706,7 +706,7 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 	txnId := op.txnId
 	for rk := range op.readKeyMap {
 		op.readKeyMap[rk] = true
-		if op.request.Txn.HighPriority {
+		if op.highPriority {
 			s.kvStore[rk].PreparedTxnRead[txnId] = true
 		} else {
 			s.kvStore[rk].PreparedLowPriorityTxnRead[txnId] = true
@@ -714,7 +714,7 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 	}
 	for wk := range op.writeKeyMap {
 		op.writeKeyMap[wk] = true
-		if op.request.Txn.HighPriority {
+		if op.highPriority {
 			s.kvStore[wk].PreparedTxnWrite[txnId] = true
 		} else {
 			s.kvStore[wk].PreparedLowPriorityTxnWrite[txnId] = true
@@ -725,7 +725,7 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 		if _, exist := s.otherPartitionKey[rk]; !exist {
 			s.otherPartitionKey[rk] = NewPriorityTxnInfo()
 		}
-		if op.request.Txn.HighPriority {
+		if op.highPriority {
 			s.otherPartitionKey[rk].highPriorityTxnRead[txnId] = true
 		} else {
 			s.otherPartitionKey[rk].lowPriorityTxnRead[txnId] = true
@@ -736,7 +736,7 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 		if _, exist := s.otherPartitionKey[wk]; !exist {
 			s.otherPartitionKey[wk] = NewPriorityTxnInfo()
 		}
-		if op.request.Txn.HighPriority {
+		if op.highPriority {
 			s.otherPartitionKey[wk].highPriorityTxnWrite[txnId] = true
 		} else {
 			s.otherPartitionKey[wk].lowPriorityTxnWrite[txnId] = true
@@ -779,7 +779,7 @@ func (s *AbstractStorage) replicatePreparedResult(txnId string) {
 		Status:            s.txnStore[txnId].status,
 		MsgType:           PrepareResultMsg,
 		IsFromCoordinator: false,
-		//HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
+		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 
 	if replicationMsg.Status == PREPARED {
@@ -890,7 +890,7 @@ func (s *AbstractStorage) replicateCommitResult(txnId string, writeData []*rpc.K
 		IsFromCoordinator: false,
 		WriteData:         writeData,
 		IsFastPathSuccess: s.txnStore[txnId].isFastPrepare,
-		//HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
+		HighPriority:      s.txnStore[txnId].readAndPrepareRequestOp.request.Txn.HighPriority,
 	}
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {

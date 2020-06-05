@@ -42,6 +42,8 @@ type ReadAndPrepareOp struct {
 
 	probeWait chan bool
 	probe     bool
+
+	highPriority bool
 }
 
 func NewReadAndPrepareOpForProbe() *ReadAndPrepareOp {
@@ -69,6 +71,7 @@ func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *R
 		txnId:             msg.TxnId,
 		allReadKeys:       make(map[string]bool),
 		allWriteKeys:      make(map[string]bool),
+		highPriority:      msg.HighPriority,
 	}
 	readKeyList := make([]string, len(msg.PreparedReadKeyVersion))
 	for i, kv := range msg.PreparedReadKeyVersion {
@@ -103,6 +106,7 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *Re
 		txnId:                  request.Txn.TxnId,
 		allReadKeys:            make(map[string]bool),
 		allWriteKeys:           make(map[string]bool),
+		highPriority:           request.Txn.HighPriority,
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
