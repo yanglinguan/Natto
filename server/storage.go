@@ -477,7 +477,7 @@ func (s *AbstractStorage) addToQueue(keys map[string]bool, op *ReadAndPrepareOp)
 
 func (s *AbstractStorage) releaseKey(txnId string) {
 	txnInfo := s.txnStore[txnId]
-	highPriority := txnInfo.readAndPrepareRequestOp.request.Txn.HighPriority
+	highPriority := txnInfo.readAndPrepareRequestOp.highPriority
 	// remove prepared read and write key
 	for rk, isPrepared := range txnInfo.readAndPrepareRequestOp.readKeyMap {
 		if isPrepared {
