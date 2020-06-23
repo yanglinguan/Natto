@@ -70,12 +70,72 @@ func (s *GTSStorage) abortProcessedTxn(txnId string) {
 	}
 }
 
+func (s *GTSStorage) isConflictWithHighPriorityTxn(op *ReadAndPrepareOp) bool {
+	for rk := range op.readKeyMap {
+		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
+			// there is high priority txn before it
+			log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
+				op.txnId, rk)
+			return true
+		}
+	}
+
+	// write-read, write-write conflict
+	for wk := range op.writeKeyMap {
+		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
+			log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
+				op.txnId, wk)
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *GTSStorage) isConflictWithLowPriorityTxn(op *ReadAndPrepareOp) (bool, map[string]bool) {
+	conflictTxnConditional := make(map[string]bool)
+	for rk := range op.readKeyMap {
+		for lowTxn := range s.kvStore[rk].PreparedLowPriorityTxnWrite {
+			if s.server.config.IsEarlyAbort() {
+				duration := time.Duration(op.request.Timestamp - s.txnStore[lowTxn].readAndPrepareRequestOp.request.Timestamp)
+				if duration > s.server.config.GetTimeWindow() {
+					return true, nil
+				}
+			}
+			conflictTxnConditional[lowTxn] = true
+		}
+	}
+
+	for wk := range op.writeKeyMap {
+		for lowTxn := range s.kvStore[wk].PreparedLowPriorityTxnRead {
+			if s.server.config.IsEarlyAbort() {
+				duration := time.Duration(op.request.Timestamp - s.txnStore[lowTxn].readAndPrepareRequestOp.request.Timestamp)
+				if duration > s.server.config.GetTimeWindow() {
+					return true, nil
+				}
+			}
+			conflictTxnConditional[lowTxn] = true
+		}
+		for lowTxn := range s.kvStore[wk].PreparedLowPriorityTxnWrite {
+			if s.server.config.IsEarlyAbort() {
+				duration := time.Duration(op.request.Timestamp - s.txnStore[lowTxn].readAndPrepareRequestOp.request.Timestamp)
+				if duration > s.server.config.GetTimeWindow() {
+					return true, nil
+				}
+			}
+			conflictTxnConditional[lowTxn] = true
+		}
+	}
+
+	return false, conflictTxnConditional
+}
+
 func (s *GTSStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool) {
 	// first check if there is high priority txn in front holding the same keys
 	// readKeyMap store the keys in this partition
 	// read-write conflict
 
-	if s.server.config.GetAssignLowPriorityTimestamp() {
+	if !s.server.config.IsConditionalPrepare() {
 		for rk := range op.readKeyMap {
 			if len(s.kvStore[rk].PreparedTxnWrite) > 0 || len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 {
 				return false, make(map[int]bool)
@@ -97,28 +157,23 @@ func (s *GTSStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) 
 
 		return true, make(map[int]bool)
 	} else {
-		for rk := range op.readKeyMap {
-			if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-				// there is high priority txn before it
-				log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
-					op.txnId, rk)
-				return false, make(map[int]bool)
-			}
-		}
+		conflictWithHigh := s.isConflictWithHighPriorityTxn(op)
 
-		// write-read, write-write conflict
-		for wk := range op.writeKeyMap {
-			if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
-				log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
-					op.txnId, wk)
-				return false, make(map[int]bool)
-			}
+		if conflictWithHigh {
+			return false, make(map[int]bool)
 		}
 
 		// if txn does not has conflict with other high priority txn in this partition
 		// check if there is a conflict with low priority txn in the other partition
 		// find out the conditions to prepare
-		overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op)
+
+		conflictWithLow, conditionalTxnList := s.isConflictWithLowPriorityTxn(op)
+
+		if conflictWithLow {
+			return false, make(map[int]bool)
+		}
+
+		overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op.txnId, conditionalTxnList)
 
 		log.Debugf("txn %v keys are available condition %v", op.txnId, overlapPartition)
 
@@ -145,7 +200,7 @@ func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
 			s.server.executor.ReleaseReadOnlyTxn <- op
 		}
 		s.setPrepareResult(op, condition)
-		if s.server.config.GetPriority() && !s.server.config.GetAssignLowPriorityTimestamp() {
+		if s.server.config.GetPriority() && s.server.config.IsConditionalPrepare() {
 			s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
 		}
 	} else {

@@ -142,17 +142,17 @@ type AbstractStorage struct {
 	totalCommit            int
 
 	// reorder the high priority txn at index 0, low priority txn at index 1
-	otherPartitionKey map[string]*PriorityTxnInfo
+	//otherPartitionKey map[string]*PriorityTxnInfo
 }
 
 func NewAbstractStorage(server *Server) *AbstractStorage {
 	s := &AbstractStorage{
-		kvStore:           make(map[string]*KeyInfo),
-		server:            server,
-		txnStore:          make(map[string]*TxnInfo),
-		committed:         0,
-		totalCommit:       0,
-		otherPartitionKey: make(map[string]*PriorityTxnInfo),
+		kvStore:     make(map[string]*KeyInfo),
+		server:      server,
+		txnStore:    make(map[string]*TxnInfo),
+		committed:   0,
+		totalCommit: 0,
+		//otherPartitionKey: make(map[string]*PriorityTxnInfo),
 	}
 
 	return s
@@ -400,8 +400,6 @@ func (s AbstractStorage) setReadResult(op *ReadAndPrepareOp) {
 			}
 			op.reply.KeyValVerList = append(op.reply.KeyValVerList, keyValueVersion)
 		}
-	} else {
-		op.reply.AbortReason = int32(s.txnStore[op.txnId].abortReason)
 	}
 
 	op.wait <- true
@@ -456,8 +454,6 @@ func (s *AbstractStorage) setPrepareResult(op *ReadAndPrepareOp, condition map[i
 		}
 
 		op.sendToCoordinator = true
-	} else {
-		prepareResult.AbortReason = int32(s.txnStore[txnId].abortReason)
 	}
 
 	s.txnStore[txnId].prepareResultOp = NewPrepareRequestOp(prepareResult, int(op.request.Txn.CoordPartitionId))
@@ -501,29 +497,29 @@ func (s *AbstractStorage) releaseKey(txnId string) {
 		}
 	}
 
-	for _, rk := range txnInfo.readAndPrepareRequestOp.otherPartitionReadKey {
-		if _, exist := s.otherPartitionKey[rk]; !exist {
-			continue
-		}
-		if highPriority {
-			log.Debugf("txn %v release other ready key %v high", txnId, rk)
-			delete(s.otherPartitionKey[rk].highPriorityTxnRead, txnId)
-		} else {
-			log.Debugf("txn %v release other ready key %v high", txnId, rk)
-			delete(s.otherPartitionKey[rk].lowPriorityTxnRead, txnId)
-		}
-	}
-
-	for _, wk := range txnInfo.readAndPrepareRequestOp.otherPartitionWriteKey {
-		if _, exist := s.otherPartitionKey[wk]; !exist {
-			continue
-		}
-		if highPriority {
-			delete(s.otherPartitionKey[wk].highPriorityTxnWrite, txnId)
-		} else {
-			delete(s.otherPartitionKey[wk].lowPriorityTxnWrite, txnId)
-		}
-	}
+	//for _, rk := range txnInfo.readAndPrepareRequestOp.otherPartitionReadKey {
+	//	if _, exist := s.otherPartitionKey[rk]; !exist {
+	//		continue
+	//	}
+	//	if highPriority {
+	//		log.Debugf("txn %v release other ready key %v high", txnId, rk)
+	//		delete(s.otherPartitionKey[rk].highPriorityTxnRead, txnId)
+	//	} else {
+	//		log.Debugf("txn %v release other ready key %v high", txnId, rk)
+	//		delete(s.otherPartitionKey[rk].lowPriorityTxnRead, txnId)
+	//	}
+	//}
+	//
+	//for _, wk := range txnInfo.readAndPrepareRequestOp.otherPartitionWriteKey {
+	//	if _, exist := s.otherPartitionKey[wk]; !exist {
+	//		continue
+	//	}
+	//	if highPriority {
+	//		delete(s.otherPartitionKey[wk].highPriorityTxnWrite, txnId)
+	//	} else {
+	//		delete(s.otherPartitionKey[wk].lowPriorityTxnWrite, txnId)
+	//	}
+	//}
 }
 
 // release the keys that txn holds
@@ -572,46 +568,12 @@ func (s *AbstractStorage) overlapPartitions(txnId1 string, txnId2 string) map[in
 	return result
 }
 
-func (s *AbstractStorage) findOverlapPartitionsWithLowPriorityTxn(op *ReadAndPrepareOp) map[int]bool {
+func (s *AbstractStorage) findOverlapPartitionsWithLowPriorityTxn(txnId string, conflictLowPriorityTxn map[string]bool) map[int]bool {
 	overlapPartition := make(map[int]bool)
-	conflictLowPriorityTxn := make(map[string]bool)
-	for rk := range op.readKeyMap {
-		for txnId := range s.kvStore[rk].PreparedLowPriorityTxnWrite {
-			conflictLowPriorityTxn[txnId] = true
-		}
-	}
 
-	for wk := range op.writeKeyMap {
-		for txnId := range s.kvStore[wk].PreparedLowPriorityTxnWrite {
-			conflictLowPriorityTxn[txnId] = true
-		}
-		for txnId := range s.kvStore[wk].PreparedLowPriorityTxnRead {
-			conflictLowPriorityTxn[txnId] = true
-		}
-	}
-
-	for _, rk := range op.otherPartitionReadKey {
-		if _, exist := s.otherPartitionKey[rk]; exist {
-			for txnId := range s.otherPartitionKey[rk].lowPriorityTxnWrite {
-				conflictLowPriorityTxn[txnId] = true
-			}
-		}
-	}
-
-	for _, wk := range op.otherPartitionWriteKey {
-		if _, exist := s.otherPartitionKey[wk]; exist {
-			for txnId := range s.otherPartitionKey[wk].lowPriorityTxnWrite {
-				conflictLowPriorityTxn[txnId] = true
-			}
-
-			for txnId := range s.otherPartitionKey[wk].lowPriorityTxnRead {
-				conflictLowPriorityTxn[txnId] = true
-			}
-		}
-	}
-	log.Debugf("txn %v conflict low priority txn %v", op.txnId, conflictLowPriorityTxn)
-	for txnId := range conflictLowPriorityTxn {
-		pIdMap := s.overlapPartitions(op.txnId, txnId)
+	log.Debugf("txn %v conflict low priority txn %v", txnId, conflictLowPriorityTxn)
+	for lowTxnId := range conflictLowPriorityTxn {
+		pIdMap := s.overlapPartitions(txnId, lowTxnId)
 		for pId := range pIdMap {
 			overlapPartition[pId] = true
 		}
@@ -637,26 +599,26 @@ func (s *AbstractStorage) checkKeysAvailableForLowPriorityTxn(op *ReadAndPrepare
 		}
 	}
 
-	for _, rk := range op.otherPartitionReadKey {
-		if _, exist := s.otherPartitionKey[rk]; exist {
-			if len(s.otherPartitionKey[rk].highPriorityTxnWrite) > 0 {
-				log.Debugf("txn %v (read) : there is high priority txn (other partition) conflict key %v",
-					op.txnId, rk)
-				return false
-			}
-		}
-	}
-
-	for _, wk := range op.otherPartitionWriteKey {
-		if _, exist := s.otherPartitionKey[wk]; exist {
-			if len(s.otherPartitionKey[wk].highPriorityTxnWrite) > 0 ||
-				len(s.otherPartitionKey[wk].highPriorityTxnRead) > 0 {
-				log.Debugf("txn %v (write) : there is high priority txn (other partition) conflict key %v",
-					op.txnId, wk)
-				return false
-			}
-		}
-	}
+	//for _, rk := range op.otherPartitionReadKey {
+	//	if _, exist := s.otherPartitionKey[rk]; exist {
+	//		if len(s.otherPartitionKey[rk].highPriorityTxnWrite) > 0 {
+	//			log.Debugf("txn %v (read) : there is high priority txn (other partition) conflict key %v",
+	//				op.txnId, rk)
+	//			return false
+	//		}
+	//	}
+	//}
+	//
+	//for _, wk := range op.otherPartitionWriteKey {
+	//	if _, exist := s.otherPartitionKey[wk]; exist {
+	//		if len(s.otherPartitionKey[wk].highPriorityTxnWrite) > 0 ||
+	//			len(s.otherPartitionKey[wk].highPriorityTxnRead) > 0 {
+	//			log.Debugf("txn %v (write) : there is high priority txn (other partition) conflict key %v",
+	//				op.txnId, wk)
+	//			return false
+	//		}
+	//	}
+	//}
 
 	return true
 }
@@ -721,27 +683,27 @@ func (s *AbstractStorage) recordPrepared(op *ReadAndPrepareOp) {
 		}
 	}
 
-	for _, rk := range op.otherPartitionReadKey {
-		if _, exist := s.otherPartitionKey[rk]; !exist {
-			s.otherPartitionKey[rk] = NewPriorityTxnInfo()
-		}
-		if op.highPriority {
-			s.otherPartitionKey[rk].highPriorityTxnRead[txnId] = true
-		} else {
-			s.otherPartitionKey[rk].lowPriorityTxnRead[txnId] = true
-		}
-	}
-
-	for _, wk := range op.otherPartitionWriteKey {
-		if _, exist := s.otherPartitionKey[wk]; !exist {
-			s.otherPartitionKey[wk] = NewPriorityTxnInfo()
-		}
-		if op.highPriority {
-			s.otherPartitionKey[wk].highPriorityTxnWrite[txnId] = true
-		} else {
-			s.otherPartitionKey[wk].lowPriorityTxnWrite[txnId] = true
-		}
-	}
+	//for _, rk := range op.otherPartitionReadKey {
+	//	if _, exist := s.otherPartitionKey[rk]; !exist {
+	//		s.otherPartitionKey[rk] = NewPriorityTxnInfo()
+	//	}
+	//	if op.highPriority {
+	//		s.otherPartitionKey[rk].highPriorityTxnRead[txnId] = true
+	//	} else {
+	//		s.otherPartitionKey[rk].lowPriorityTxnRead[txnId] = true
+	//	}
+	//}
+	//
+	//for _, wk := range op.otherPartitionWriteKey {
+	//	if _, exist := s.otherPartitionKey[wk]; !exist {
+	//		s.otherPartitionKey[wk] = NewPriorityTxnInfo()
+	//	}
+	//	if op.highPriority {
+	//		s.otherPartitionKey[wk].highPriorityTxnWrite[txnId] = true
+	//	} else {
+	//		s.otherPartitionKey[wk].lowPriorityTxnWrite[txnId] = true
+	//	}
+	//}
 }
 
 func (s *AbstractStorage) removeFromQueue(op *ReadAndPrepareOp) {

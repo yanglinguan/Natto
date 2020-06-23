@@ -53,7 +53,6 @@ type Configuration interface {
 	GetIsReadOnly() bool
 	GetCheckWaiting() bool
 	GetTimeWindow() time.Duration
-	GetAssignLowPriorityTimestamp() bool
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -102,6 +101,9 @@ type Configuration interface {
 	IsProbeBlocking() bool
 	GetProbeInterval() time.Duration
 	IsProbeTime() bool
+
+	IsEarlyAbort() bool
+	IsConditionalPrepare() bool
 }
 
 type FileConfiguration struct {
@@ -171,10 +173,10 @@ type FileConfiguration struct {
 
 	checkWaiting bool // for gts-graph, check the waiting txn there is write-read conflict
 
-	highPriorityRate           int
-	targetRate                 int // client sends at this target rate
-	timeWindow                 time.Duration
-	AssignLowPriorityTimeStamp bool
+	highPriorityRate   int
+	targetRate         int // client sends at this target rate
+	timeWindow         time.Duration
+	conditionalPrepare bool
 
 	dynamicLatency     bool
 	probeWindowLen     time.Duration
@@ -337,7 +339,10 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "totalTxn" {
 			f.totalTxn = int(v.(float64))
 		} else if key == "duration" {
-			f.duration = time.Duration(int64(v.(float64)) * int64(time.Second))
+			f.duration, err = time.ParseDuration(v.(string))
+			if err != nil {
+				log.Fatalf("duration %v is invalid, error %v", v, err)
+			}
 		} else if key == "zipfAlpha" {
 			f.zipfAlpha = v.(float64)
 		} else if key == "workload" {
@@ -367,7 +372,11 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.queueLen = int(v.(float64))
 		} else if key == "retry" {
 			retryInfo := v.(map[string]interface{})
-			f.retryInterval = time.Duration(int64(retryInfo["interval"].(float64)) * int64(time.Millisecond))
+			f.retryInterval, err = time.ParseDuration(retryInfo["interval"].(string))
+			if err != nil {
+				log.Fatalf("retry interval %v is invalid, error %v", v, err)
+			}
+
 			f.maxRetry = int64(retryInfo["maxRetry"].(float64))
 			f.maxSlot = int64(retryInfo["maxSlot"].(float64))
 			mode := retryInfo["mode"].(string)
@@ -395,9 +404,10 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "targetRate" {
 			f.targetRate = int(v.(float64))
 		} else if key == "timeWindow" {
-			f.timeWindow = time.Duration(int64(v.(float64)) * int64(time.Millisecond))
-		} else if key == "lowPriorityTxnTimestamp" {
-			f.AssignLowPriorityTimeStamp = v.(bool)
+			f.timeWindow, err = time.ParseDuration(v.(string))
+			if err != nil {
+				log.Fatalf("timeWindow %v is invalid, error %v", v, err)
+			}
 		} else if key == "dynamicLatency" {
 			items := v.(map[string]interface{})
 			f.dynamicLatency = items["mode"].(bool)
@@ -408,10 +418,12 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.probeWindowMinSize = int(items["probeWindowMinSize"].(float64))
 			f.probeInterval, err = time.ParseDuration(items["probeInterval"].(string))
 			if err != nil {
-				log.Fatalf("probeInterval %v is invalid", v)
+				log.Fatalf("probeInterval %v is invalid error %v", v, err)
 			}
 			f.probeBlocking = items["blocking"].(bool)
 			f.probeTime = items["probeTime"].(bool)
+		} else if key == "conditionalPrepare" {
+			f.conditionalPrepare = v.(bool)
 		}
 	}
 }
@@ -723,10 +735,6 @@ func (f *FileConfiguration) GetTimeWindow() time.Duration {
 	return f.timeWindow
 }
 
-func (f *FileConfiguration) GetAssignLowPriorityTimestamp() bool {
-	return f.AssignLowPriorityTimeStamp
-}
-
 func (f *FileConfiguration) IsDynamicLatency() bool {
 	return f.dynamicLatency
 }
@@ -749,4 +757,12 @@ func (f *FileConfiguration) IsProbeBlocking() bool {
 
 func (f *FileConfiguration) IsProbeTime() bool {
 	return f.probeTime
+}
+
+func (f *FileConfiguration) IsEarlyAbort() bool {
+	return f.timeWindow > 0
+}
+
+func (f *FileConfiguration) IsConditionalPrepare() bool {
+	return f.conditionalPrepare
 }

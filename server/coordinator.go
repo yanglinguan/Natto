@@ -225,7 +225,6 @@ func (c *Coordinator) handlePrepareResult(result *PrepareResultOp) {
 	}
 
 	if TxnStatus(result.Request.PrepareStatus) == ABORT {
-		twoPCInfo.abortReason = AbortReason(result.Request.AbortReason)
 		twoPCInfo.status = ABORT
 	} else {
 		log.Debugf("txn %v partition %v slow path success", txnId, pId)

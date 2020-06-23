@@ -19,8 +19,8 @@ type ReadAndPrepareOp struct {
 	writeKeyMap map[string]bool
 	//preparedWriteKeyNum int
 
-	otherPartitionReadKey  []string
-	otherPartitionWriteKey []string
+	//otherPartitionReadKey  []string
+	//otherPartitionWriteKey []string
 
 	keyMap map[string]bool
 
@@ -97,16 +97,16 @@ func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *Re
 		writeKeyMap: make(map[string]bool),
 		keyMap:      make(map[string]bool),
 		//prepareResult:     nil,
-		sendToCoordinator:      false,
-		partitionKeys:          make(map[int]map[string]bool),
-		allKeys:                make(map[string]bool),
-		otherPartitionReadKey:  make([]string, 0),
-		otherPartitionWriteKey: make([]string, 0),
-		passedTimestamp:        false,
-		txnId:                  request.Txn.TxnId,
-		allReadKeys:            make(map[string]bool),
-		allWriteKeys:           make(map[string]bool),
-		highPriority:           request.Txn.HighPriority,
+		sendToCoordinator: false,
+		partitionKeys:     make(map[int]map[string]bool),
+		allKeys:           make(map[string]bool),
+		//otherPartitionReadKey:  make([]string, 0),
+		//otherPartitionWriteKey: make([]string, 0),
+		passedTimestamp: false,
+		txnId:           request.Txn.TxnId,
+		allReadKeys:     make(map[string]bool),
+		allWriteKeys:    make(map[string]bool),
+		highPriority:    request.Txn.HighPriority,
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
@@ -129,14 +129,14 @@ func (o *ReadAndPrepareOp) processKey(keys []string, server *Server, keyType Key
 			o.allReadKeys[key] = false
 		}
 
-		if !server.storage.HasKey(key) {
-			if keyType == WRITE {
-				o.otherPartitionWriteKey = append(o.otherPartitionWriteKey, key)
-			} else if keyType == READ {
-				o.otherPartitionReadKey = append(o.otherPartitionReadKey, key)
-			}
-			continue
-		}
+		//if !server.storage.HasKey(key) {
+		//	if keyType == WRITE {
+		//		o.otherPartitionWriteKey = append(o.otherPartitionWriteKey, key)
+		//	} else if keyType == READ {
+		//		o.otherPartitionReadKey = append(o.otherPartitionReadKey, key)
+		//	}
+		//	continue
+		//}
 		o.keyMap[key] = true
 
 		if keyType == WRITE {

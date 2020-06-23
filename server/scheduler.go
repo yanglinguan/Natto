@@ -117,7 +117,7 @@ func (ts *TimestampScheduler) resetTimer() {
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
 			op := ts.priorityQueue.Pop()
-			if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
+			if ts.server.config.GetPriority() && ts.server.config.IsEarlyAbort() {
 				if op.request.Txn.HighPriority {
 					ts.highPrioritySL.Delete(op, op.request.Timestamp)
 				} else {
@@ -139,13 +139,13 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 		return
 	}
 
-	if !op.request.Txn.HighPriority && !ts.server.config.GetAssignLowPriorityTimestamp() {
-		if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
-			ts.checkConflictWithHighPriorityTxn(op)
-		}
-		ts.server.executor.PrepareTxn <- op
-		return
-	}
+	//if !op.request.Txn.HighPriority && !ts.server.config.GetAssignLowPriorityTimestamp() {
+	//	if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
+	//		ts.checkConflictWithHighPriorityTxn(op)
+	//	}
+	//	ts.server.executor.PrepareTxn <- op
+	//	return
+	//}
 
 	if op.request.Timestamp < time.Now().UnixNano() {
 		log.Infof("PASS Current time %v", op.txnId)
@@ -153,7 +153,7 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 	}
 
 	ts.priorityQueue.Push(op)
-	if op.request.Txn.HighPriority && ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
+	if op.request.Txn.HighPriority && ts.server.config.GetPriority() && ts.server.config.IsEarlyAbort() {
 		ts.highPrioritySL.Insert(op, op.request.Timestamp)
 	}
 	if op.index == 0 {
@@ -165,14 +165,5 @@ func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
 }
 
 func (ts *TimestampScheduler) Schedule(op *ReadAndPrepareOp) {
-	//if !op.request.Txn.HighPriority {
-	//	log.Debugf("low priority txn %v do not need schedule", op.txnId)
-	//	ts.server.executor.PrepareTxn <- op
-	//	return
-	//}
-	//if op.request.Timestamp < time.Now().UnixNano() {
-	//	log.Infof("Before into queue PASS %v", op.txnId)
-	//}
-
 	ts.pendingOp <- op
 }

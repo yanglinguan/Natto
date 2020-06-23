@@ -47,7 +47,6 @@ type ExecutionRecord struct {
 	isAbort              bool
 	isConditionalPrepare bool
 	readFromReplica      bool
-	abortReason          server.AbortReason
 }
 
 func NewExecutionRecord(rpcTxn *rpc.Transaction) *ExecutionRecord {
@@ -273,7 +272,7 @@ func (c *Client) sendReadAndPrepareRequest() {
 	for {
 		op := <-c.sendTxnRequest
 		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() &&
-			(c.Config.GetServerMode() == configuration.OCC || !c.Config.GetPriority() || c.Config.GetAssignLowPriorityTimestamp()) {
+			(c.Config.GetServerMode() == configuration.OCC || !c.Config.GetPriority() || !c.Config.IsConditionalPrepare()) {
 			c.handleReadOnlyRequest(op)
 		} else {
 			c.handleReadAndPrepareRequest(op)
@@ -335,9 +334,6 @@ func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecor
 			readLeader[kv.Key] = readAndPrepareReply.IsLeader
 			//execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 		}
-		if execution.isAbort {
-			execution.abortReason = server.AbortReason(readAndPrepareReply.AbortReason)
-		}
 
 		if execution.isAbort || len(result) == len(execution.rpcTxn.ReadKeyList) {
 			break
@@ -394,7 +390,7 @@ func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
-	if c.Config.GetServerMode() != configuration.OCC && c.Config.GetPriority() && !c.Config.GetAssignLowPriorityTimestamp() {
+	if c.Config.GetServerMode() != configuration.OCC && c.Config.GetPriority() && c.Config.IsConditionalPrepare() {
 		for _, key := range op.readKeyList {
 			pId := c.Config.GetPartitionIdByKey(key)
 			logrus.Debugf("read key %v, pId %v", key, pId)
@@ -650,7 +646,6 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction, executio
 		ongoingTxn.fastPrepare = result.FastPrepare
 	} else {
 		ongoingTxn.commitResult = 0
-		execution.abortReason = server.AbortReason(result.AbortReason)
 		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
 	}
 	op.result = result.Result
@@ -801,7 +796,7 @@ func (c *Client) PrintTxnStatisticData() {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.executions[txn.execCount].rpcTxn.TxnId,
 			txn.commitResult,
 			txn.endTime.Sub(txn.startTime).Nanoseconds(),
@@ -812,7 +807,6 @@ func (c *Client) PrintTxnStatisticData() {
 			txn.executions[txn.execCount].rpcTxn.ReadOnly,
 			txn.executions[txn.execCount].rpcTxn.HighPriority,
 			txn.fastPrepare,
-			txn.executions[txn.execCount].abortReason,
 		)
 		_, err = file.WriteString(s)
 		if err != nil {

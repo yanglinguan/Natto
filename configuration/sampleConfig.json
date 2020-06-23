@@ -24,7 +24,6 @@
     "readOnly": false,
     "checkWaiting": false,
     "replication": true,
-    "lowPriorityTxnTimestamp": true,
     "totalKey": 3,
     "delay": "200ms",
     "RPCPoolSize": 0,
@@ -32,11 +31,12 @@
     "txnSize": 3,
     "openLoop": true,
     "txnRate": 1,
-    "duration": 30,
+    "duration": "30s",
     "totalTxn": 1000,
     "zipfAlpha": 0.75,
     "targetRate": 100,
-    "timeWindow": 10,
+    "timeWindow": "10ms",
+    "conditionalPrepare": false,
     "dynamicLatency": {
       "mode": true,
       "probeWindowLen": "1s",
@@ -59,7 +59,7 @@
     "queueLen": 10240,
     "retry": {
       "mode": "off",
-      "interval": 0,
+      "interval": "0ms",
       "maxRetry": 20,
       "maxSlot": 32
     },
