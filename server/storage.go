@@ -87,6 +87,7 @@ func (s *Storage) checkKeysAvailable(op ReadAndPrepareOp) bool {
 }
 
 func (s *Storage) LoadKeys(keys []string) {
+	log.Debugf("server load key %v", len(keys))
 	for _, key := range keys {
 		s.kvStore.AddKeyValue(key, key)
 	}
@@ -106,6 +107,7 @@ func (s *Storage) setTxnStatus(txnId string, status TxnStatus) {
 // set the read value, return back to client
 func (s Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus bool) {
 	txnId := op.GetTxnId()
+	log.Debugf("txn %v set read result", txnId)
 	if s.txnStore[txnId].sendToClient {
 		log.Debugf("txn %v read result already sent to client", txnId)
 		return
@@ -124,6 +126,7 @@ func (s Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus 
 
 	if reply.Status != int32(ABORT) {
 		for _, rk := range op.GetReadKeys() {
+			log.Debugf("get key %v", rk)
 			value, version := s.kvStore.Get(rk)
 			keyValueVersion := &rpc.KeyValueVersion{
 				Key:     rk,

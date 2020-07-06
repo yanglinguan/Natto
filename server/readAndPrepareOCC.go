@@ -28,6 +28,7 @@ func NewReadAndPrepareOCC(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareOCC
 		clientWait:   make(chan bool, 1),
 		readKeyList:  make([]string, len(request.Txn.ReadKeyList)),
 		writeKeyList: make([]string, len(request.Txn.WriteKeyList)),
+		highPriority: request.Txn.HighPriority,
 	}
 
 	for i, k := range request.Txn.ReadKeyList {
