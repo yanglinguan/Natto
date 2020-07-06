@@ -39,6 +39,7 @@ func NewStorage(server *Server) *Storage {
 		totalCommit:            0,
 		operations:             make(chan Operation, server.config.GetQueueLen()),
 	}
+	go s.executeOperations()
 	return s
 }
 
