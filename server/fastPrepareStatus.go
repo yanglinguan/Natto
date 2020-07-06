@@ -4,9 +4,9 @@ type FastPrepareStatus struct {
 	txnId            string
 	partitionId      int
 	quorum           int
-	fastResult       []*FastPrepareResultOp
-	upToDateResult   []*FastPrepareResultOp
-	leaderResult     *FastPrepareResultOp
+	fastResult       []*FastPrepareRequestOp
+	upToDateResult   []*FastPrepareRequestOp
+	leaderResult     *FastPrepareRequestOp
 	leaderKeyVersion map[string]uint64
 
 	isSuccess bool
@@ -18,8 +18,8 @@ func NewFastPrepareStatus(txnId string, partitionId int, quorum int) *FastPrepar
 		txnId:            txnId,
 		partitionId:      partitionId,
 		quorum:           quorum - 1, // not including leader
-		fastResult:       make([]*FastPrepareResultOp, 0),
-		upToDateResult:   make([]*FastPrepareResultOp, 0),
+		fastResult:       make([]*FastPrepareRequestOp, 0),
+		upToDateResult:   make([]*FastPrepareRequestOp, 0),
 		leaderResult:     nil,
 		leaderKeyVersion: nil,
 		isSuccess:        false,
@@ -29,7 +29,7 @@ func NewFastPrepareStatus(txnId string, partitionId int, quorum int) *FastPrepar
 	return f
 }
 
-func (f *FastPrepareStatus) setLeaderResult(result *FastPrepareResultOp) {
+func (f *FastPrepareStatus) setLeaderResult(result *FastPrepareRequestOp) {
 	f.leaderResult = result
 	f.leaderKeyVersion = make(map[string]uint64)
 	for _, kv := range result.request.PrepareResult.ReadKeyVerList {
@@ -38,7 +38,7 @@ func (f *FastPrepareStatus) setLeaderResult(result *FastPrepareResultOp) {
 	for _, kv := range result.request.PrepareResult.WriteKeyVerList {
 		f.leaderKeyVersion[kv.Key] = kv.Version
 	}
-	f.upToDateResult = make([]*FastPrepareResultOp, 0)
+	f.upToDateResult = make([]*FastPrepareRequestOp, 0)
 	for _, r := range f.fastResult {
 		if f.isUpToDate(r) {
 			f.upToDateResult = append(f.upToDateResult, r)
@@ -46,7 +46,7 @@ func (f *FastPrepareStatus) setLeaderResult(result *FastPrepareResultOp) {
 	}
 }
 
-func (f *FastPrepareStatus) addFastPrepare(result *FastPrepareResultOp) {
+func (f *FastPrepareStatus) addFastPrepare(result *FastPrepareRequestOp) {
 	if result.request.IsLeader {
 		f.setLeaderResult(result)
 		return
@@ -89,7 +89,7 @@ func (f *FastPrepareStatus) isSameDecision() (bool, TxnStatus) {
 	return true, TxnStatus(f.leaderResult.request.PrepareResult.PrepareStatus)
 }
 
-func (f *FastPrepareStatus) isUpToDate(result *FastPrepareResultOp) bool {
+func (f *FastPrepareStatus) isUpToDate(result *FastPrepareRequestOp) bool {
 	for _, result := range f.fastResult {
 		if result.request.IsLeader {
 			continue

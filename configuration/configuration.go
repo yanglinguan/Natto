@@ -16,8 +16,8 @@ type ServerMode int
 const (
 	OCC ServerMode = iota
 	GTS
-	GtsDepGraph
-	GTSReorder
+	//GtsDepGraph
+	//GTSReorder
 )
 
 type WorkLoad int
@@ -104,6 +104,8 @@ type Configuration interface {
 
 	IsEarlyAbort() bool
 	IsConditionalPrepare() bool
+
+	IsOptimisticReorder() bool
 }
 
 type FileConfiguration struct {
@@ -184,6 +186,8 @@ type FileConfiguration struct {
 	probeInterval      time.Duration
 	probeBlocking      bool
 	probeTime          bool
+
+	optimisticReorder bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -310,10 +314,10 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.serverMode = OCC
 			} else if mode == "gts" {
 				f.serverMode = GTS
-			} else if mode == "gts_dep_graph" {
-				f.serverMode = GtsDepGraph
-			} else if mode == "gts_reorder" {
-				f.serverMode = GTSReorder
+				//} else if mode == "gts_dep_graph" {
+				//	f.serverMode = GtsDepGraph
+				//} else if mode == "gts_reorder" {
+				//	f.serverMode = GTSReorder
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
@@ -424,6 +428,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.probeTime = items["probeTime"].(bool)
 		} else if key == "conditionalPrepare" {
 			f.conditionalPrepare = v.(bool)
+		} else if key == "optimisticReorder" {
+			f.optimisticReorder = v.(bool)
 		}
 	}
 }
@@ -765,4 +771,8 @@ func (f *FileConfiguration) IsEarlyAbort() bool {
 
 func (f *FileConfiguration) IsConditionalPrepare() bool {
 	return f.conditionalPrepare
+}
+
+func (f *FileConfiguration) IsOptimisticReorder() bool {
+	return f.optimisticReorder
 }

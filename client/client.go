@@ -506,12 +506,16 @@ func (c *Client) handleReadOnlyRequest(op *SendOp) {
 		// read-only txn only send to partition leader
 		partitionLeaderId := c.Config.GetLeaderIdByPartitionId(pId)
 
-		sender := NewReadAndPrepareSender(request, execution, partitionLeaderId, c)
+		sender := NewReadOnlySender(request, execution, partitionLeaderId, c)
 		go sender.Send()
 	}
 
 	go c.waitReadAndPrepareRequest(op, execution)
 }
+
+//func (c *Client) waitReadOnlyRequest(op *SendOp, execution *ExecutionRecord) {
+//
+//}
 
 func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
 	// separate key into partitions
@@ -643,7 +647,7 @@ func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction, executio
 	latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
 	if result.Result {
 		ongoingTxn.commitResult = 1
-		ongoingTxn.fastPrepare = result.FastPrepare
+		//ongoingTxn.fastPrepare = result.FastPrepare
 	} else {
 		ongoingTxn.commitResult = 0
 		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
@@ -723,7 +727,7 @@ func (c *Client) handleCommitRequest(op *CommitOp) {
 	request := &rpc.CommitRequest{
 		TxnId:            execution.rpcTxn.TxnId,
 		WriteKeyValList:  writeKeyValueList,
-		IsCoordinator:    false,
+		FromCoordinator:  false,
 		ReadKeyVerList:   readKeyVerList,
 		IsReadAnyReplica: execution.readFromReplica,
 	}

@@ -1,59 +1,61 @@
 package server
 
 import (
+	"Carousel-GTS/utils"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
 
-type Scheduler interface {
-	Schedule(op *ReadAndPrepareOp)
-}
+//type Scheduler interface {
+//	Schedule(op ScheduleOperation)
+//}
+//
+//type NoScheduler struct {
+//	server *Server
+//}
 
-type NoScheduler struct {
-	server *Server
-}
+//func (s *NoScheduler) Schedule(op ScheduleOperation) {
+//	readAndPrepareOp, ok := op.(*ReadAndPrepareGTS)
+//	if !ok {
+//		log.Fatalf("cannot convert to readAndPrepareOp")
+//	}
+//	s.server.executor.PrepareTxn <- readAndPrepareOp
+//}
 
-func (s *NoScheduler) Schedule(op *ReadAndPrepareOp) {
-	s.server.executor.PrepareTxn <- op
-}
-
-type TimestampScheduler struct {
+type Scheduler struct {
 	server         *Server
 	priorityQueue  *PriorityQueue
-	pendingOp      chan *ReadAndPrepareOp
+	pendingOp      chan ScheduleOperation
 	timer          *time.Timer
-	highPrioritySL *SkipList
+	highPrioritySL *utils.SkipList
 }
 
-func NewTimestampScheduler(server *Server) *TimestampScheduler {
-	ts := &TimestampScheduler{
+func NewScheduler(server *Server) *Scheduler {
+	ts := &Scheduler{
 		server:         server,
 		priorityQueue:  NewPriorityQueue(),
-		pendingOp:      make(chan *ReadAndPrepareOp, server.config.GetQueueLen()),
+		pendingOp:      make(chan ScheduleOperation, server.config.GetQueueLen()),
 		timer:          time.NewTimer(0),
-		highPrioritySL: NewSkipList(),
+		highPrioritySL: utils.NewSkipList(),
 	}
 
 	go ts.run()
 	return ts
 }
 
-func (ts *TimestampScheduler) run() {
+func (ts *Scheduler) run() {
 	for {
 		select {
 		case op := <-ts.pendingOp:
-			ts.handleOp(op)
+			op.Schedule(ts)
 		case <-ts.timer.C:
 			ts.resetTimer()
 		}
 	}
 }
 
-func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
-	//log.Warnf("find conflict txn %v txn %v", low, high)
-	//log.Warnf("low txn %v readKey %v writeKey %v", low.txnId, low.allReadKeys, low.allWriteKeys)
-	//log.Warnf("high txn %v readKey %v writeKey %v", high.txnId, high.allReadKeys, high.allWriteKeys)
-	for rk := range low.allReadKeys {
+func conflict(low *ReadAndPrepareGTS, high *ReadAndPrepareGTS) bool {
+	for _, rk := range low.request.Txn.ReadKeyList {
 		if _, exist := high.allWriteKeys[rk]; exist {
 			log.Debugf("key %v : txn (low) %v read and txn (high) %v write", rk, low.txnId, high.txnId)
 			return true
@@ -72,33 +74,27 @@ func conflict(low *ReadAndPrepareOp, high *ReadAndPrepareOp) bool {
 	return false
 }
 
-func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareOp) {
+func (ts *Scheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareGTS) {
+	// get high priority txn >= low priority txn timestamp
 	cur := ts.highPrioritySL.Search(op, op.request.Timestamp)
 
-	//log.Warnf("txn %v : %v", op.txnId, cur.forwards[0])
 	for cur != nil {
-		if cur.v == nil {
-			cur = cur.forwards[0]
+		if cur.V == nil {
+			cur = cur.Forwards[0]
 			continue
 		}
-		//log.Warnf("here")
 		// if the high priority txn has smaller timestamp, then check the next one
 		// the low priority does not affect the high priority
-		if cur.score < op.request.Timestamp {
-			cur = cur.forwards[0]
+		if cur.Score < op.request.Timestamp {
+			cur = cur.Forwards[0]
 			continue
 		}
 
-		//hTm := time.Unix(cur.forwards[0].score, 0)
-		//lTm := time.Unix(op.request.Timestamp, 0)
-		duration := time.Duration(cur.score - op.request.Timestamp)
-		//duration := hTm.Sub(lTm)
-		//log.Warnf("here1: high txn %v and low txn %v duration %v, %v %v", cur.v.(*ReadAndPrepareOp).txnId, op.txnId, duration)
+		// if the time between execution the low and high priority txn < specified window
+		// and they have the conflict, we abort the low priority txn
+		duration := time.Duration(cur.Score - op.request.Timestamp)
 		if duration <= ts.server.config.GetTimeWindow() {
-			//log.Warnf("here2: txn %v within duration", op.txnId)
-			if conflict(op, cur.v.(*ReadAndPrepareOp)) {
-				//log.Warnf("here3: txn %v self abort because of high priority txn %v",
-				//	op.txnId, cur.v.(*ReadAndPrepareOp).txnId)
+			if conflict(op, cur.V.(*ReadAndPrepareGTS)) {
 				op.selfAbort = true
 				break
 			}
@@ -106,11 +102,11 @@ func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepar
 			// if over the time window, break
 			break
 		}
-		cur = cur.forwards[0]
+		cur = cur.Forwards[0]
 	}
 }
 
-func (ts *TimestampScheduler) resetTimer() {
+func (ts *Scheduler) resetTimer() {
 	nextOp := ts.priorityQueue.Peek()
 	for nextOp != nil {
 		nextTime := nextOp.request.Timestamp
@@ -124,7 +120,7 @@ func (ts *TimestampScheduler) resetTimer() {
 					ts.checkConflictWithHighPriorityTxn(op)
 				}
 			}
-			ts.server.executor.PrepareTxn <- op
+			ts.server.storage.AddOperation(op)
 		} else {
 			ts.timer.Reset(time.Duration(diff))
 			break
@@ -133,37 +129,6 @@ func (ts *TimestampScheduler) resetTimer() {
 	}
 }
 
-func (ts *TimestampScheduler) handleOp(op *ReadAndPrepareOp) {
-	if op.probe {
-		op.probeWait <- true
-		return
-	}
-
-	//if !op.request.Txn.HighPriority && !ts.server.config.GetAssignLowPriorityTimestamp() {
-	//	if ts.server.config.GetPriority() && ts.server.config.GetTimeWindow() > 0 {
-	//		ts.checkConflictWithHighPriorityTxn(op)
-	//	}
-	//	ts.server.executor.PrepareTxn <- op
-	//	return
-	//}
-
-	if op.request.Timestamp < time.Now().UnixNano() {
-		log.Infof("PASS Current time %v", op.txnId)
-		op.passedTimestamp = true
-	}
-
-	ts.priorityQueue.Push(op)
-	if op.request.Txn.HighPriority && ts.server.config.GetPriority() && ts.server.config.IsEarlyAbort() {
-		ts.highPrioritySL.Insert(op, op.request.Timestamp)
-	}
-	if op.index == 0 {
-		if !ts.timer.Stop() && len(ts.timer.C) > 0 {
-			<-ts.timer.C
-		}
-		ts.resetTimer()
-	}
-}
-
-func (ts *TimestampScheduler) Schedule(op *ReadAndPrepareOp) {
+func (ts *Scheduler) AddOperation(op ScheduleOperation) {
 	ts.pendingOp <- op
 }

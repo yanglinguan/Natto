@@ -55,6 +55,52 @@ func (s *ReadAndPrepareSender) Send() {
 	}
 }
 
+type ReadOnlySender struct {
+	request     *rpc.ReadAndPrepareRequest
+	execution   *ExecutionRecord
+	timeout     time.Duration
+	dstServerId int
+	client      *Client
+}
+
+func NewReadOnlySender(request *rpc.ReadAndPrepareRequest,
+	txn *ExecutionRecord, dstServerId int, client *Client) *ReadOnlySender {
+	s := &ReadOnlySender{
+		request:     request,
+		execution:   txn,
+		timeout:     0,
+		dstServerId: dstServerId,
+		client:      client,
+	}
+
+	return s
+}
+
+func (s *ReadOnlySender) Send() {
+	conn := s.client.connections[s.dstServerId]
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
+	}
+
+	client := rpc.NewCarouselClient(clientConn)
+	logrus.Infof("SEND ReadOnly %v to %v (%v)", s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId)
+
+	reply, err := client.ReadOnly(context.Background(), s.request)
+	if err != nil {
+		if dstServerId, handled := utils.HandleError(err); handled {
+			logrus.Debugf("resend ReadOnly %v to %v", s.request.Txn.TxnId, dstServerId)
+			s.dstServerId = dstServerId
+			s.Send()
+		} else {
+			logrus.Fatalf("cannot send txn %v ReadOnly to server %v: %v", s.request.Txn.TxnId, conn.GetDstAddr(), err)
+		}
+	} else {
+		logrus.Infof("RECEIVE ReadOnly %v from %v status %v", s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status)
+		s.execution.readAndPrepareReply <- reply
+	}
+}
+
 type CommitRequestSender struct {
 	request     *rpc.CommitRequest
 	txn         *Transaction

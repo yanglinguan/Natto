@@ -52,8 +52,21 @@ func (r *Raft) handleReplicatedOp(data *string) {
 	}
 	logrus.Debugf("get replicated msg txn %v msg %v msg type %v", replicationMsg.TxnId, replicationMsg.Status, replicationMsg.MsgType)
 	if replicationMsg.IsFromCoordinator {
-		r.server.coordinator.Replication <- replicationMsg
+		var operation CoordinatorOperation
+		switch replicationMsg.MsgType {
+		case WriteDataMsg:
+			operation = NewApplyWriteData(replicationMsg)
+		}
+		r.server.coordinator.AddOperation(operation)
 	} else {
-		r.server.executor.ReplicationTxn <- replicationMsg
+		var operation Operation
+		switch replicationMsg.MsgType {
+		case PrepareResultMsg:
+			operation = r.server.operationCreator.createApplyPrepareResultReplicationOp(replicationMsg)
+		case CommitResultMsg:
+			operation = r.server.operationCreator.createApplyCommitResultReplicationOp(replicationMsg)
+		}
+
+		r.server.storage.AddOperation(operation)
 	}
 }

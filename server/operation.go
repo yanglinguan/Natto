@@ -4,252 +4,108 @@ import (
 	"Carousel-GTS/rpc"
 )
 
-type ReadAndPrepareOp struct {
-	request *rpc.ReadAndPrepareRequest
-	wait    chan bool
-	// The index is needed by update and is maintained by the heap.Interface methods.
-	index int // The index of the item in the heap.
-
-	// read result will send to client
-	reply *rpc.ReadAndPrepareReply
-
-	// for prepare
-	readKeyMap map[string]bool
-	//preparedReadKeyNum  int
-	writeKeyMap map[string]bool
-	//preparedWriteKeyNum int
-
-	//otherPartitionReadKey  []string
-	//otherPartitionWriteKey []string
-
-	keyMap map[string]bool
-
-	allKeys map[string]bool
-
-	partitionKeys map[int]map[string]bool
-
-	//// prepare result will send to coordinator
-	//prepareResult *rpc.PrepareResultRequest
-
-	sendToCoordinator bool
-
-	passedTimestamp bool
-	txnId           string
-
-	selfAbort    bool // true: there is a conflict high priority txn within
-	allReadKeys  map[string]bool
-	allWriteKeys map[string]bool
-
-	probeWait chan bool
-	probe     bool
-
-	highPriority bool
+type Operation interface {
+	Execute(storage *Storage)
 }
 
-func NewReadAndPrepareOpForProbe() *ReadAndPrepareOp {
-	r := &ReadAndPrepareOp{
-		probe:     true,
-		probeWait: make(chan bool, 1),
-	}
-	return r
+type ScheduleOperation interface {
+	Schedule(scheduler *Scheduler)
 }
 
-func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareOp {
-	r := &ReadAndPrepareOp{
-		request:       nil,
-		wait:          nil,
-		index:         0,
-		reply:         nil,
-		readKeyMap:    make(map[string]bool),
-		writeKeyMap:   make(map[string]bool),
-		keyMap:        make(map[string]bool),
-		allKeys:       make(map[string]bool),
-		partitionKeys: make(map[int]map[string]bool),
-		//prepareResult:     nil,
-		sendToCoordinator: false,
-		passedTimestamp:   false,
-		txnId:             msg.TxnId,
-		allReadKeys:       make(map[string]bool),
-		allWriteKeys:      make(map[string]bool),
-		highPriority:      msg.HighPriority,
-	}
-	readKeyList := make([]string, len(msg.PreparedReadKeyVersion))
-	for i, kv := range msg.PreparedReadKeyVersion {
-		readKeyList[i] = kv.Key
-	}
-	writeKeyList := make([]string, len(msg.PreparedWriteKeyVersion))
-	for i, kv := range msg.PreparedWriteKeyVersion {
-		writeKeyList[i] = kv.Key
-	}
-	r.processKey(readKeyList, server, READ)
-	r.processKey(writeKeyList, server, WRITE)
-
-	return r
+type CoordinatorOperation interface {
+	Execute(coordinator *Coordinator)
 }
 
-func NewReadAndPrepareOp(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPrepareOp {
-	r := &ReadAndPrepareOp{
-		request:     request,
-		wait:        make(chan bool, 1),
-		index:       0,
-		reply:       nil,
-		readKeyMap:  make(map[string]bool),
-		writeKeyMap: make(map[string]bool),
-		keyMap:      make(map[string]bool),
-		//prepareResult:     nil,
-		sendToCoordinator: false,
-		partitionKeys:     make(map[int]map[string]bool),
-		allKeys:           make(map[string]bool),
-		//otherPartitionReadKey:  make([]string, 0),
-		//otherPartitionWriteKey: make([]string, 0),
-		passedTimestamp: false,
-		txnId:           request.Txn.TxnId,
-		allReadKeys:     make(map[string]bool),
-		allWriteKeys:    make(map[string]bool),
-		highPriority:    request.Txn.HighPriority,
-	}
+type ReadAndPrepareOp interface {
+	Operation
+	ScheduleOperation
+	GetReadKeys() []string
+	GetWriteKeys() []string
+	GetTxnId() string
+	GetPriority() bool
+	GetReadReply() *rpc.ReadAndPrepareReply
+	GetReadRequest() *rpc.ReadAndPrepareRequest
+	GetCoordinatorPartitionId() int
+	GetTimestamp() int64
+	SetReadReply(reply *rpc.ReadAndPrepareReply)
 
-	r.processKey(request.Txn.ReadKeyList, server, READ)
-	r.processKey(request.Txn.WriteKeyList, server, WRITE)
-
-	return r
+	BlockClient()
+	UnblockClient()
 }
 
-func (o *ReadAndPrepareOp) processKey(keys []string, server *Server, keyType KeyType) {
-	for _, key := range keys {
-		pId := server.config.GetPartitionIdByKey(key)
-		if _, exist := o.partitionKeys[pId]; !exist {
-			o.partitionKeys[pId] = make(map[string]bool)
-		}
-		o.partitionKeys[pId][key] = true
-		o.allKeys[key] = true
-		if keyType == WRITE {
-			o.allWriteKeys[key] = false
-		} else if keyType == READ {
-			o.allReadKeys[key] = false
-		}
-
-		//if !server.storage.HasKey(key) {
-		//	if keyType == WRITE {
-		//		o.otherPartitionWriteKey = append(o.otherPartitionWriteKey, key)
-		//	} else if keyType == READ {
-		//		o.otherPartitionReadKey = append(o.otherPartitionReadKey, key)
-		//	}
-		//	continue
-		//}
-		o.keyMap[key] = true
-
-		if keyType == WRITE {
-			o.writeKeyMap[key] = false
-		} else if keyType == READ {
-			o.readKeyMap[key] = false
-		}
-	}
+type OperationCreator interface {
+	createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp
+	createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp
+	createApplyPrepareResultReplicationOp(msg ReplicationMsg) Operation
+	createAbortOp(abortRequest *rpc.AbortRequest) Operation
+	createCommitOp(commitRequest *rpc.CommitRequest) Operation
+	createApplyCommitResultReplicationOp(msg ReplicationMsg) Operation
 }
 
-func (o *ReadAndPrepareOp) BlockOwner() bool {
-	return <-o.wait
+type OCCOperationCreator struct {
+	server *Server
 }
 
-func (o *ReadAndPrepareOp) GetReply() *rpc.ReadAndPrepareReply {
-	return o.reply
+func NewOCCOperationCreator(server *Server) *OCCOperationCreator {
+	o := &OCCOperationCreator{server: server}
+	return o
 }
 
-type CommitRequestOp struct {
-	request     *rpc.CommitRequest
-	canCommit   bool
-	wait        chan bool
-	result      bool
-	fastPrepare bool
-	abortReason AbortReason
-}
-
-func NewCommitRequestOp(request *rpc.CommitRequest) *CommitRequestOp {
-	c := &CommitRequestOp{
-		request:     request,
-		canCommit:   false,
-		wait:        make(chan bool, 1),
-		result:      false,
-		fastPrepare: false,
-	}
-
-	return c
-}
-
-func (c *CommitRequestOp) BlockOwner() bool {
-	return <-c.wait
-}
-
-type AbortRequestOp struct {
-	abortRequest *rpc.AbortRequest
-}
-
-func NewAbortRequestOp(abortRequest *rpc.AbortRequest) *AbortRequestOp {
-	a := &AbortRequestOp{
-		abortRequest: abortRequest,
-	}
-	return a
-}
-
-type PrepareResultOp struct {
-	txnId            string
-	Request          *rpc.PrepareResultRequest
-	CoordPartitionId int
-}
-
-func NewPrepareRequestOp(request *rpc.PrepareResultRequest, coordinatorPartitionId int) *PrepareResultOp {
-	p := &PrepareResultOp{
-		txnId:            request.TxnId,
-		Request:          request,
-		CoordPartitionId: coordinatorPartitionId,
-	}
-
-	return p
-}
-
-func NewPrepareRequestOpWithReplicatedMsg(partitionId int, msg ReplicationMsg) *PrepareResultOp {
-	request := &rpc.PrepareResultRequest{
-		TxnId:           msg.TxnId,
-		ReadKeyVerList:  msg.PreparedReadKeyVersion,
-		WriteKeyVerList: msg.PreparedWriteKeyVersion,
-		PartitionId:     int32(partitionId),
-		PrepareStatus:   int32(msg.Status),
-	}
-	op := &PrepareResultOp{
-		Request:          request,
-		CoordPartitionId: -1,
-	}
-
+func (o OCCOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	op := NewReadAndPrepareOCC(request)
 	return op
 }
 
-type FastPrepareResultOp struct {
-	request          *rpc.FastPrepareResultRequest
-	coordPartitionId int
+func (o OCCOperationCreator) createApplyPrepareResultReplicationOp(msg ReplicationMsg) Operation {
+	return NewOCCApplyPrepareReplicationMsg(msg)
 }
 
-func NewFastPrepareRequestOp(request *rpc.FastPrepareResultRequest, coordinatorPartitionId int) *FastPrepareResultOp {
-	p := &FastPrepareResultOp{
-		request:          request,
-		coordPartitionId: coordinatorPartitionId,
-	}
-	return p
+func (o OCCOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
+	return NewAbortOCC(abortRequest)
 }
 
-type PrintStatusRequestOp struct {
-	committedTxn int
-	wait         chan bool
+func (o OCCOperationCreator) createCommitOp(request *rpc.CommitRequest) Operation {
+	return NewCommitOCC(request)
 }
 
-func NewPrintStatusRequestOp(committedTxn int) *PrintStatusRequestOp {
-	p := &PrintStatusRequestOp{
-		committedTxn: committedTxn,
-		wait:         make(chan bool, 1),
-	}
-
-	return p
+func (o OCCOperationCreator) createApplyCommitResultReplicationOp(msg ReplicationMsg) Operation {
+	return NewApplyCommitResultOCC(msg)
 }
 
-func (o *PrintStatusRequestOp) BlockOwner() bool {
-	return <-o.wait
+func (o OCCOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	return NewReadOnlyOCC(request)
+}
+
+type GTSOperationCreator struct {
+	server *Server
+}
+
+func NewGTSOperationCreator(server *Server) *GTSOperationCreator {
+	g := &GTSOperationCreator{server: server}
+	return g
+}
+
+func (g GTSOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	op := NewReadAndPrepareGTS(request, g.server)
+	return op
+}
+
+func (g GTSOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	return NewReadOnlyGTS(request, g.server)
+}
+
+func (g GTSOperationCreator) createApplyPrepareResultReplicationOp(msg ReplicationMsg) Operation {
+	return NewGTSApplyPrepareReplicationMsg(msg)
+}
+
+func (g GTSOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
+	return NewAbortGTS(abortRequest)
+}
+
+func (g GTSOperationCreator) createCommitOp(request *rpc.CommitRequest) Operation {
+	return NewCommitGTS(request)
+}
+
+func (g GTSOperationCreator) createApplyCommitResultReplicationOp(msg ReplicationMsg) Operation {
+	return NewApplyCommitResultGTS(msg)
 }

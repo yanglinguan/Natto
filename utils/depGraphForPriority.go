@@ -1,4 +1,4 @@
-package server
+package utils
 
 import "container/list"
 
@@ -20,7 +20,7 @@ func NewDepGraph(v int) *DepGraph {
 	return g
 }
 
-func (g *DepGraph) addEdge(s int, t int) {
+func (g *DepGraph) AddEdge(s int, t int) {
 	if s == t {
 		return
 	}
@@ -51,7 +51,7 @@ func (g *DepGraph) isCyclicUtil(i int, visited []bool, recStack []bool) bool {
 	return false
 }
 
-func (g *DepGraph) isCyclic() bool {
+func (g *DepGraph) IsCyclic() bool {
 	visited := make([]bool, g.v)
 	recStack := make([]bool, g.v)
 

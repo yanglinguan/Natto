@@ -4,12 +4,20 @@ package rpc;
 
 service Carousel {
     rpc ReadAndPrepare(ReadAndPrepareRequest) returns (ReadAndPrepareReply) {}
+    rpc ReadOnly(ReadAndPrepareRequest) returns (ReadAndPrepareReply) {}
     rpc Commit(CommitRequest) returns (CommitReply) {}
     rpc Abort(AbortRequest) returns (AbortReply) {}
 
     // RPCs for transaction participants sending prepare result to transaction coordinators
     rpc PrepareResult(PrepareResultRequest) returns (PrepareResultReply) {}
     rpc FastPrepareResult(FastPrepareResultRequest) returns (FastPrepareResultReply) {}
+
+    // leader send this message to coordinator requiring reverse the reorder
+    rpc ReverseReorder(ReverseReorderRequest) returns (ReverseReorderReply) {}
+    // coordinator send this message to coordinator indicating if reverse success
+    rpc ReverseReorderAgreement(ReverseAgreementRequest) returns (ReverseAgreementReply) {}
+    // coordinator to leader to re-prepare
+    rpc RePrepare(RePrepareRequest) returns (RePrepareReply) {}
 
     // print final result
     rpc PrintStatus(PrintStatusRequest) returns (Empty) {}
@@ -58,7 +66,7 @@ message KeyValue {
 
 message ReadAndPrepareReply {
     repeated KeyValueVersion keyValVerList = 1;
-    int32 leaderId = 2; // partition leader's network address
+    int32 leaderId = 2; // partition leader's Id
     bool isLeader = 3;
     int32 status = 4;
 }
@@ -70,6 +78,8 @@ message PrepareResultRequest {
     int32 partitionId = 4;
     int32 prepareStatus = 5;
     repeated int32 conditions = 6;
+    repeated string reorder = 7;
+    int32 counter = 8;
 }
 
 message PrepareResultReply {
@@ -86,10 +96,44 @@ message FastPrepareResultReply {
     int32 leaderAddr = 1;
 }
 
+message RePrepareRequest {
+    string txnId = 1;
+    string requestTxnId = 2;
+    int32 counter = 3;
+}
+
+message RePrepareReply {
+    int32 leaderId = 1;
+}
+
+message ReverseReorderRequest {
+    string txnId = 1;
+    string reorderedTxnId = 2;
+    int32 partitionId = 3;
+    int32 coordPartitionId = 4;
+    int32 counter = 5;
+}
+
+message ReverseReorderReply {
+    int32 leaderId = 1;
+}
+
+message ReverseAgreementRequest {
+    string txnId = 1;
+    string reorderedTxnId = 2;
+    bool agreeReorder = 3;
+    int32 partitionId = 4;
+    int32 counter = 5;
+}
+
+message ReverseAgreementReply {
+    int32 leaderId = 1;
+}
+
 message CommitRequest {
     string txnId = 1;
     repeated KeyValue writeKeyValList = 2;
-    bool isCoordinator = 3;
+    bool fromCoordinator = 3;
     repeated KeyVersion readKeyVerList = 4;
     bool isReadAnyReplica = 5;
     bool isFastPathSuccess = 6;
@@ -98,12 +142,11 @@ message CommitRequest {
 message CommitReply {
     bool result = 1;
     int32 leaderId = 2;
-    bool fastPrepare = 3;
 }
 
 message AbortRequest {
     string txnId = 1;
-    bool isCoordinator = 2;
+    bool fromCoordinator = 2;
 }
 
 message AbortReply {

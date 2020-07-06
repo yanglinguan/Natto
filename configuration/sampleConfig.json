@@ -37,6 +37,7 @@
     "targetRate": 100,
     "timeWindow": "10ms",
     "conditionalPrepare": false,
+    "optimisticReorder": true,
     "dynamicLatency": {
       "mode": true,
       "probeWindowLen": "1s",

@@ -1,4 +1,4 @@
-package server
+package utils
 
 import (
 	"math"
@@ -11,19 +11,19 @@ const (
 
 type skipListNode struct {
 	// value stored in skipList
-	v interface{}
+	V interface{}
 	// for sorting
-	score    int64
+	Score    int64
 	level    int
-	forwards []*skipListNode
+	Forwards []*skipListNode
 }
 
 func newSkipListNode(v interface{}, score int64, level int) *skipListNode {
 	return &skipListNode{
-		v:        v,
-		score:    score,
+		V:        v,
+		Score:    score,
 		level:    level,
-		forwards: make([]*skipListNode, level, level),
+		Forwards: make([]*skipListNode, level, level),
 	}
 }
 
@@ -57,18 +57,18 @@ func (sl *SkipList) Insert(v interface{}, score int64) int {
 	update := [MaxLevel]*skipListNode{}
 	i := MaxLevel - 1
 	for ; i >= 0; i-- {
-		for cur.forwards[i] != nil {
-			if cur.forwards[i].v == v {
+		for cur.Forwards[i] != nil {
+			if cur.Forwards[i].V == v {
 				return 2
 			}
-			if cur.forwards[i].score > score {
+			if cur.Forwards[i].Score > score {
 				update[i] = cur
 				break
 			}
-			cur = cur.forwards[i]
+			cur = cur.Forwards[i]
 		}
 
-		if cur.forwards[i] == nil {
+		if cur.Forwards[i] == nil {
 			update[i] = cur
 		}
 	}
@@ -83,9 +83,9 @@ func (sl *SkipList) Insert(v interface{}, score int64) int {
 	newNode := newSkipListNode(v, score, level)
 
 	for i := 0; i <= level-1; i++ {
-		next := update[i].forwards[i]
-		update[i].forwards[i] = newNode
-		newNode.forwards[i] = next
+		next := update[i].Forwards[i]
+		update[i].Forwards[i] = newNode
+		newNode.Forwards[i] = next
 	}
 
 	for level > sl.level {
@@ -106,25 +106,25 @@ func (sl *SkipList) Delete(v interface{}, score int64) int {
 	update := [MaxLevel]*skipListNode{}
 	for i := sl.level - 1; i >= 0; i-- {
 		update[i] = sl.head
-		for cur.forwards[i] != nil {
-			if cur.forwards[i].score == score && cur.forwards[i].v == v {
+		for cur.Forwards[i] != nil {
+			if cur.Forwards[i].Score == score && cur.Forwards[i].V == v {
 				update[i] = cur
 				break
 			}
-			cur = cur.forwards[i]
+			cur = cur.Forwards[i]
 		}
 	}
 
-	cur = update[0].forwards[0]
+	cur = update[0].Forwards[0]
 	for i := cur.level - 1; i >= 0; i-- {
-		if update[i] == sl.head && cur.forwards[i] == nil {
+		if update[i] == sl.head && cur.Forwards[i] == nil {
 			sl.level = i
 		}
 
-		if update[i].forwards[i] == nil {
-			update[i].forwards[i] = nil
+		if update[i].Forwards[i] == nil {
+			update[i].Forwards[i] = nil
 		} else {
-			update[i].forwards[i] = update[i].forwards[i].forwards[i]
+			update[i].Forwards[i] = update[i].Forwards[i].Forwards[i]
 		}
 	}
 
@@ -140,13 +140,13 @@ func (sl *SkipList) Search(v interface{}, score int64) *skipListNode {
 
 	cur := sl.head
 	for i := sl.level - 1; i >= 0; i-- {
-		for cur.forwards[i] != nil {
-			if cur.forwards[i].score == score && cur.forwards[i].v == v {
-				return cur.forwards[i]
-			} else if cur.forwards[i].score > score {
+		for cur.Forwards[i] != nil {
+			if cur.Forwards[i].Score == score && cur.Forwards[i].V == v {
+				return cur.Forwards[i]
+			} else if cur.Forwards[i].Score > score {
 				break
 			}
-			cur = cur.forwards[i]
+			cur = cur.Forwards[i]
 		}
 	}
 

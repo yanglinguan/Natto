@@ -16,11 +16,11 @@ func NewPriorityQueue() *PriorityQueue {
 	return pq
 }
 
-func (q *PriorityQueue) Pop() *ReadAndPrepareOp {
-	return heap.Pop(&q.minHeap).(*ReadAndPrepareOp)
+func (q *PriorityQueue) Pop() *ReadAndPrepareGTS {
+	return heap.Pop(&q.minHeap).(*ReadAndPrepareGTS)
 }
 
-func (q *PriorityQueue) Peek() *ReadAndPrepareOp {
+func (q *PriorityQueue) Peek() *ReadAndPrepareGTS {
 	if q.minHeap.Len() == 0 {
 		return nil
 	}
@@ -32,11 +32,23 @@ func (q *PriorityQueue) Len() int {
 	return q.minHeap.Len()
 }
 
-func (q *PriorityQueue) Push(op *ReadAndPrepareOp) {
+func (q *PriorityQueue) Push(op *ReadAndPrepareGTS) {
 	heap.Push(&q.minHeap, op)
 }
 
-type MinHeap []*ReadAndPrepareOp
+func (q *PriorityQueue) Remove(op *ReadAndPrepareGTS) {
+	for i := 0; i < len(q.minHeap); i++ {
+		if q.minHeap[i].txnId == op.txnId {
+			q.minHeap[i], q.minHeap[len(q.minHeap)-1] = q.minHeap[len(q.minHeap)-1], q.minHeap[i]
+			q.minHeap = q.minHeap[:len(q.minHeap)-1]
+			break
+		}
+	}
+
+	heap.Init(&q.minHeap)
+}
+
+type MinHeap []*ReadAndPrepareGTS
 
 func (pq MinHeap) Len() int {
 	return len(pq)
@@ -60,7 +72,7 @@ func (pq MinHeap) Swap(i, j int) {
 
 func (pq *MinHeap) Push(x interface{}) {
 	n := len(*pq)
-	item := x.(*ReadAndPrepareOp)
+	item := x.(*ReadAndPrepareGTS)
 	item.index = n
 	*pq = append(*pq, item)
 }

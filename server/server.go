@@ -14,13 +14,22 @@ import (
 )
 
 type Server struct {
-	gRPCServer  *grpc.Server
-	config      configuration.Configuration
-	scheduler   Scheduler
-	storage     Storage
-	executor    *Executor
+	gRPCServer *grpc.Server
+	config     configuration.Configuration
+
+	storage *Storage // interface of different store, occ or gts (global timestamp)
+
+	// schedule the txn by timestamp order
+	scheduler *Scheduler
+
+	// executor execute the txn when it is committed or abort
+	//executor        *Executor
+
 	coordinator *Coordinator
-	raft        *Raft
+
+	operationCreator OperationCreator
+
+	raft *Raft
 
 	raftNode *raftnode.RaftNode
 
@@ -44,28 +53,23 @@ func NewServer(serverId int, configFile string) *Server {
 	server.port = strings.Split(server.serverAddress, ":")[1]
 	server.partitionId = server.config.GetPartitionIdByServerId(server.serverId)
 
-	server.executor = NewExecutor(server)
+	//server.executor = NewExecutor(server)
 	server.coordinator = NewCoordinator(server)
+	server.storage = NewStorage(server)
+	server.scheduler = NewScheduler(server)
 
 	switch server.config.GetServerMode() {
 	case configuration.OCC:
-		server.scheduler = &NoScheduler{server: server}
-		server.storage = NewOccStorage(server)
+		server.operationCreator = NewOCCOperationCreator(server)
+		//server.storage = NewOccStorage(server)
 		break
 	case configuration.GTS:
-		server.scheduler = NewTimestampScheduler(server)
-		server.storage = NewGTSStorage(server)
-		break
-	case configuration.GtsDepGraph:
-		server.scheduler = NewTimestampScheduler(server)
-		server.storage = NewGTSStorageDepGraph(server)
-		break
-	case configuration.GTSReorder:
+		server.operationCreator = NewGTSOperationCreator(server)
 		//server.scheduler = NewTimestampScheduler(server)
-		//server.storage = NewGTSStorageWithReorder(server)
+		//server.storage = NewGTSStorage(server)
 		break
 	default:
-		log.Fatal("OCC, GTS, GTS_DEP_GRAPH")
+		log.Fatal("server mode should be either OCC or GTS")
 		break
 	}
 
@@ -98,7 +102,7 @@ func (server *Server) Start() {
 	log.Infof("Starting Server %v", server.serverId)
 
 	if server.config.GetReplication() {
-		// The channel for proposing requests to Raft
+		// The channel for proposing operations to Raft
 		raftInputChannel := make(chan string, server.config.GetQueueLen())
 		defer close(raftInputChannel)
 		raftConfChangeChannel := make(chan raftpb.ConfChange)

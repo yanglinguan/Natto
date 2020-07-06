@@ -1,358 +1,334 @@
 package server
 
 import (
+	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
 
-type GTSStorage struct {
-	*AbstractStorage
+func (s *Storage) hasWaitingTxn(op *ReadAndPrepareGTS) bool {
+	return s.kvStore.HasWaitingTxn(op)
 }
 
-func NewGTSStorage(server *Server) *GTSStorage {
-	s := &GTSStorage{
-		NewAbstractStorage(server),
+func (s *Storage) reorderPrepare(op *ReadAndPrepareGTS) {
+	if !s.server.config.IsOptimisticReorder() {
+		log.Debugf("txn %v does not turn on the optimistic reorder wait", op.txnId)
+		s.wait(op)
+		return
 	}
-
-	s.AbstractStorage.abstractMethod = s
-
-	return s
+	log.Debugf("txn %v reorder prepare", op.txnId)
+	s.txnStore[op.txnId].status = REORDER_PREPARED
+	s.setPrepareResult(op)
+	s.replicatePreparedResult(op.GetTxnId())
 }
 
-func (s *GTSStorage) Commit(op *CommitRequestOp) {
-	txnId := op.request.TxnId
-	log.Infof("COMMITTED: %v", txnId)
-	if txnInfo, exist := s.txnStore[txnId]; !exist || (txnInfo.status != PREPARED && txnInfo.status != CONDITIONAL_PREPARED) {
-		log.WithFields(log.Fields{
-			"txnId":  txnId,
-			"status": txnInfo.status,
-		}).Fatal("txn should be prepared before commit")
-	}
-
-	op.wait <- true
-
-	s.txnStore[txnId].status = COMMIT
-	s.txnStore[txnId].isFastPrepare = op.request.IsFastPathSuccess
-
-	s.replicateCommitResult(txnId, op.request.WriteKeyValList)
-
-	s.txnStore[txnId].commitTime = time.Now()
-
-	s.releaseKeyAndCheckPrepare(txnId)
-
-	s.writeToDB(op.request.WriteKeyValList)
-	s.txnStore[txnId].receiveFromCoordinator = true
-	s.txnStore[txnId].commitOrder = s.committed
-
-	s.committed++
-	s.print()
+func (s *Storage) outTimeWindow(low ReadAndPrepareOp, high ReadAndPrepareOp) bool {
+	duration := time.Duration(high.GetTimestamp() - low.GetTimestamp())
+	return duration > s.server.config.GetTimeWindow()
 }
 
-func (s *GTSStorage) abortProcessedTxn(txnId string) {
-	switch s.txnStore[txnId].status {
-	case PREPARED, CONDITIONAL_PREPARED:
-		log.Infof("ABORT: %v (coordinator) PREPARED", txnId)
-		s.txnStore[txnId].status = ABORT
-		s.replicateCommitResult(txnId, nil)
-		s.releaseKeyAndCheckPrepare(txnId)
-		break
-	case WAITING:
-		log.Infof("ABORT: %v (coordinator) INIT", txnId)
-		s.txnStore[txnId].status = ABORT
-		s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
-		s.replicateCommitResult(txnId, nil)
-		s.releaseKeyAndCheckPrepare(txnId)
-		break
-	default:
-		log.Fatalf("txn %v should be in statue prepared or init, but status is %v",
-			txnId, s.txnStore[txnId].status)
-		break
-	}
+func (s *Storage) reverseReorderPrepare(op *ReadAndPrepareGTS, reorderTxn map[string]bool) {
+	log.Debugf("txn %v reverser reorder", op.txnId)
+	s.txnStore[op.txnId].status = REVERSE_REORDER_PREPARED
+	s.setReverseReorderPrepareResult(op, reorderTxn)
+	s.replicatePreparedResult(op.txnId)
 }
 
-func (s *GTSStorage) isConflictWithHighPriorityTxn(op *ReadAndPrepareOp) bool {
-	for rk := range op.readKeyMap {
-		if len(s.kvStore[rk].PreparedTxnWrite) > 0 {
-			// there is high priority txn before it
-			log.Debugf("txn %v (read) : there is txn (write) a high priority txn holding key %v",
-				op.txnId, rk)
-			return true
-		}
+func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareGTS, reorderTxn map[string]bool) {
+	txnId := op.txnId
+	if _, exist := s.txnStore[txnId]; !exist {
+		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
 	}
 
-	// write-read, write-write conflict
-	for wk := range op.writeKeyMap {
-		if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedTxnRead) > 0 {
-			log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
-				op.txnId, wk)
-			return true
-		}
+	if s.txnStore[txnId].prepareResultRequest != nil {
+		log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
+		return
 	}
 
-	return false
+	prepareResultRequest := &rpc.PrepareResultRequest{
+		TxnId:           txnId,
+		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
+		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
+		PartitionId:     int32(s.server.partitionId),
+		PrepareStatus:   int32(s.txnStore[txnId].status),
+		Reorder:         make([]string, len(reorderTxn)),
+		Counter:         int32(s.txnStore[txnId].prepareCounter),
+	}
+
+	s.txnStore[txnId].prepareCounter++
+	s.txnStore[txnId].preparedTime = time.Now()
+
+	for _, rk := range op.GetReadKeys() {
+		_, version := s.kvStore.Get(rk)
+		prepareResultRequest.ReadKeyVerList = append(prepareResultRequest.ReadKeyVerList,
+			&rpc.KeyVersion{
+				Key:     rk,
+				Version: version,
+			},
+		)
+	}
+
+	for _, wk := range op.GetWriteKeys() {
+		_, version := s.kvStore.Get(wk)
+		prepareResultRequest.WriteKeyVerList = append(prepareResultRequest.WriteKeyVerList,
+			&rpc.KeyVersion{
+				Key:     wk,
+				Version: version,
+			},
+		)
+	}
+
+	i := 0
+	for txn := range reorderTxn {
+		prepareResultRequest.Reorder[i] = txn
+		i++
+	}
+
+	s.txnStore[txnId].prepareResultRequest = prepareResultRequest
 }
 
-func (s *GTSStorage) isConflictWithLowPriorityTxn(op *ReadAndPrepareOp) (bool, map[string]bool) {
-	conflictTxnConditional := make(map[string]bool)
-	for rk := range op.readKeyMap {
-		for lowTxn := range s.kvStore[rk].PreparedLowPriorityTxnWrite {
-			if s.server.config.IsEarlyAbort() {
-				duration := time.Duration(op.request.Timestamp - s.txnStore[lowTxn].readAndPrepareRequestOp.request.Timestamp)
-				if duration > s.server.config.GetTimeWindow() {
-					return true, nil
-				}
+func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]bool) {
+	txnId := op.txnId
+	if _, exist := s.txnStore[txnId]; !exist {
+		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
+	}
+
+	if s.txnStore[txnId].prepareResultRequest != nil {
+		log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
+		return
+	}
+
+	prepareResultRequest := &rpc.PrepareResultRequest{
+		TxnId:           txnId,
+		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
+		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
+		PartitionId:     int32(s.server.partitionId),
+		PrepareStatus:   int32(s.txnStore[txnId].status),
+		Conditions:      make([]int32, len(condition)),
+		Counter:         int32(s.txnStore[txnId].prepareCounter),
+	}
+
+	s.txnStore[txnId].prepareCounter++
+
+	s.txnStore[txnId].preparedTime = time.Now()
+
+	for _, rk := range op.GetReadKeys() {
+		_, version := s.kvStore.Get(rk)
+		prepareResultRequest.ReadKeyVerList = append(prepareResultRequest.ReadKeyVerList,
+			&rpc.KeyVersion{
+				Key:     rk,
+				Version: version,
+			},
+		)
+	}
+
+	for _, wk := range op.GetWriteKeys() {
+		_, version := s.kvStore.Get(wk)
+		prepareResultRequest.WriteKeyVerList = append(prepareResultRequest.WriteKeyVerList,
+			&rpc.KeyVersion{
+				Key:     wk,
+				Version: version,
+			},
+		)
+	}
+
+	i := 0
+	for c := range condition {
+		prepareResultRequest.Conditions[i] = int32(c)
+		i++
+	}
+
+	s.txnStore[txnId].prepareResultRequest = prepareResultRequest
+}
+
+func (s *Storage) checkConditionTxn(op *ReadAndPrepareGTS) (bool, map[string]bool) {
+	// check if there is high priority txn hold keys
+	lowTxnList := make(map[string]bool)
+	for _, rk := range op.GetReadKeys() {
+		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
+			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
+				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
+				return false, nil
+			} else if s.outTimeWindow(s.txnStore[txnId].readAndPrepareRequestOp, op) {
+				log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", op.txnId, txnId)
+				return false, nil
 			}
-			conflictTxnConditional[lowTxn] = true
+			lowTxnList[txnId] = true
 		}
 	}
 
-	for wk := range op.writeKeyMap {
-		for lowTxn := range s.kvStore[wk].PreparedLowPriorityTxnRead {
-			if s.server.config.IsEarlyAbort() {
-				duration := time.Duration(op.request.Timestamp - s.txnStore[lowTxn].readAndPrepareRequestOp.request.Timestamp)
-				if duration > s.server.config.GetTimeWindow() {
-					return true, nil
-				}
+	for _, wk := range op.GetWriteKeys() {
+		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
+			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
+				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for read", op.txnId, txnId)
+				return false, nil
+			} else if s.outTimeWindow(s.txnStore[txnId].readAndPrepareRequestOp, op) {
+				log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", op.txnId, txnId)
+				return false, nil
 			}
-			conflictTxnConditional[lowTxn] = true
+			lowTxnList[txnId] = true
 		}
-		for lowTxn := range s.kvStore[wk].PreparedLowPriorityTxnWrite {
-			if s.server.config.IsEarlyAbort() {
-				duration := time.Duration(op.request.Timestamp - s.txnStore[lowTxn].readAndPrepareRequestOp.request.Timestamp)
-				if duration > s.server.config.GetTimeWindow() {
-					return true, nil
-				}
+
+		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
+			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
+				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
+				return false, nil
+			} else if s.outTimeWindow(s.txnStore[txnId].readAndPrepareRequestOp, op) {
+				log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", op.txnId, txnId)
+				return false, nil
 			}
-			conflictTxnConditional[lowTxn] = true
+			lowTxnList[txnId] = true
 		}
 	}
 
-	return false, conflictTxnConditional
+	return true, lowTxnList
 }
 
-func (s *GTSStorage) checkKeysAvailableForHighPriorityTxn(op *ReadAndPrepareOp) (bool, map[int]bool) {
-	// first check if there is high priority txn in front holding the same keys
-	// readKeyMap store the keys in this partition
-	// read-write conflict
-
+func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
 	if !s.server.config.IsConditionalPrepare() {
-		for rk := range op.readKeyMap {
-			if len(s.kvStore[rk].PreparedTxnWrite) > 0 || len(s.kvStore[rk].PreparedLowPriorityTxnWrite) > 0 {
-				return false, make(map[int]bool)
-			}
-		}
-
-		for wk := range op.writeKeyMap {
-			if len(s.kvStore[wk].PreparedTxnWrite) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnWrite) > 0 {
-				return false, make(map[int]bool)
-			}
-
-			if len(s.kvStore[wk].PreparedTxnRead) > 0 || len(s.kvStore[wk].PreparedLowPriorityTxnRead) > 0 {
-				log.Debugf("txn %v (write) : there is txn a high priority txn holding key %v",
-					op.txnId, wk)
-				return false, make(map[int]bool)
-			}
-
-		}
-
-		return true, make(map[int]bool)
-	} else {
-		conflictWithHigh := s.isConflictWithHighPriorityTxn(op)
-
-		if conflictWithHigh {
-			return false, make(map[int]bool)
-		}
-
-		// if txn does not has conflict with other high priority txn in this partition
-		// check if there is a conflict with low priority txn in the other partition
-		// find out the conditions to prepare
-
-		conflictWithLow, conditionalTxnList := s.isConflictWithLowPriorityTxn(op)
-
-		if conflictWithLow {
-			return false, make(map[int]bool)
-		}
-
-		overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op.txnId, conditionalTxnList)
-
-		log.Debugf("txn %v keys are available condition %v", op.txnId, overlapPartition)
-
-		return true, overlapPartition
-	}
-}
-
-func (s *GTSStorage) prepared(op *ReadAndPrepareOp, condition map[int]bool) {
-	log.Debugf("PREPARED txn %v priority %v condition %v", op.txnId, op.request.Txn.HighPriority, condition)
-	s.removeFromQueue(op)
-	// record the prepared keys
-	txnId := op.txnId
-	if len(condition) > 0 {
-		log.Debugf("txn %v conditional prepare %v", op.txnId, condition)
-		s.txnStore[txnId].status = CONDITIONAL_PREPARED
-	} else {
-		s.txnStore[txnId].status = PREPARED
-	}
-	s.setReadResult(op)
-	// with read-only optimization, we do not need to record the prepared
-	// and do not need to replicate
-	if s.server.config.GetIsReadOnly() && op.request.Txn.ReadOnly {
-		if s.txnStore[txnId].inQueue {
-			s.server.executor.ReleaseReadOnlyTxn <- op
-		}
-		s.setPrepareResult(op, condition)
-		if s.server.config.GetPriority() && s.server.config.IsConditionalPrepare() {
-			s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
-		}
-	} else {
-		s.recordPrepared(op)
-		s.setPrepareResult(op, condition)
-		s.replicatePreparedResult(op.txnId)
-	}
-}
-
-func (s *GTSStorage) Prepare(op *ReadAndPrepareOp) {
-	log.Infof("PROCESSING txn %v priority %v", op.txnId, op.request.Txn.HighPriority)
-	txnId := op.txnId
-	if info, exist := s.txnStore[txnId]; exist && info.status != INIT {
-		log.Infof("txn %v is already has status %v", txnId, s.txnStore[txnId].status)
-		s.setReadResult(op)
+		log.Debugf("txn %v does not turn on conditional Prepare wait", op.txnId)
+		s.wait(op)
 		return
 	}
 
-	s.txnStore[txnId] = &TxnInfo{
-		readAndPrepareRequestOp: op,
-		status:                  INIT,
-		receiveFromCoordinator:  false,
-		waitingTxnKey:           0,
-		waitingTxnDep:           0,
-		startTime:               time.Now(),
-	}
-	s.txnStore[txnId].startTime = time.Now()
-
-	if op.selfAbort {
-		if op.request.Txn.HighPriority {
-			log.Fatalf("high priority txn should not self abort")
-		}
-		s.txnStore[txnId].abortReason = CONFLICTHIHG
-		s.txnStore[txnId].status = ABORT
-		s.txnStore[txnId].selfAbort = true
-		log.Warnf("txn %v self aborted", txnId)
-		//	s.setReadResult(op)
-		s.selfAbort(op)
+	prepare, lowTxnList := s.checkConditionTxn(op)
+	if !prepare {
+		s.wait(op)
 		return
 	}
 
-	hasWaiting := s.hasWaitingTxn(op)
-	canPrepare := !hasWaiting
-	condition := make(map[int]bool)
-	if op.request.Txn.HighPriority {
-		if !hasWaiting {
-			canPrepare, condition = s.checkKeysAvailableForHighPriorityTxn(op)
-		}
-		_, exist := condition[s.server.partitionId]
-		// if txn only conflict with low priority txn on this partition, then wait
-		if canPrepare && (len(condition) != 1 || !exist) {
-			// prepare
-			s.prepared(op, condition)
-		} else {
-			// wait
-			if !op.passedTimestamp {
-				s.txnStore[txnId].status = WAITING
-				log.Debugf("txn %v cannot prepare available wait", txnId)
-				s.addToQueue(op.keyMap, op)
-			} else {
-				s.txnStore[txnId].abortReason = PASSTIME
-				s.txnStore[txnId].status = ABORT
-				log.Debugf("txn %v passed timestamp also cannot prepared", txnId)
-				//	s.setReadResult(op)
-				s.selfAbort(op)
+	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op.txnId, lowTxnList)
+	log.Debugf("txn %v can conditional prepare condition %v", op.txnId, overlapPartition)
+
+	s.txnStore[op.txnId].status = CONDITIONAL_PREPARED
+	s.setConditionPrepare(op, overlapPartition)
+	s.replicatePreparedResult(op.txnId)
+
+}
+
+func (s *Storage) wait(op *ReadAndPrepareGTS) {
+	log.Debugf("txn %v wait", op.txnId)
+	s.txnStore[op.txnId].status = WAITING
+	s.kvStore.AddToWaitingList(op)
+}
+
+func (s *Storage) removeFromQueue(op *ReadAndPrepareGTS) {
+	s.kvStore.RemoveFromWaitingList(op)
+}
+
+func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareGTS) (bool, map[string]bool) {
+	if !s.server.config.IsOptimisticReorder() {
+		return s.checkKeysAvailable(op), nil
+	}
+
+	reorderTxn := make(map[string]bool)
+	for _, rk := range op.GetReadKeys() {
+		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
+			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
+				return false, nil
 			}
+			reorderTxn[txnId] = true
+		}
+	}
+
+	for _, wk := range op.GetWriteKeys() {
+		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
+			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
+				return false, nil
+			}
+			reorderTxn[txnId] = true
 		}
 
-	} else {
-		if !op.request.Txn.ReadOnly || !s.server.config.GetIsReadOnly() {
-			s.setReadResult(op)
+		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
+			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
+				return false, nil
+			}
+			reorderTxn[txnId] = true
 		}
+	}
 
-		if !hasWaiting {
-			canPrepare = s.checkKeysAvailableForLowPriorityTxn(op)
-		}
-		if canPrepare {
-			// prepare
-			s.prepared(op, condition)
-		} else {
-			// abort
-			log.Debugf("txn %v low priority abort", txnId)
-			s.txnStore[txnId].status = ABORT
-			s.selfAbort(op)
-		}
+	return true, reorderTxn
+}
 
+// check if there is txn can be prepared when key is released
+func (s *Storage) checkPrepare(key string) {
+	op := s.kvStore.GetNextWaitingTxn(key)
+	for op != nil {
+		txnId := op.txnId
+		// skip the aborted txn
+		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
+			log.Debugf("txn %v is already abort remove from the queue of key %v", txnId, key)
+			s.kvStore.RemoveFromWaitingList(op)
+			continue
+		}
+		prepare := op.executeFromQueue(s)
+		if !prepare {
+			break
+		}
+		op = s.kvStore.GetNextWaitingTxn(key)
 	}
 }
 
-func (s *GTSStorage) applyReplicatedPrepareResult(msg ReplicationMsg) {
-	if s.txnStore[msg.TxnId].receiveFromCoordinator {
-		log.Debugf("txn %v already receive the result from coordinator", msg.TxnId)
-		// already receive final decision from coordinator
-		return
+// release the keys that txn holds
+// check if there is txn can be prepared when keys are released
+func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
+	op, ok := s.txnStore[txnId].readAndPrepareRequestOp.(*ReadAndPrepareGTS)
+	if !ok {
+		log.Fatalf("txn %v should be readAndPrepareGTS", txnId)
 	}
-	log.Debugf("txn %v fast path status %v, slow path status %v", msg.TxnId, s.txnStore[msg.TxnId].status, msg.Status)
-	switch s.txnStore[msg.TxnId].status {
-	case PREPARED, CONDITIONAL_PREPARED:
-		s.txnStore[msg.TxnId].status = msg.Status
-		if msg.Status == ABORT {
-			log.Debugf("CONFLICT: txn %v fast path prepare but slow path abort, abort", msg.TxnId)
-			s.releaseKeyAndCheckPrepare(msg.TxnId)
+	s.kvStore.ReleaseKeys(op)
+
+	for key := range op.keyMap {
+		isTop := s.kvStore.isTop(txnId, key)
+		s.kvStore.removeFromQueue(op, key)
+		if !isTop {
+			continue
 		}
-		break
-	case ABORT:
-		s.txnStore[msg.TxnId].status = msg.Status
-		if msg.Status == PREPARED {
-			s.txnStore[msg.TxnId].preparedTime = time.Now()
-			log.Debugf("CONFLICT: txn %v fast path abort but slow path prepare, prepare", msg.TxnId)
-			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		}
-		break
-	case WAITING:
-		log.Debugf("txn %v fast path waiting the lock slow path status %v", msg.TxnId, msg.Status)
-		s.txnStore[msg.TxnId].status = msg.Status
-		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		if msg.Status == PREPARED {
-			s.txnStore[msg.TxnId].preparedTime = time.Now()
-			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		}
-		break
-	case INIT:
-		log.Debugf("txn %v fast path not stated slow path status %v ", msg.TxnId, msg.Status)
-		s.txnStore[msg.TxnId].status = msg.Status
-		if msg.Status == PREPARED {
-			s.recordPrepared(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		}
-		break
+		// otherwise, check if the top of the queue can prepare
+		log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
+		s.checkPrepare(key)
 	}
 }
 
-func (s *GTSStorage) applyReplicatedCommitResult(msg ReplicationMsg) {
-	log.Debugf("txn %v apply replicated commit result enable fast path, status %v, current status %v",
-		msg.TxnId, msg.Status, s.txnStore[msg.TxnId].status)
-	s.txnStore[msg.TxnId].receiveFromCoordinator = true
-	s.txnStore[msg.TxnId].isFastPrepare = msg.IsFastPathSuccess
-	switch s.txnStore[msg.TxnId].status {
-	case PREPARED, CONDITIONAL_PREPARED:
-		s.releaseKeyAndCheckPrepare(msg.TxnId)
-		break
-	case WAITING:
-		s.removeFromQueue(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		s.setReadResult(s.txnStore[msg.TxnId].readAndPrepareRequestOp)
-		break
+func (s *Storage) ReleaseReadOnly(op *ReadAndPrepareGTS) {
+	for key := range op.keyMap {
+		s.checkPrepare(key)
 	}
-	s.txnStore[msg.TxnId].status = msg.Status
-	if msg.Status == COMMIT {
-		s.txnStore[msg.TxnId].commitOrder = s.committed
-		s.committed++
-		s.txnStore[msg.TxnId].commitTime = time.Now()
-		s.writeToDB(msg.WriteData)
-		s.print()
+}
+
+func (s *Storage) overlapPartitions(txnId1 string, txnId2 string) map[int]bool {
+	p1 := make(map[int]bool)
+	op, ok := s.txnStore[txnId1].readAndPrepareRequestOp.(*ReadAndPrepareGTS)
+	if !ok {
+		log.Fatalf("txn %v cannot convert to read and prepare gts", op.txnId)
 	}
+	for key := range op.allKeys {
+		pId := s.server.config.GetPartitionIdByKey(key)
+		p1[pId] = true
+	}
+	result := make(map[int]bool)
+	for key := range op.allKeys {
+		pId := s.server.config.GetPartitionIdByKey(key)
+		if _, exist := p1[pId]; exist {
+			result[pId] = true
+		}
+	}
+
+	log.Debugf("txn %v and txn %v overlap partition %v", txnId1, txnId2, result)
+
+	return result
+}
+
+func (s *Storage) findOverlapPartitionsWithLowPriorityTxn(txnId string, conflictLowPriorityTxn map[string]bool) map[int]bool {
+	overlapPartition := make(map[int]bool)
+
+	log.Debugf("txn %v conflict low priority txn %v", txnId, conflictLowPriorityTxn)
+	for lowTxnId := range conflictLowPriorityTxn {
+		pIdMap := s.overlapPartitions(txnId, lowTxnId)
+		for pId := range pIdMap {
+			overlapPartition[pId] = true
+		}
+	}
+
+	return overlapPartition
 }
