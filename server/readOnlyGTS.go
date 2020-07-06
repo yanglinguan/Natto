@@ -26,6 +26,10 @@ func (r *ReadOnlyGTS) Execute(storage *Storage) {
 	}
 }
 
+func (r *ReadOnlyGTS) Schedule(scheduler *Scheduler) {
+	scheduler.server.storage.AddOperation(r)
+}
+
 func (r *ReadOnlyGTS) highPriorityExecute(storage *Storage) {
 
 }
