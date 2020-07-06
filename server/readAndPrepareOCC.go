@@ -14,15 +14,52 @@ type ReadAndPrepareOCC struct {
 	reply *rpc.ReadAndPrepareReply
 	// client will block on this chan until read prepareResult is ready
 	clientWait chan bool
+
+	readKeyList  []string
+	writeKeyList []string
+	highPriority bool
 }
 
 func NewReadAndPrepareOCC(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareOCC {
 	o := &ReadAndPrepareOCC{
-		txnId:      request.Txn.TxnId,
-		request:    request,
-		reply:      nil,
-		clientWait: make(chan bool, 1),
+		txnId:        request.Txn.TxnId,
+		request:      request,
+		reply:        nil,
+		clientWait:   make(chan bool, 1),
+		readKeyList:  make([]string, len(request.Txn.ReadKeyList)),
+		writeKeyList: make([]string, len(request.Txn.WriteKeyList)),
 	}
+
+	for i, k := range request.Txn.ReadKeyList {
+		o.readKeyList[i] = k
+	}
+
+	for i, k := range request.Txn.ReadKeyList {
+		o.writeKeyList[i] = k
+	}
+
+	return o
+}
+
+func NewReadAndPrepareOCCWithReplicationMsg(msg ReplicationMsg) *ReadAndPrepareOCC {
+	o := &ReadAndPrepareOCC{
+		txnId:        msg.TxnId,
+		request:      nil,
+		reply:        nil,
+		clientWait:   nil,
+		highPriority: msg.HighPriority,
+		readKeyList:  make([]string, len(msg.PreparedReadKeyVersion)),
+		writeKeyList: make([]string, len(msg.PreparedWriteKeyVersion)),
+	}
+
+	for i, kv := range msg.PreparedReadKeyVersion {
+		o.readKeyList[i] = kv.Key
+	}
+
+	for i, kv := range msg.PreparedWriteKeyVersion {
+		o.writeKeyList[i] = kv.Key
+	}
+
 	return o
 }
 
@@ -50,19 +87,19 @@ func (o *ReadAndPrepareOCC) Schedule(schedule *Scheduler) {
 }
 
 func (o *ReadAndPrepareOCC) GetPriority() bool {
-	return o.request.Txn.HighPriority
+	return o.highPriority
 }
 
 func (o *ReadAndPrepareOCC) GetTxnId() string {
-	return o.request.Txn.TxnId
+	return o.txnId
 }
 
 func (o *ReadAndPrepareOCC) GetReadKeys() []string {
-	return o.request.Txn.ReadKeyList
+	return o.readKeyList
 }
 
 func (o *ReadAndPrepareOCC) GetWriteKeys() []string {
-	return o.request.Txn.WriteKeyList
+	return o.writeKeyList
 }
 
 func (o *ReadAndPrepareOCC) GetKeyMap() map[string]bool {

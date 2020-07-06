@@ -35,6 +35,7 @@ type ReadAndPrepareOp interface {
 
 type OperationCreator interface {
 	createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp
+	createReadAndPrepareOpWithReplicationMsg(msg ReplicationMsg) ReadAndPrepareOp
 	createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp
 	createApplyPrepareResultReplicationOp(msg ReplicationMsg) Operation
 	createAbortOp(abortRequest *rpc.AbortRequest) Operation
@@ -54,6 +55,10 @@ func NewOCCOperationCreator(server *Server) *OCCOperationCreator {
 func (o OCCOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
 	op := NewReadAndPrepareOCC(request)
 	return op
+}
+
+func (o OCCOperationCreator) createReadAndPrepareOpWithReplicationMsg(msg ReplicationMsg) ReadAndPrepareOp {
+	return NewReadAndPrepareOCCWithReplicationMsg(msg)
 }
 
 func (o OCCOperationCreator) createApplyPrepareResultReplicationOp(msg ReplicationMsg) Operation {
@@ -88,6 +93,10 @@ func NewGTSOperationCreator(server *Server) *GTSOperationCreator {
 func (g GTSOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
 	op := NewReadAndPrepareGTS(request, g.server)
 	return op
+}
+
+func (g GTSOperationCreator) createReadAndPrepareOpWithReplicationMsg(msg ReplicationMsg) ReadAndPrepareOp {
+	return NewReadAndPrepareGTSWithReplicatedMsg(msg, g.server)
 }
 
 func (g GTSOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {

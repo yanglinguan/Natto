@@ -216,7 +216,8 @@ func (s *Storage) initTxnIfNotExist(msg ReplicationMsg) bool {
 	if _, exist := s.txnStore[msg.TxnId]; !exist {
 		s.txnStore[msg.TxnId] = NewTxnInfo()
 		if msg.Status == PREPARED {
-			s.txnStore[msg.TxnId].readAndPrepareRequestOp = NewReadAndPrepareOpWithReplicatedMsg(msg, s.server)
+			s.txnStore[msg.TxnId].readAndPrepareRequestOp =
+				s.server.operationCreator.createReadAndPrepareOpWithReplicationMsg(msg)
 			s.txnStore[msg.TxnId].prepareResultRequest = &rpc.PrepareResultRequest{
 				TxnId:           msg.TxnId,
 				ReadKeyVerList:  msg.PreparedReadKeyVersion,

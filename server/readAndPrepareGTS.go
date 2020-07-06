@@ -37,9 +37,12 @@ type ReadAndPrepareGTS struct {
 	probe     bool
 
 	highPriority bool
+
+	readKeyList  []string
+	writeKeyList []string
 }
 
-func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareGTS {
+func NewReadAndPrepareGTSWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareGTS {
 	r := &ReadAndPrepareGTS{
 		request:         nil,
 		clientWait:      nil,
@@ -52,17 +55,20 @@ func NewReadAndPrepareOpWithReplicatedMsg(msg ReplicationMsg, server *Server) *R
 		passedTimestamp: false,
 		txnId:           msg.TxnId,
 		highPriority:    msg.HighPriority,
+		readKeyList:     make([]string, len(msg.PreparedReadKeyVersion)),
+		writeKeyList:    make([]string, len(msg.PreparedWriteKeyVersion)),
 	}
-	readKeyList := make([]string, len(msg.PreparedReadKeyVersion))
+
 	for i, kv := range msg.PreparedReadKeyVersion {
-		readKeyList[i] = kv.Key
+		r.readKeyList[i] = kv.Key
 	}
-	writeKeyList := make([]string, len(msg.PreparedWriteKeyVersion))
+
 	for i, kv := range msg.PreparedWriteKeyVersion {
-		writeKeyList[i] = kv.Key
+		r.writeKeyList[i] = kv.Key
 	}
-	r.processKey(readKeyList, server, READ)
-	r.processKey(writeKeyList, server, WRITE)
+
+	r.processKey(r.readKeyList, server, READ)
+	r.processKey(r.writeKeyList, server, WRITE)
 
 	return r
 }
@@ -80,6 +86,16 @@ func NewReadAndPrepareGTS(request *rpc.ReadAndPrepareRequest, server *Server) *R
 		allReadKeys:     make(map[string]bool),
 		allWriteKeys:    make(map[string]bool),
 		highPriority:    request.Txn.HighPriority,
+		readKeyList:     make([]string, len(request.Txn.ReadKeyList)),
+		writeKeyList:    make([]string, len(request.Txn.ReadKeyList)),
+	}
+
+	for i, k := range request.Txn.ReadKeyList {
+		r.readKeyList[i] = k
+	}
+
+	for i, k := range request.Txn.ReadKeyList {
+		r.writeKeyList[i] = k
 	}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
@@ -210,19 +226,19 @@ func (o *ReadAndPrepareGTS) Schedule(scheduler *Scheduler) {
 }
 
 func (o *ReadAndPrepareGTS) GetReadKeys() []string {
-	return o.request.Txn.ReadKeyList
+	return o.readKeyList
 }
 
 func (o *ReadAndPrepareGTS) GetWriteKeys() []string {
-	return o.request.Txn.WriteKeyList
+	return o.readKeyList
 }
 
 func (o *ReadAndPrepareGTS) GetTxnId() string {
-	return o.request.Txn.TxnId
+	return o.txnId
 }
 
 func (o *ReadAndPrepareGTS) GetPriority() bool {
-	return o.request.Txn.HighPriority
+	return o.highPriority
 }
 
 func (o *ReadAndPrepareGTS) GetReadReply() *rpc.ReadAndPrepareReply {
