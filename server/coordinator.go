@@ -140,7 +140,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				}
 			}
 
-			log.Debugf("txn %v can commit replicate data %v", info.status)
+			log.Debugf("txn %v can commit replicate data %v", info.txnId, info.status)
 			info.status = COMMIT
 			info.fastPrepare = true
 			for _, p := range info.partitionPrepareResult {

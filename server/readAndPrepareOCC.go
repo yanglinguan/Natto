@@ -35,7 +35,7 @@ func NewReadAndPrepareOCC(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareOCC
 		o.readKeyList[i] = k
 	}
 
-	for i, k := range request.Txn.ReadKeyList {
+	for i, k := range request.Txn.WriteKeyList {
 		o.writeKeyList[i] = k
 	}
 

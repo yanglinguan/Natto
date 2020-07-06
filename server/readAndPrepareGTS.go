@@ -87,14 +87,14 @@ func NewReadAndPrepareGTS(request *rpc.ReadAndPrepareRequest, server *Server) *R
 		allWriteKeys:    make(map[string]bool),
 		highPriority:    request.Txn.HighPriority,
 		readKeyList:     make([]string, len(request.Txn.ReadKeyList)),
-		writeKeyList:    make([]string, len(request.Txn.ReadKeyList)),
+		writeKeyList:    make([]string, len(request.Txn.WriteKeyList)),
 	}
 
 	for i, k := range request.Txn.ReadKeyList {
 		r.readKeyList[i] = k
 	}
 
-	for i, k := range request.Txn.ReadKeyList {
+	for i, k := range request.Txn.WriteKeyList {
 		r.writeKeyList[i] = k
 	}
 
