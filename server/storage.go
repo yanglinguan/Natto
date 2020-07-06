@@ -125,8 +125,9 @@ func (s Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus 
 	}
 
 	if reply.Status != int32(ABORT) {
+		log.Debugf("get key %v", op.GetReadKeys())
 		for _, rk := range op.GetReadKeys() {
-			log.Debugf("get key %v", rk)
+			//log.Debugf("get key %v", rk)
 			value, version := s.kvStore.Get(rk)
 			keyValueVersion := &rpc.KeyValueVersion{
 				Key:     rk,
