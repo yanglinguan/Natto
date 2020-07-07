@@ -266,3 +266,17 @@ func (s *Storage) checkAbort(op ReadAndPrepareOp) bool {
 	}
 	return false
 }
+
+func (s *Storage) commit(txnId string, status TxnStatus, writeData []*rpc.KeyValue) {
+	s.txnStore[txnId].status = status
+	if status != COMMIT {
+		log.Debugf("txn %v is not commit %v", txnId, status)
+		return
+	}
+
+	s.txnStore[txnId].commitOrder = s.committed
+	s.committed++
+	s.txnStore[txnId].commitTime = time.Now()
+	s.writeToDB(writeData)
+	s.print()
+}

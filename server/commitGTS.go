@@ -3,7 +3,6 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 type CommitGTS struct {
@@ -24,19 +23,21 @@ func (c *CommitGTS) Execute(storage *Storage) {
 		}).Fatal("txn should be prepared before commit")
 	}
 
-	storage.txnStore[txnId].status = COMMIT
-	storage.txnStore[txnId].isFastPrepare = c.request.IsFastPathSuccess
+	storage.commit(txnId, COMMIT, c.request.WriteKeyValList)
+
+	//storage.txnStore[txnId].status = COMMIT
+	//storage.txnStore[txnId].isFastPrepare = c.request.IsFastPathSuccess
 
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
 
-	storage.txnStore[txnId].commitTime = time.Now()
+	//storage.txnStore[txnId].commitTime = time.Now()
 
 	storage.releaseKeyAndCheckPrepare(txnId)
 
-	storage.writeToDB(c.request.WriteKeyValList)
-	storage.txnStore[txnId].receiveFromCoordinator = true
-	storage.txnStore[txnId].commitOrder = storage.committed
+	//storage.writeToDB(c.request.WriteKeyValList)
+	//storage.txnStore[txnId].receiveFromCoordinator = true
+	//storage.txnStore[txnId].commitOrder = storage.committed
 
-	storage.committed++
-	storage.print()
+	//storage.committed++
+	//storage.print()
 }

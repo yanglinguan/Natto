@@ -2,7 +2,6 @@ package server
 
 import (
 	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 type ApplyCommitResultGTS struct {
@@ -21,14 +20,15 @@ func (a ApplyCommitResultGTS) Execute(storage *Storage) {
 	storage.initTxnIfNotExist(a.msg)
 	if !storage.server.config.GetFastPath() {
 		log.Debugf("txn %v apply commit result disable fast path", a.msg.TxnId)
-		storage.txnStore[a.msg.TxnId].status = a.msg.Status
-		if a.msg.Status == COMMIT {
-			storage.txnStore[a.msg.TxnId].commitOrder = storage.committed
-			storage.committed++
-			storage.txnStore[a.msg.TxnId].commitTime = time.Now()
-			storage.writeToDB(a.msg.WriteData)
-			storage.print()
-		}
+		storage.commit(a.msg.TxnId, a.msg.Status, a.msg.WriteData)
+		//storage.txnStore[a.msg.TxnId].status = a.msg.Status
+		//if a.msg.Status == COMMIT {
+		//	storage.txnStore[a.msg.TxnId].commitOrder = storage.committed
+		//	storage.committed++
+		//	storage.txnStore[a.msg.TxnId].commitTime = time.Now()
+		//	storage.writeToDB(a.msg.WriteData)
+		//	storage.print()
+		//}
 		return
 	}
 
@@ -53,12 +53,13 @@ func (a ApplyCommitResultGTS) fastPathExecute(storage *Storage) {
 		storage.setReadResult(storage.txnStore[a.msg.TxnId].readAndPrepareRequestOp, -1, false)
 		break
 	}
-	storage.txnStore[a.msg.TxnId].status = a.msg.Status
-	if a.msg.Status == COMMIT {
-		storage.txnStore[a.msg.TxnId].commitOrder = storage.committed
-		storage.committed++
-		storage.txnStore[a.msg.TxnId].commitTime = time.Now()
-		storage.writeToDB(a.msg.WriteData)
-		storage.print()
-	}
+	//storage.txnStore[a.msg.TxnId].status = a.msg.Status
+	//if a.msg.Status == COMMIT {
+	//	storage.txnStore[a.msg.TxnId].commitOrder = storage.committed
+	//	storage.committed++
+	//	storage.txnStore[a.msg.TxnId].commitTime = time.Now()
+	//	storage.writeToDB(a.msg.WriteData)
+	//	storage.print()
+	//}
+	storage.commit(a.msg.TxnId, a.msg.Status, a.msg.WriteData)
 }
