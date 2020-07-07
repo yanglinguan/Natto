@@ -16,6 +16,15 @@ type CoordinatorOperation interface {
 	Execute(coordinator *Coordinator)
 }
 
+type GTSOp interface {
+	ReadAndPrepareOp
+	executeFromQueue(storage *Storage) bool
+
+	setIndex(i int)
+
+	GetKeyMap() map[string]bool
+}
+
 type ReadAndPrepareOp interface {
 	Operation
 	ScheduleOperation

@@ -16,11 +16,11 @@ func NewPriorityQueue() *PriorityQueue {
 	return pq
 }
 
-func (q *PriorityQueue) Pop() *ReadAndPrepareGTS {
-	return heap.Pop(&q.minHeap).(*ReadAndPrepareGTS)
+func (q *PriorityQueue) Pop() GTSOp {
+	return heap.Pop(&q.minHeap).(GTSOp)
 }
 
-func (q *PriorityQueue) Peek() *ReadAndPrepareGTS {
+func (q *PriorityQueue) Peek() GTSOp {
 	if q.minHeap.Len() == 0 {
 		return nil
 	}
@@ -32,13 +32,13 @@ func (q *PriorityQueue) Len() int {
 	return q.minHeap.Len()
 }
 
-func (q *PriorityQueue) Push(op *ReadAndPrepareGTS) {
+func (q *PriorityQueue) Push(op GTSOp) {
 	heap.Push(&q.minHeap, op)
 }
 
-func (q *PriorityQueue) Remove(op *ReadAndPrepareGTS) {
+func (q *PriorityQueue) Remove(op GTSOp) {
 	for i := 0; i < len(q.minHeap); i++ {
-		if q.minHeap[i].txnId == op.txnId {
+		if q.minHeap[i].GetTxnId() == op.GetTxnId() {
 			q.minHeap[i], q.minHeap[len(q.minHeap)-1] = q.minHeap[len(q.minHeap)-1], q.minHeap[i]
 			q.minHeap = q.minHeap[:len(q.minHeap)-1]
 			break
@@ -48,26 +48,27 @@ func (q *PriorityQueue) Remove(op *ReadAndPrepareGTS) {
 	heap.Init(&q.minHeap)
 }
 
-type MinHeap []*ReadAndPrepareGTS
+type MinHeap []GTSOp
 
 func (pq MinHeap) Len() int {
 	return len(pq)
 }
 
 func (pq MinHeap) Less(i, j int) bool {
-	if pq[i].request.Timestamp == pq[j].request.Timestamp {
-		if pq[i].request.ClientId == pq[i].request.ClientId {
-			return pq[i].txnId < pq[i].txnId
+	request := pq[i].GetReadRequest()
+	if request.Timestamp == request.Timestamp {
+		if request.ClientId == request.ClientId {
+			return pq[i].GetTxnId() < pq[i].GetTxnId()
 		}
-		return pq[i].request.ClientId < pq[i].request.ClientId
+		return request.ClientId < request.ClientId
 	}
-	return pq[i].request.Timestamp < pq[j].request.Timestamp
+	return request.Timestamp < request.Timestamp
 }
 
 func (pq MinHeap) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
+	pq[i].setIndex(i)
+	pq[j].setIndex(j)
 }
 
 func (pq *MinHeap) Push(x interface{}) {
@@ -81,8 +82,8 @@ func (pq *MinHeap) Pop() interface{} {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	item.index = -1 // for safety
+	old[n-1] = nil    // avoid memory leak
+	item.setIndex(-1) // for safety
 	*pq = old[0 : n-1]
 	return item
 }

@@ -16,9 +16,9 @@ const (
 )
 
 type WaitingList interface {
-	Push(op *ReadAndPrepareGTS)
-	Front() *ReadAndPrepareGTS
-	Remove(gts *ReadAndPrepareGTS)
+	Push(op GTSOp)
+	Front() GTSOp
+	Remove(gts GTSOp)
 	Len() int
 }
 
@@ -35,21 +35,22 @@ func NewQueue() *Queue {
 	return q
 }
 
-func (q *Queue) Push(op *ReadAndPrepareGTS) {
+func (q *Queue) Push(op GTSOp) {
 	item := q.waitingOp.PushBack(op)
-	q.waitingItem[op.txnId] = item
+	q.waitingItem[op.GetTxnId()] = item
 }
 
-func (q *Queue) Front() *ReadAndPrepareGTS {
-	return q.waitingOp.Front().Value.(*ReadAndPrepareGTS)
+func (q *Queue) Front() GTSOp {
+	return q.waitingOp.Front().Value.(GTSOp)
 }
 
-func (q *Queue) Remove(op *ReadAndPrepareGTS) {
-	if _, exist := q.waitingItem[op.txnId]; !exist {
+func (q *Queue) Remove(op GTSOp) {
+	txnId := op.GetTxnId()
+	if _, exist := q.waitingItem[txnId]; !exist {
 		return
 	}
-	q.waitingOp.Remove(q.waitingItem[op.txnId])
-	delete(q.waitingItem, op.txnId)
+	q.waitingOp.Remove(q.waitingItem[txnId])
+	delete(q.waitingItem, txnId)
 }
 
 func (q *Queue) Len() int {
@@ -58,33 +59,33 @@ func (q *Queue) Len() int {
 
 type PQueue struct {
 	waitingOp   *PriorityQueue
-	waitingItem map[string]*ReadAndPrepareGTS
+	waitingItem map[string]GTSOp
 }
 
 func NewPQueue() *PQueue {
 	q := &PQueue{
 		waitingOp:   NewPriorityQueue(),
-		waitingItem: make(map[string]*ReadAndPrepareGTS),
+		waitingItem: make(map[string]GTSOp),
 	}
 	return q
 }
 
-func (q *PQueue) Push(op *ReadAndPrepareGTS) {
+func (q *PQueue) Push(op GTSOp) {
 	q.waitingOp.Push(op)
-	q.waitingItem[op.txnId] = op
+	q.waitingItem[op.GetTxnId()] = op
 }
 
-func (q *PQueue) Front() *ReadAndPrepareGTS {
+func (q *PQueue) Front() GTSOp {
 	return q.waitingOp.Peek()
 }
 
-func (q *PQueue) Remove(op *ReadAndPrepareGTS) {
-	if _, exist := q.waitingItem[op.txnId]; !exist {
+func (q *PQueue) Remove(op GTSOp) {
+	if _, exist := q.waitingItem[op.GetTxnId()]; !exist {
 		return
 	}
 
 	q.waitingOp.Remove(op)
-	delete(q.waitingItem, op.txnId)
+	delete(q.waitingItem, op.GetTxnId())
 }
 
 func (q *PQueue) Len() int {
@@ -174,8 +175,8 @@ func (kv *KVStore) Put(key string, value string) {
 }
 
 // add keys to waiting list
-func (kv *KVStore) AddToWaitingList(op *ReadAndPrepareGTS) {
-	for key := range op.keyMap {
+func (kv *KVStore) AddToWaitingList(op GTSOp) {
+	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		kv.keys[key].WaitingQueue.Push(op)
 		//item := kv.keys[key].waitingOp.PushBack(op)
@@ -184,12 +185,12 @@ func (kv *KVStore) AddToWaitingList(op *ReadAndPrepareGTS) {
 }
 
 // remove txn from the waiting list
-func (kv *KVStore) RemoveFromWaitingList(op *ReadAndPrepareGTS) {
+func (kv *KVStore) RemoveFromWaitingList(op GTSOp) {
 	// only high priority will wait
-	if !op.highPriority {
+	if !op.GetPriority() {
 		return
 	}
-	for key := range op.keyMap {
+	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		kv.removeFromQueue(op, key)
 	}
@@ -197,10 +198,10 @@ func (kv *KVStore) RemoveFromWaitingList(op *ReadAndPrepareGTS) {
 
 func (kv *KVStore) isTop(txnId string, key string) bool {
 	front := kv.keys[key].WaitingQueue.Front()
-	return front.txnId == txnId
+	return front.GetTxnId() == txnId
 }
 
-func (kv *KVStore) removeFromQueue(op *ReadAndPrepareGTS, key string) {
+func (kv *KVStore) removeFromQueue(op GTSOp, key string) {
 	kv.keys[key].WaitingQueue.Remove(op)
 }
 
@@ -310,14 +311,14 @@ func (kv KVStore) GetTxnHoldRead(key string) map[string]bool {
 	return kv.keys[key].PreparedTxnRead
 }
 
-func (kv KVStore) HasWaitingTxn(op *ReadAndPrepareGTS) bool {
-	for key := range op.keyMap {
+func (kv KVStore) HasWaitingTxn(op GTSOp) bool {
+	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		if kv.keys[key].WaitingQueue.Len() > 0 {
 			top := kv.keys[key].WaitingQueue.Front()
-			if top.txnId != op.GetTxnId() {
+			if top.GetTxnId() != op.GetTxnId() {
 				log.Debugf("txn %v has txn in queue key %v top of queue is %v",
-					op.GetTxnId(), key, top.txnId)
+					op.GetTxnId(), key, top.GetTxnId())
 				return true
 			}
 		}
@@ -334,7 +335,7 @@ func (kv KVStore) HasWaitingTxn(op *ReadAndPrepareGTS) bool {
 //
 //}
 
-func (kv KVStore) GetNextWaitingTxn(key string) *ReadAndPrepareGTS {
+func (kv KVStore) GetNextWaitingTxn(key string) GTSOp {
 	kv.checkExistHandleKeyNotExistError(key)
 	if kv.keys[key].WaitingQueue.Len() > 0 {
 		e := kv.keys[key].WaitingQueue.Front()

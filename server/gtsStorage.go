@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (s *Storage) hasWaitingTxn(op *ReadAndPrepareGTS) bool {
+func (s *Storage) hasWaitingTxn(op GTSOp) bool {
 	return s.kvStore.HasWaitingTxn(op)
 }
 
@@ -18,6 +18,7 @@ func (s *Storage) reorderPrepare(op *ReadAndPrepareGTS) {
 	}
 	log.Debugf("txn %v reorder prepare", op.txnId)
 	s.txnStore[op.txnId].status = REORDER_PREPARED
+	s.setReadResult(op, -1, false)
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(op.GetTxnId())
 }
@@ -52,7 +53,7 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareGTS, reorderT
 		PartitionId:     int32(s.server.partitionId),
 		PrepareStatus:   int32(s.txnStore[txnId].status),
 		Reorder:         make([]string, len(reorderTxn)),
-		Counter:         int32(s.txnStore[txnId].prepareCounter),
+		Counter:         s.txnStore[txnId].prepareCounter,
 	}
 
 	s.txnStore[txnId].prepareCounter++
@@ -105,7 +106,7 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 		PartitionId:     int32(s.server.partitionId),
 		PrepareStatus:   int32(s.txnStore[txnId].status),
 		Conditions:      make([]int32, len(condition)),
-		Counter:         int32(s.txnStore[txnId].prepareCounter),
+		Counter:         s.txnStore[txnId].prepareCounter,
 	}
 
 	s.txnStore[txnId].prepareCounter++
@@ -201,14 +202,15 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
 	log.Debugf("txn %v can conditional prepare condition %v", op.txnId, overlapPartition)
 
 	s.txnStore[op.txnId].status = CONDITIONAL_PREPARED
+	s.setReadResult(op, -1, false)
 	s.setConditionPrepare(op, overlapPartition)
 	s.replicatePreparedResult(op.txnId)
 
 }
 
-func (s *Storage) wait(op *ReadAndPrepareGTS) {
-	log.Debugf("txn %v wait", op.txnId)
-	s.txnStore[op.txnId].status = WAITING
+func (s *Storage) wait(op GTSOp) {
+	log.Debugf("txn %v wait", op.GetTxnId())
+	s.txnStore[op.GetTxnId()].status = WAITING
 	s.kvStore.AddToWaitingList(op)
 }
 
@@ -254,7 +256,7 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareGTS) (bool, map[
 func (s *Storage) checkPrepare(key string) {
 	op := s.kvStore.GetNextWaitingTxn(key)
 	for op != nil {
-		txnId := op.txnId
+		txnId := op.GetTxnId()
 		// skip the aborted txn
 		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
 			log.Debugf("txn %v is already abort remove from the queue of key %v", txnId, key)
