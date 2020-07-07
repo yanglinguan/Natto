@@ -22,6 +22,8 @@ func (r *ReadOnlyOCC) Execute(storage *Storage) {
 		return
 	}
 
+	storage.AddTxn(r)
+
 	available := storage.checkKeysAvailable(r)
 	status := PREPARED
 	if !available {
