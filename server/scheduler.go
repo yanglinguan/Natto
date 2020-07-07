@@ -54,19 +54,20 @@ func (ts *Scheduler) run() {
 	}
 }
 
-func conflict(low *ReadAndPrepareGTS, high *ReadAndPrepareGTS) bool {
-	for _, rk := range low.request.Txn.ReadKeyList {
-		if _, exist := high.allWriteKeys[rk]; exist {
-			log.Debugf("key %v : txn (low) %v read and txn (high) %v write", rk, low.txnId, high.txnId)
+func conflict(low GTSOp, high GTSOp) bool {
+	for rk := range low.GetAllReadKeys() {
+		if _, exist := high.GetAllWriteKeys()[rk]; exist {
+			log.Debugf("key %v : txn (low) %v read and txn (high) %v write",
+				rk, low.GetTxnId(), high.GetTxnId())
 			return true
 		}
 	}
 
-	for wk := range low.allWriteKeys {
-		if _, exist := high.allWriteKeys[wk]; exist {
+	for wk := range low.GetAllWriteKeys() {
+		if _, exist := high.GetAllWriteKeys()[wk]; exist {
 			return true
 		}
-		if _, exist := high.allReadKeys[wk]; exist {
+		if _, exist := high.GetAllReadKeys()[wk]; exist {
 			return true
 		}
 	}
@@ -74,9 +75,9 @@ func conflict(low *ReadAndPrepareGTS, high *ReadAndPrepareGTS) bool {
 	return false
 }
 
-func (ts *Scheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareGTS) {
+func (ts *Scheduler) checkConflictWithHighPriorityTxn(op GTSOp) {
 	// get high priority txn >= low priority txn timestamp
-	cur := ts.highPrioritySL.Search(op, op.request.Timestamp)
+	cur := ts.highPrioritySL.Search(op, op.GetReadRequest().Timestamp)
 
 	for cur != nil {
 		if cur.V == nil {
@@ -85,17 +86,17 @@ func (ts *Scheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareGTS) {
 		}
 		// if the high priority txn has smaller timestamp, then check the next one
 		// the low priority does not affect the high priority
-		if cur.Score < op.request.Timestamp {
+		if cur.Score < op.GetReadRequest().Timestamp {
 			cur = cur.Forwards[0]
 			continue
 		}
 
 		// if the time between execution the low and high priority txn < specified window
 		// and they have the conflict, we abort the low priority txn
-		duration := time.Duration(cur.Score - op.request.Timestamp)
+		duration := time.Duration(cur.Score - op.GetReadRequest().Timestamp)
 		if duration <= ts.server.config.GetTimeWindow() {
-			if conflict(op, cur.V.(*ReadAndPrepareGTS)) {
-				op.selfAbort = true
+			if conflict(op, cur.V.(GTSOp)) {
+				op.setSelfAbort()
 				break
 			}
 		} else {
@@ -109,13 +110,13 @@ func (ts *Scheduler) checkConflictWithHighPriorityTxn(op *ReadAndPrepareGTS) {
 func (ts *Scheduler) resetTimer() {
 	nextOp := ts.priorityQueue.Peek()
 	for nextOp != nil {
-		nextTime := nextOp.request.Timestamp
+		nextTime := nextOp.GetReadRequest().Timestamp
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
 			op := ts.priorityQueue.Pop()
 			if ts.server.config.GetPriority() && ts.server.config.IsEarlyAbort() {
-				if op.request.Txn.HighPriority {
-					ts.highPrioritySL.Delete(op, op.request.Timestamp)
+				if op.GetReadRequest().Txn.HighPriority {
+					ts.highPrioritySL.Delete(op, op.GetReadRequest().Timestamp)
 				} else {
 					ts.checkConflictWithHighPriorityTxn(op)
 				}

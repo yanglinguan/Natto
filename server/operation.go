@@ -21,8 +21,11 @@ type GTSOp interface {
 	executeFromQueue(storage *Storage) bool
 
 	setIndex(i int)
+	setSelfAbort()
 
 	GetKeyMap() map[string]bool
+	GetAllWriteKeys() map[string]bool
+	GetAllReadKeys() map[string]bool
 }
 
 type ReadAndPrepareOp interface {

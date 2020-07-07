@@ -277,3 +277,15 @@ func (o *ReadAndPrepareGTS) GetReadRequest() *rpc.ReadAndPrepareRequest {
 func (o *ReadAndPrepareGTS) GetTimestamp() int64 {
 	return o.request.Timestamp
 }
+
+func (o *ReadAndPrepareGTS) GetAllWriteKeys() map[string]bool {
+	return o.allWriteKeys
+}
+
+func (o *ReadAndPrepareGTS) GetAllReadKeys() map[string]bool {
+	return o.allReadKeys
+}
+
+func (o *ReadAndPrepareGTS) setSelfAbort() {
+	o.selfAbort = true
+}
