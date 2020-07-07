@@ -43,9 +43,10 @@ func (c *CommitCoordinator) Execute(coordinator *Coordinator) {
 	if len(c.request.WriteKeyValList) == 0 && coordinator.server.config.GetIsReadOnly() {
 		log.Debugf("txn %v is readOnly, do not need to replicate write data", txnId)
 		twoPCInfo.writeDataReplicated = true
-		coordinator.checkResult(twoPCInfo)
 	} else {
 		writeDataReplication := NewWriteDataReplication(txnId)
 		coordinator.AddOperation(writeDataReplication)
 	}
+
+	coordinator.checkResult(twoPCInfo)
 }
