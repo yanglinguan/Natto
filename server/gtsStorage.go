@@ -281,11 +281,11 @@ func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
 	s.kvStore.ReleaseKeys(op)
 
 	for key := range op.keyMap {
-		isTop := s.kvStore.isTop(txnId, key)
+		//isTop := s.kvStore.isTop(txnId, key)
 		s.kvStore.removeFromQueue(op, key)
-		if !isTop {
-			continue
-		}
+		//if !isTop {
+		//	continue
+		//}
 		// otherwise, check if the top of the queue can prepare
 		log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
 		s.checkPrepare(key)

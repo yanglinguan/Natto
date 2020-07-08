@@ -20,6 +20,8 @@ type WaitingList interface {
 	Front() GTSOp
 	Remove(gts GTSOp)
 	Len() int
+
+	InQueue(txnId string) bool
 }
 
 type Queue struct {
@@ -33,6 +35,11 @@ func NewQueue() *Queue {
 		waitingItem: make(map[string]*list.Element),
 	}
 	return q
+}
+
+func (q *Queue) InQueue(txnId string) bool {
+	_, exist := q.waitingItem[txnId]
+	return exist
 }
 
 func (q *Queue) Push(op GTSOp) {
@@ -72,6 +79,11 @@ func NewPQueue() *PQueue {
 		waitingItem: make(map[string]GTSOp),
 	}
 	return q
+}
+
+func (q *PQueue) InQueue(txnId string) bool {
+	_, exist := q.waitingItem[txnId]
+	return exist
 }
 
 func (q *PQueue) Push(op GTSOp) {
@@ -162,7 +174,7 @@ func (kv KVStore) ContainsKey(key string) bool {
 
 // get value and version
 // return error if key does not exist
-func (kv KVStore) Get(key string) (string, uint64) {
+func (kv *KVStore) Get(key string) (string, uint64) {
 	kv.checkExistHandleKeyNotExistError(key)
 	return kv.keys[key].Value, kv.keys[key].Version
 }
@@ -201,6 +213,9 @@ func (kv *KVStore) RemoveFromWaitingList(op GTSOp) {
 }
 
 func (kv *KVStore) isTop(txnId string, key string) bool {
+	if !kv.keys[key].WaitingQueue.InQueue(txnId) {
+		return true
+	}
 	front := kv.keys[key].WaitingQueue.Front()
 	if front == nil {
 		return true
@@ -242,28 +257,28 @@ func (kv *KVStore) ReleaseKeys(op ReadAndPrepareOp) {
 	}
 }
 
-func (kv KVStore) checkExistHandleKeyNotExistError(key string) {
+func (kv *KVStore) checkExistHandleKeyNotExistError(key string) {
 	if _, exist := kv.keys[key]; !exist {
 		log.Fatalf("key %v does not exist", key)
 	}
 }
 
 // return true if any txn hold write lock of key
-func (kv KVStore) IsTxnHoldWrite(key string) bool {
+func (kv *KVStore) IsTxnHoldWrite(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	log.Debugf("key %v write hold by %v", key, kv.keys[key].PreparedTxnWrite)
 	return len(kv.keys[key].PreparedTxnWrite) > 0
 }
 
 // return true if any txn hold read lock of key
-func (kv KVStore) IsTxnHoldRead(key string) bool {
+func (kv *KVStore) IsTxnHoldRead(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	log.Debugf("key %v read hold by %v", key, kv.keys[key].PreparedTxnRead)
 	return len(kv.keys[key].PreparedTxnRead) > 0
 }
 
 // return true if any high priority txn hold write lock of key
-func (kv KVStore) IsHighTxnHoldWrite(key string) bool {
+func (kv *KVStore) IsHighTxnHoldWrite(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	for _, priority := range kv.keys[key].PreparedTxnWrite {
 		if priority {
@@ -275,7 +290,7 @@ func (kv KVStore) IsHighTxnHoldWrite(key string) bool {
 }
 
 // return true if any high priority txn hold read lock of key
-func (kv KVStore) IsHighTxnHoldRead(key string) bool {
+func (kv *KVStore) IsHighTxnHoldRead(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	for _, priority := range kv.keys[key].PreparedTxnRead {
 		if priority {
@@ -287,7 +302,7 @@ func (kv KVStore) IsHighTxnHoldRead(key string) bool {
 }
 
 // return true if any low priority txn hold write lock of key
-func (kv KVStore) IsLowTxnHoldWrite(key string) bool {
+func (kv *KVStore) IsLowTxnHoldWrite(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	for _, priority := range kv.keys[key].PreparedTxnWrite {
 		if !priority {
@@ -298,7 +313,7 @@ func (kv KVStore) IsLowTxnHoldWrite(key string) bool {
 }
 
 // return true if any low priority txn hold read lock of key
-func (kv KVStore) IsLowTxnHoldRead(key string) bool {
+func (kv *KVStore) IsLowTxnHoldRead(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	for _, priority := range kv.keys[key].PreparedTxnRead {
 		if !priority {
@@ -309,18 +324,18 @@ func (kv KVStore) IsLowTxnHoldRead(key string) bool {
 }
 
 // return txn hold write lock
-func (kv KVStore) GetTxnHoldWrite(key string) map[string]bool {
+func (kv *KVStore) GetTxnHoldWrite(key string) map[string]bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	return kv.keys[key].PreparedTxnWrite
 }
 
 // return list of txn hold read lock
-func (kv KVStore) GetTxnHoldRead(key string) map[string]bool {
+func (kv *KVStore) GetTxnHoldRead(key string) map[string]bool {
 	kv.checkExistHandleKeyNotExistError(key)
 	return kv.keys[key].PreparedTxnRead
 }
 
-func (kv KVStore) HasWaitingTxn(op GTSOp) bool {
+func (kv *KVStore) HasWaitingTxn(op GTSOp) bool {
 	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		if kv.keys[key].WaitingQueue.Len() > 0 {
@@ -336,7 +351,7 @@ func (kv KVStore) HasWaitingTxn(op GTSOp) bool {
 	return false
 }
 
-//func (kv KVStore) IsTopOfWaitingQueue(key string, txnId string) bool {
+//func (kv *KVStore) IsTopOfWaitingQueue(key string, txnId string) bool {
 //	kv.checkExistHandleKeyNotExistError(key)
 //	if e, exist := kv.keys[key].waitingItem[txnId]; exist {
 //		front
@@ -344,16 +359,18 @@ func (kv KVStore) HasWaitingTxn(op GTSOp) bool {
 //
 //}
 
-func (kv KVStore) GetNextWaitingTxn(key string) GTSOp {
+func (kv *KVStore) GetNextWaitingTxn(key string) GTSOp {
 	kv.checkExistHandleKeyNotExistError(key)
 	if kv.keys[key].WaitingQueue.Len() > 0 {
 		e := kv.keys[key].WaitingQueue.Front()
+		log.Debugf("txn %v is the next wait txn for key %v", e.GetTxnId(), key)
 		return e
 	}
+	log.Debugf("key %v does not have wait txn", key)
 	return nil
 }
 
-func (kv KVStore) finalWaitStateCheck() {
+func (kv *KVStore) finalWaitStateCheck() {
 	for key, kv := range kv.keys {
 		if len(kv.PreparedTxnRead) != 0 ||
 			len(kv.PreparedTxnWrite) != 0 ||
@@ -372,7 +389,7 @@ func (kv KVStore) finalWaitStateCheck() {
 	}
 }
 
-func (kv KVStore) printModifiedData(fileName string) {
+func (kv *KVStore) printModifiedData(fileName string) {
 	file, err := os.Create(fileName)
 	if err != nil || file == nil {
 		log.Fatal("Fails to create log file: statistic.log")
