@@ -287,7 +287,7 @@ func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
 	}
 }
 
-func (s *Storage) ReleaseReadOnly(op *ReadAndPrepareGTS) {
+func (s *Storage) ReleaseReadOnly(op *ReadOnlyGTS) {
 	for key := range op.keyMap {
 		s.checkPrepare(key)
 	}
