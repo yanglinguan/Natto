@@ -175,6 +175,7 @@ func (o *ReadAndPrepareGTS) executeFromQueue(storage *Storage) bool {
 		return false
 	}
 
+	storage.setReadResult(o, -1, false)
 	storage.removeFromQueue(o)
 
 	return true
