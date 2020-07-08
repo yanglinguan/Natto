@@ -73,8 +73,8 @@ func (pq MinHeap) Swap(i, j int) {
 
 func (pq *MinHeap) Push(x interface{}) {
 	n := len(*pq)
-	item := x.(*ReadAndPrepareGTS)
-	item.index = n
+	item := x.(GTSOp)
+	item.setIndex(n)
 	*pq = append(*pq, item)
 }
 

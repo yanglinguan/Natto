@@ -123,11 +123,11 @@ func newKeyInfoWithQueue(value string) *KeyInfo {
 	return k
 }
 
-func newKeyInfo(value string, queue bool) *KeyInfo {
-	if queue {
-		return newKeyInfoWithQueue(value)
-	} else {
+func newKeyInfo(value string, reorder bool) *KeyInfo {
+	if reorder {
 		return newKeyInfoWithPriorityQueue(value)
+	} else {
+		return newKeyInfoWithQueue(value)
 	}
 }
 
