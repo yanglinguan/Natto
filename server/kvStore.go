@@ -198,6 +198,9 @@ func (kv *KVStore) RemoveFromWaitingList(op GTSOp) {
 
 func (kv *KVStore) isTop(txnId string, key string) bool {
 	front := kv.keys[key].WaitingQueue.Front()
+	if front == nil {
+		return true
+	}
 	return front.GetTxnId() == txnId
 }
 
