@@ -41,6 +41,10 @@ func (q *Queue) Push(op GTSOp) {
 }
 
 func (q *Queue) Front() GTSOp {
+	front := q.waitingOp.Front()
+	if front == nil {
+		return nil
+	}
 	return q.waitingOp.Front().Value.(GTSOp)
 }
 
