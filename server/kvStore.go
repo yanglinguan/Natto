@@ -251,12 +251,14 @@ func (kv KVStore) checkExistHandleKeyNotExistError(key string) {
 // return true if any txn hold write lock of key
 func (kv KVStore) IsTxnHoldWrite(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
+	log.Debugf("key %v write hold by %v", key, kv.keys[key].PreparedTxnWrite)
 	return len(kv.keys[key].PreparedTxnWrite) > 0
 }
 
 // return true if any txn hold read lock of key
 func (kv KVStore) IsTxnHoldRead(key string) bool {
 	kv.checkExistHandleKeyNotExistError(key)
+	log.Debugf("key %v read hold by %v", key, kv.keys[key].PreparedTxnRead)
 	return len(kv.keys[key].PreparedTxnRead) > 0
 }
 
