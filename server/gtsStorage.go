@@ -214,7 +214,7 @@ func (s *Storage) wait(op GTSOp) {
 	s.kvStore.AddToWaitingList(op)
 }
 
-func (s *Storage) removeFromQueue(op *ReadAndPrepareGTS) {
+func (s *Storage) removeFromQueue(op GTSOp) {
 	s.kvStore.RemoveFromWaitingList(op)
 }
 
@@ -274,19 +274,14 @@ func (s *Storage) checkPrepare(key string) {
 // release the keys that txn holds
 // check if there is txn can be prepared when keys are released
 func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
-	op, ok := s.txnStore[txnId].readAndPrepareRequestOp.(*ReadAndPrepareGTS)
+	op, ok := s.txnStore[txnId].readAndPrepareRequestOp.(GTSOp)
 	if !ok {
 		log.Fatalf("txn %v should be readAndPrepareGTS", txnId)
 	}
 	s.kvStore.ReleaseKeys(op)
-
-	for key := range op.keyMap {
-		//isTop := s.kvStore.isTop(txnId, key)
-		s.kvStore.removeFromQueue(op, key)
-		//if !isTop {
-		//	continue
-		//}
-		// otherwise, check if the top of the queue can prepare
+	s.kvStore.RemoveFromWaitingList(op)
+	for key := range op.GetKeyMap() {
+		//s.kvStore.removeFromQueue(op, key)
 		log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
 		s.checkPrepare(key)
 	}

@@ -80,6 +80,7 @@ func (r *ReadOnlyGTS) executeFromQueue(storage *Storage) bool {
 		return false
 	}
 	storage.setReadResult(r, PREPARED, true)
+	storage.removeFromQueue(r)
 
 	return true
 }

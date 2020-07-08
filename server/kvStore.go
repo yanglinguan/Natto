@@ -207,8 +207,8 @@ func (kv *KVStore) RemoveFromWaitingList(op GTSOp) {
 		return
 	}
 	for key := range op.GetKeyMap() {
-		kv.checkExistHandleKeyNotExistError(key)
-		kv.removeFromQueue(op, key)
+		//kv.checkExistHandleKeyNotExistError(key)
+		kv.keys[key].WaitingQueue.Remove(op)
 	}
 }
 
@@ -223,9 +223,10 @@ func (kv *KVStore) isTop(txnId string, key string) bool {
 	return front.GetTxnId() == txnId
 }
 
-func (kv *KVStore) removeFromQueue(op GTSOp, key string) {
-	kv.keys[key].WaitingQueue.Remove(op)
-}
+//func (kv *KVStore) removeFromQueue(op GTSOp) {
+//
+//	kv.keys[key].WaitingQueue.Remove(op)
+//}
 
 // mark prepared keys
 func (kv *KVStore) RecordPrepared(op ReadAndPrepareOp) {
