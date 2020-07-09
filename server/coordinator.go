@@ -273,10 +273,12 @@ func (c *Coordinator) reorderPrepare(request *rpc.PrepareResultRequest) {
 	twoPCInfo := c.txnStore[txnId]
 	pId := int(request.PartitionId)
 
-	if p, exist := twoPCInfo.partitionPrepareResult[pId]; exist && p.counter == request.Counter {
-		log.Debugf("txn %v is already reverse the reorder, this is reordered prepare. ignore", txnId)
-		c.sendRePrepare(txnId, "", pId, request.Counter)
-		return
+	if p, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
+		if p.status != REORDER_PREPARED && p.counter == request.Counter {
+			log.Debugf("txn %v is already reverse the reorder, this is reordered prepare. ignore", txnId)
+			c.sendRePrepare(txnId, "", pId, request.Counter)
+			return
+		}
 	}
 
 	c.checkResult(twoPCInfo)
