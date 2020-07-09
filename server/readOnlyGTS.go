@@ -3,6 +3,7 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type ReadOnlyGTS struct {
@@ -14,6 +15,7 @@ func NewReadOnlyGTS(request *rpc.ReadAndPrepareRequest, server *Server) *ReadOnl
 }
 
 func (r *ReadOnlyGTS) Execute(storage *Storage) {
+	log.Debugf("txn %v start execute timestamp %v", r.txnId, r.request.Timestamp)
 	if !storage.server.config.GetIsReadOnly() {
 		r.ReadAndPrepareGTS.Execute(storage)
 		return
@@ -27,7 +29,21 @@ func (r *ReadOnlyGTS) Execute(storage *Storage) {
 }
 
 func (r *ReadOnlyGTS) Schedule(scheduler *Scheduler) {
-	scheduler.server.storage.AddOperation(r)
+	if r.request.Timestamp < time.Now().UnixNano() {
+		log.Infof("PASS Current time %v", r.txnId)
+		r.passedTimestamp = true
+	}
+
+	scheduler.priorityQueue.Push(r)
+	if r.highPriority && scheduler.server.config.GetPriority() && scheduler.server.config.IsEarlyAbort() {
+		scheduler.highPrioritySL.Insert(r, r.request.Timestamp)
+	}
+	if r.index == 0 {
+		if !scheduler.timer.Stop() && len(scheduler.timer.C) > 0 {
+			<-scheduler.timer.C
+		}
+		scheduler.resetTimer()
+	}
 }
 
 func (r *ReadOnlyGTS) highPriorityExecute(storage *Storage) {

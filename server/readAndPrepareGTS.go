@@ -121,7 +121,7 @@ func (o *ReadAndPrepareGTS) processKey(keys []string, server *Server, keyType Ke
 }
 
 func (o *ReadAndPrepareGTS) Execute(storage *Storage) {
-	log.Debugf("txn %v start execute", o.txnId)
+	log.Debugf("txn %v start execute timestamp %v", o.txnId, o.request.Timestamp)
 	if o.highPriority {
 		o.executeHighPriority(storage)
 	} else {
