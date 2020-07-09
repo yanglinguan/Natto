@@ -22,7 +22,7 @@ type WaitingList interface {
 	Len() int
 
 	InQueue(txnId string) bool
-	GetWaitingItems() []string
+	GetWaitingItems() map[string]GTSOp
 }
 
 type Queue struct {
@@ -43,13 +43,9 @@ func (q *Queue) InQueue(txnId string) bool {
 	return exist
 }
 
-func (q *Queue) GetWaitingItems() []string {
-	result := make([]string, 0)
-	for txnId := range q.waitingItem {
-		result = append(result, txnId)
-	}
+func (q *Queue) GetWaitingItems() map[string]GTSOp {
 
-	return result
+	return make(map[string]GTSOp)
 }
 
 func (q *Queue) Push(op GTSOp) {
@@ -96,13 +92,8 @@ func (q *PQueue) InQueue(txnId string) bool {
 	return exist
 }
 
-func (q *PQueue) GetWaitingItems() []string {
-	result := make([]string, len(q.waitingItem))
-	for txnId, op := range q.waitingItem {
-		result[op.getIndex()] = txnId
-	}
-
-	return result
+func (q *PQueue) GetWaitingItems() map[string]GTSOp {
+	return q.waitingItem
 }
 
 func (q *PQueue) Push(op GTSOp) {
@@ -360,8 +351,11 @@ func (kv *KVStore) HasWaitingTxn(op GTSOp) bool {
 	for key := range op.GetKeyMap() {
 		//kv.checkExistHandleKeyNotExistError(key)
 		if kv.keys[key].WaitingQueue.Len() > 0 {
-			log.Debugf("txn %v key %v waiting txn %v",
-				op.GetTxnId(), key, kv.keys[key].WaitingQueue.GetWaitingItems())
+			for txnId, w := range kv.keys[key].WaitingQueue.GetWaitingItems() {
+				log.Debugf("txn %v key %v waiting txn %v idx %v timestamp %v",
+					op.GetTxnId(), key, txnId, w.getIndex(), w.GetTimestamp())
+			}
+
 			top := kv.keys[key].WaitingQueue.Front()
 			if top.GetTxnId() != op.GetTxnId() {
 				log.Debugf("txn %v has txn in queue key %v top of queue is %v",
