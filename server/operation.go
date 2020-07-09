@@ -21,6 +21,7 @@ type GTSOp interface {
 	executeFromQueue(storage *Storage) bool
 
 	setIndex(i int)
+	getIndex() int
 	setSelfAbort()
 
 	GetKeyMap() map[string]bool

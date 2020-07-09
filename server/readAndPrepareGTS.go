@@ -133,6 +133,10 @@ func (o *ReadAndPrepareGTS) setIndex(i int) {
 	o.index = i
 }
 
+func (o *ReadAndPrepareGTS) getIndex() int {
+	return o.index
+}
+
 func (o *ReadAndPrepareGTS) executeHighPriority(storage *Storage) {
 	if storage.checkAbort(o) {
 		log.Debugf("txn %v high prioirty txn already abort", o.txnId)
