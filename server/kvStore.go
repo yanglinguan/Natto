@@ -97,13 +97,7 @@ func (q *PQueue) InQueue(txnId string) bool {
 }
 
 func (q *PQueue) GetWaitingItems() []string {
-	max := 0
-	for _, i := range q.waitingItem {
-		if i.getIndex() > max {
-			max = i.getIndex()
-		}
-	}
-	result := make([]string, max)
+	result := make([]string, len(q.waitingItem))
 	for txnId, op := range q.waitingItem {
 		result[op.getIndex()] = txnId
 	}
