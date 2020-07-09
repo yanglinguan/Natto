@@ -16,7 +16,9 @@ func NewCommitGTS(request *rpc.CommitRequest) *CommitGTS {
 func (c *CommitGTS) Execute(storage *Storage) {
 	txnId := c.request.TxnId
 	log.Infof("COMMITTED: %v", txnId)
-	if txnInfo, exist := storage.txnStore[txnId]; !exist || (txnInfo.status != PREPARED && txnInfo.status != CONDITIONAL_PREPARED) {
+	if txnInfo, exist := storage.txnStore[txnId]; !exist || (txnInfo.status != PREPARED &&
+		txnInfo.status != CONDITIONAL_PREPARED &&
+		txnInfo.status != REORDER_PREPARED) {
 		log.WithFields(log.Fields{
 			"txnId":  txnId,
 			"status": txnInfo.status,
