@@ -15,7 +15,8 @@ func NewReadOnlyGTS(request *rpc.ReadAndPrepareRequest, server *Server) *ReadOnl
 }
 
 func (r *ReadOnlyGTS) Execute(storage *Storage) {
-	log.Debugf("txn %v start execute timestamp %v", r.txnId, r.request.Timestamp)
+	log.Debugf("txn %v start execute timestamp %v idx %v",
+		r.txnId, r.request.Timestamp, r.index)
 	if !storage.server.config.GetIsReadOnly() {
 		r.ReadAndPrepareGTS.Execute(storage)
 		return
