@@ -15,11 +15,11 @@ import (
 //}
 
 //func (s *NoScheduler) Schedule(op ScheduleOperation) {
-//	readAndPrepareOp, ok := op.(*ReadAndPrepareGTS)
+//	readRequest, ok := op.(*ReadAndPrepareGTS)
 //	if !ok {
-//		log.Fatalf("cannot convert to readAndPrepareOp")
+//		log.Fatalf("cannot convert to readRequest")
 //	}
-//	s.server.executor.PrepareTxn <- readAndPrepareOp
+//	s.server.executor.PrepareTxn <- readRequest
 //}
 
 type Scheduler struct {

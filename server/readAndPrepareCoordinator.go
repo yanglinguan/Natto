@@ -18,7 +18,7 @@ func (o ReadAndPrepareCoordinator) Execute(coordinator *Coordinator) {
 	log.Debugf("receive read and prepare from client %v", txnId)
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(txnId)
 
-	twoPCInfo.readAndPrepareOp = o.request
+	twoPCInfo.readRequest = o.request
 
 	coordinator.checkResult(twoPCInfo)
 }

@@ -25,7 +25,7 @@ func (w WriteDataReplication) Execute(coordinator *Coordinator) {
 		TxnId:             w.txnId,
 		Status:            coordinator.txnStore[w.txnId].status,
 		MsgType:           WriteDataMsg,
-		WriteData:         coordinator.txnStore[w.txnId].commitRequest.request.WriteKeyValList,
+		WriteData:         coordinator.txnStore[w.txnId].commitRequestOp.request.WriteKeyValList,
 		IsFromCoordinator: true,
 	}
 
