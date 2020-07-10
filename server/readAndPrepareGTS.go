@@ -167,6 +167,7 @@ func (o *ReadAndPrepareGTS) executeHighPriority(storage *Storage) {
 		storage.conditionalPrepare(o)
 	} else {
 		if o.passedTimestamp {
+			storage.setReadResult(o, -1, false)
 			storage.selfAbort(o)
 			return
 		}
@@ -227,6 +228,11 @@ func (o *ReadAndPrepareGTS) executeLowPriority(storage *Storage) {
 	wait := storage.hasWaitingTxn(o)
 	if wait {
 		log.Debugf("txn %v there is waiting txn, abort", o.txnId)
+		storage.selfAbort(o)
+		return
+	}
+
+	if o.passedTimestamp {
 		storage.selfAbort(o)
 		return
 	}
