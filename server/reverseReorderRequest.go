@@ -21,6 +21,7 @@ func (r ReverseReorderRequest) Execute(coordinator *Coordinator) {
 	canReverse := reorderTxnInfo.status != COMMIT
 
 	if canReverse {
+		reorderTxnInfo.reversedReorder = true
 		for pId, result := range reorderTxnInfo.partitionPrepareResult {
 			if result.status != REORDER_PREPARED {
 				continue

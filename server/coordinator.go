@@ -29,6 +29,7 @@ type TwoPCInfo struct {
 	reorderPrepare         bool
 	conditionPrepare       bool
 	reversedReorderPrepare bool
+	reversedReorder        bool
 }
 
 type Coordinator struct {
@@ -336,8 +337,12 @@ func (c *Coordinator) print() {
 		log.Fatalf("cannot write to file %v error %v", fName, err)
 	}
 	for txnId, info := range c.txnStore {
-		line := fmt.Sprintf("%v %v %v %v %v\n",
-			txnId, info.status == COMMIT, info.reorderPrepare, info.conditionPrepare, info.reversedReorderPrepare)
+		line := fmt.Sprintf("%v %v %v %v %v %v\n",
+			txnId, info.status == COMMIT,
+			info.reorderPrepare,
+			info.conditionPrepare,
+			info.reversedReorderPrepare,
+			info.reversedReorder)
 		_, err := file.WriteString(line)
 		if err != nil {
 			log.Fatalf("cannot write to file %v error %v", fName, err)
