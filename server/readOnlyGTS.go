@@ -58,6 +58,10 @@ func (r *ReadOnlyGTS) highPriorityExecute(storage *Storage) {
 		//} else if available && storage.server.config.IsOptimisticReorder() {
 		//		storage.setReadResult(r, PREPARED, true)
 	} else {
+		if r.passedTimestamp {
+			storage.setReadResult(r, ABORT, true)
+			return
+		}
 		storage.wait(r)
 	}
 
