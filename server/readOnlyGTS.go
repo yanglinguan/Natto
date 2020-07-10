@@ -66,11 +66,17 @@ func (r *ReadOnlyGTS) highPriorityExecute(storage *Storage) {
 func (r *ReadOnlyGTS) lowPriorityExecute(storage *Storage) {
 	log.Debugf("txn %v low priority read only execute selfAbort %v", r.txnId, r.selfAbort)
 	storage.AddTxn(r)
-
-	available := r.selfAbort && storage.checkKeysAvailable(r)
 	status := PREPARED
-	if !available {
+	if r.selfAbort {
+		log.Debugf("txn %v is already self abort", r.txnId)
 		status = ABORT
+	}
+
+	if status == PREPARED {
+		available := storage.checkKeysAvailable(r)
+		if !available {
+			status = ABORT
+		}
 	}
 
 	if status == PREPARED {

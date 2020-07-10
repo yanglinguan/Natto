@@ -347,27 +347,27 @@ func (kv *KVStore) GetTxnHoldRead(key string) map[string]bool {
 }
 
 func (kv *KVStore) HasWaitingTxn(op GTSOp) bool {
-	waiting := false
+	//waiting := false
 	for key := range op.GetKeyMap() {
 		//kv.checkExistHandleKeyNotExistError(key)
 		if kv.keys[key].WaitingQueue.Len() > 0 {
-			for txnId, w := range kv.keys[key].WaitingQueue.GetWaitingItems() {
-				log.Debugf("txn %v key %v waiting txn %v idx %v timestamp %v",
-					op.GetTxnId(), key, txnId, w.getIndex(), w.GetTimestamp())
-			}
+			//for txnId, w := range kv.keys[key].WaitingQueue.GetWaitingItems() {
+			//	log.Debugf("txn %v key %v waiting txn %v idx %v timestamp %v",
+			//		op.GetTxnId(), key, txnId, w.getIndex(), w.GetTimestamp())
+			//}
 
 			top := kv.keys[key].WaitingQueue.Front()
 			if top.GetTxnId() != op.GetTxnId() {
 				log.Debugf("txn %v has txn in queue key %v top of queue is %v",
 					op.GetTxnId(), key, top.GetTxnId())
-				//return true
-				waiting = true
+				return true
+				//waiting = true
 			}
 		}
 	}
 
-	return waiting
-	//return false
+	//return waiting
+	return false
 }
 
 //func (kv *KVStore) IsTopOfWaitingQueue(key string, txnId string) bool {
