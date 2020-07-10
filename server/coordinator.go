@@ -30,6 +30,7 @@ type TwoPCInfo struct {
 	conditionPrepare       bool
 	reversedReorderPrepare bool
 	reversedReorder        bool
+	rePrepare              bool
 }
 
 type Coordinator struct {
@@ -297,6 +298,7 @@ func (c *Coordinator) reorderPrepare(request *rpc.PrepareResultRequest) {
 }
 
 func (c *Coordinator) sendRePrepare(txnId string, requestTxnId string, partitionId int, counter int32) {
+	c.txnStore[txnId].rePrepare = true
 	request := &rpc.RePrepareRequest{
 		TxnId:        txnId,
 		RequestTxnId: requestTxnId,
@@ -337,12 +339,13 @@ func (c *Coordinator) print() {
 		log.Fatalf("cannot write to file %v error %v", fName, err)
 	}
 	for txnId, info := range c.txnStore {
-		line := fmt.Sprintf("%v %v %v %v %v %v\n",
+		line := fmt.Sprintf("%v %v %v %v %v %v %v\n",
 			txnId, info.status == COMMIT,
 			info.reorderPrepare,
 			info.conditionPrepare,
 			info.reversedReorderPrepare,
-			info.reversedReorder)
+			info.reversedReorder,
+			info.rePrepare)
 		_, err := file.WriteString(line)
 		if err != nil {
 			log.Fatalf("cannot write to file %v error %v", fName, err)
