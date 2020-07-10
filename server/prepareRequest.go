@@ -68,10 +68,13 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	case PREPARED:
 		coordinator.checkResult(twoPCInfo)
 	case CONDITIONAL_PREPARED:
+		twoPCInfo.conditionPrepare = true
 		coordinator.conditionalPrepare(p.request)
 	case REVERSE_REORDER_PREPARED:
+		twoPCInfo.reversedReorderPrepare = true
 		coordinator.reverserReorderPrepare(p.request)
 	case REORDER_PREPARED:
+		twoPCInfo.reorderPrepare = true
 		coordinator.reorderPrepare(p.request)
 	}
 }

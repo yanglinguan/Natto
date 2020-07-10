@@ -3,7 +3,9 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	"Carousel-GTS/utils"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type TwoPCInfo struct {
@@ -23,6 +25,10 @@ type TwoPCInfo struct {
 	fastPrepare    bool
 	hasCondition   bool
 	//abortReason    AbortReason
+
+	reorderPrepare         bool
+	conditionPrepare       bool
+	reversedReorderPrepare bool
 }
 
 type Coordinator struct {
@@ -313,4 +319,29 @@ func (c *Coordinator) sendReverseReorderAgreement(reverseReorderRequest *rpc.Rev
 	dstServerId := c.server.config.GetLeaderIdByPartitionId(int(reverseReorderRequest.CoordPartitionId))
 	sender := NewReverseReorderAgreementSender(request, dstServerId, c.server)
 	go sender.Send()
+}
+
+func (c *Coordinator) print() {
+	fName := fmt.Sprintf("s%v_coordinator.log", c.server.serverId)
+	file, err := os.Create(fName)
+	if err != nil {
+		log.Fatalf("Fails to create log file %v error %v", fName, err)
+		return
+	}
+	_, err = file.WriteString("#txnId commit/abort reorder-prepare condition-prepare reverse-reorder-prepare\n")
+	if err != nil {
+		log.Fatalf("cannot write to file %v error %v", fName, err)
+	}
+	for txnId, info := range c.txnStore {
+		line := fmt.Sprintf("%v %v %v %v %v\n",
+			txnId, info.status == COMMIT, info.reorderPrepare, info.conditionPrepare, info.reversedReorderPrepare)
+		_, err := file.WriteString(line)
+		if err != nil {
+			log.Fatalf("cannot write to file %v error %v", fName, err)
+		}
+	}
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("cannot close file %v error %v", fName, err)
+	}
 }

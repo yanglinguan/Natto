@@ -13,6 +13,7 @@ func (s *Storage) print() {
 		s.printCommitOrder()
 		s.printModifiedData()
 		s.printAllTxn()
+		s.server.coordinator.print()
 		s.waitPrintStatusRequest.UnblockClient()
 	}
 }
