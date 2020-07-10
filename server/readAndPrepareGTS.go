@@ -166,11 +166,11 @@ func (o *ReadAndPrepareGTS) executeHighPriority(storage *Storage) {
 	} else if !waiting {
 		storage.conditionalPrepare(o)
 	} else {
-		if o.passedTimestamp {
-			storage.setReadResult(o, -1, false)
-			storage.selfAbort(o)
-			return
-		}
+		//if o.passedTimestamp {
+		//	storage.setReadResult(o, -1, false)
+		//	storage.selfAbort(o)
+		//	return
+		//}
 
 		storage.wait(o)
 	}
@@ -232,18 +232,13 @@ func (o *ReadAndPrepareGTS) executeLowPriority(storage *Storage) {
 		return
 	}
 
-	if o.passedTimestamp {
-		storage.selfAbort(o)
-		return
-	}
-
 	log.Debugf("txn %v prepared", o.txnId)
 	storage.prepare(o)
 }
 
 func (o *ReadAndPrepareGTS) Schedule(scheduler *Scheduler) {
 	if o.request.Timestamp < time.Now().UnixNano() {
-		log.Infof("PASS Current time %v", o.txnId)
+		log.Debugf("PASS Current time %v", o.txnId)
 		o.passedTimestamp = true
 	}
 
