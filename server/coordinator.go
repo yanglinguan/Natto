@@ -322,6 +322,9 @@ func (c *Coordinator) sendReverseReorderAgreement(reverseReorderRequest *rpc.Rev
 }
 
 func (c *Coordinator) print() {
+	if !c.server.IsLeader() {
+		return
+	}
 	fName := fmt.Sprintf("s%v_coordinator.log", c.server.serverId)
 	file, err := os.Create(fName)
 	if err != nil {
