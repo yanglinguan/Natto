@@ -12,7 +12,8 @@ import (
 
 func (server *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
-	logrus.Infof("RECEIVE ReadAndPrepare %v", request.Txn.TxnId)
+	logrus.Infof("RECEIVE ReadAndPrepare %v readOnly %v",
+		request.Txn.TxnId, request.Txn.ReadOnly)
 	if !server.IsLeader() && (!server.config.GetFastPath() || request.IsNotParticipant) {
 		logrus.Debugf("txn %v server %v is not leader", request.Txn.TxnId, server.serverAddress)
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
@@ -44,7 +45,8 @@ func (server *Server) ReadAndPrepare(ctx context.Context,
 }
 
 func (server *Server) ReadOnly(cts context.Context, request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
-	logrus.Infof("RECEIVE ReadOnlyRequest %v", request.Txn.TxnId)
+	logrus.Infof("RECEIVE ReadOnlyRequest %v readOnly %v",
+		request.Txn.TxnId, request.Txn.ReadOnly)
 	if !server.IsLeader() && (!server.config.GetFastPath() || request.IsNotParticipant) {
 		logrus.Debugf("txn %v server %v is not leader", request.Txn.TxnId, server.serverAddress)
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))

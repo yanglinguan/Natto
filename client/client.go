@@ -271,8 +271,8 @@ func (c *Client) predictOneWayLatency(serverList []int) int64 {
 func (c *Client) sendReadAndPrepareRequest() {
 	for {
 		op := <-c.sendTxnRequest
-		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() &&
-			(c.Config.GetServerMode() == configuration.OCC || !c.Config.GetPriority() || !c.Config.IsConditionalPrepare()) {
+		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() {
+			//	&&(c.Config.GetServerMode() == configuration.OCC || !c.Config.GetPriority() || !c.Config.IsConditionalPrepare()) {
 			c.handleReadOnlyRequest(op)
 		} else {
 			c.handleReadAndPrepareRequest(op)
