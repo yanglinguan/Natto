@@ -86,17 +86,17 @@ func NewReadAndPrepareGTS(request *rpc.ReadAndPrepareRequest, server *Server) *R
 		allReadKeys:     make(map[string]bool),
 		allWriteKeys:    make(map[string]bool),
 		highPriority:    request.Txn.HighPriority,
-		readKeyList:     make([]string, len(request.Txn.ReadKeyList)),
-		writeKeyList:    make([]string, len(request.Txn.WriteKeyList)),
+		readKeyList:     make([]string, 0),
+		writeKeyList:    make([]string, 0),
 	}
 
-	for i, k := range request.Txn.ReadKeyList {
-		r.readKeyList[i] = k
-	}
-
-	for i, k := range request.Txn.WriteKeyList {
-		r.writeKeyList[i] = k
-	}
+	//for i, k := range request.Txn.ReadKeyList {
+	//	r.readKeyList[i] = k
+	//}
+	//
+	//for i, k := range request.Txn.WriteKeyList {
+	//	r.writeKeyList[i] = k
+	//}
 
 	r.processKey(request.Txn.ReadKeyList, server, READ)
 	r.processKey(request.Txn.WriteKeyList, server, WRITE)
@@ -115,6 +115,12 @@ func (o *ReadAndPrepareGTS) processKey(keys []string, server *Server, keyType Ke
 
 		if !server.storage.HasKey(key) {
 			continue
+		}
+
+		if keyType == WRITE {
+			o.writeKeyList = append(o.writeKeyList, key)
+		} else if keyType == READ {
+			o.readKeyList = append(o.readKeyList, key)
 		}
 		o.keyMap[key] = true
 	}
@@ -187,7 +193,7 @@ func (o *ReadAndPrepareGTS) executeFromQueue(storage *Storage) bool {
 }
 
 func (o *ReadAndPrepareGTS) executeLowPriority(storage *Storage) {
-	log.Debugf("txn %v execute low priority")
+	log.Debugf("txn %v execute low priority", o.txnId)
 
 	if storage.checkAbort(o) {
 		log.Debugf("txn %v is ready abort", o.txnId)
@@ -243,7 +249,7 @@ func (o *ReadAndPrepareGTS) GetReadKeys() []string {
 }
 
 func (o *ReadAndPrepareGTS) GetWriteKeys() []string {
-	return o.readKeyList
+	return o.writeKeyList
 }
 
 func (o *ReadAndPrepareGTS) GetTxnId() string {
