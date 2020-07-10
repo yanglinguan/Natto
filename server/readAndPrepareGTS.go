@@ -215,11 +215,13 @@ func (o *ReadAndPrepareGTS) executeLowPriority(storage *Storage) {
 	if !available {
 		log.Debugf("txn %v key is not available, abort", o.txnId)
 		storage.selfAbort(o)
+		return
 	}
 	wait := storage.hasWaitingTxn(o)
 	if wait {
 		log.Debugf("txn %v there is waiting txn, abort", o.txnId)
 		storage.selfAbort(o)
+		return
 	}
 
 	log.Debugf("txn %v prepared", o.txnId)
