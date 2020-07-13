@@ -237,8 +237,10 @@ def analyse_abort_rate(txn_map):
         count += value["exeCount"]
         if value["priority"]:
             count_high += 1
+            count_high += value["exeCount"]
         else:
             count_low += 1
+            count_low += value["exeCount"]
         if value["commit"]:
             commit += 1
             if value["priority"]:
