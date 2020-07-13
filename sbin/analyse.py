@@ -87,6 +87,7 @@ def load_statistic(dir_name):
                 start = float(items[3])
                 end = float(items[4])
                 read_only = items[7] == "true"
+                exe_count = items[6]
                 priority = False
                 fast_prepare = False
                 if len(items) > 8:
@@ -101,7 +102,8 @@ def load_statistic(dir_name):
                                    "end": end,
                                    "priority": priority,
                                    "fastPrepare": fast_prepare,
-                                   "readOnly": read_only}
+                                   "readOnly": read_only,
+                                   "exeCount": exe_count}
 
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
@@ -232,6 +234,7 @@ def analyse_abort_rate(txn_map):
     count_low = 0
     for txn_id, value in txn_map.items():
         count += 1
+        count += value["exeCount"]
         if value["priority"]:
             count_high += 1
         else:
