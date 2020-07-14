@@ -125,7 +125,7 @@ func (server *Server) Abort(ctx context.Context,
 
 func (server *Server) PrepareResult(ctx context.Context, request *rpc.PrepareResultRequest) (*rpc.PrepareResultReply, error) {
 	logrus.Infof("RECEIVE PrepareResult %v partition %v result %v",
-		request.TxnId, request.PartitionId, request.PrepareStatus)
+		request.TxnId, request.PartitionId, TxnStatus(request.PrepareStatus).String())
 	if !server.IsLeader() {
 		logrus.Debugf("txn %v server %v is not leader", request.TxnId, server.serverAddress)
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))

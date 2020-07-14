@@ -33,6 +33,7 @@ func NewReadAndPrepareOp(txnId string, priority bool, readKeyList []string, writ
 }
 
 func (op *ReadAndPrepare) Execute(client *Client) {
+
 	client.addTxnIfNotExist(op)
 
 	txn := client.getTxn(op.txnId)
@@ -92,8 +93,8 @@ func (op *ReadAndPrepare) buildRequest(
 		WriteKeyList:             keyLists[1],
 		ParticipatedPartitionIds: participatedPartitions,
 		CoordPartitionId:         int32(coordinatorPartitionId),
-		ReadOnly:                 len(op.writeKeyList) == 0,
-		HighPriority:             op.priority,
+		ReadOnly:                 client.getTxn(op.txnId).isReadOnly(),
+		HighPriority:             client.getTxn(op.txnId).priority,
 	}
 
 	request := &rpc.ReadAndPrepareRequest{
