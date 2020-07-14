@@ -59,7 +59,7 @@ func (r *ReadOnlyGTS) highPriorityExecute(storage *Storage) {
 		//		storage.setReadResult(r, PREPARED, true)
 	} else {
 		if r.passedTimestamp {
-			storage.setReadResult(r, ABORT, true)
+			storage.setReadResult(r, PASS_TIMESTAMP_ABORT, true)
 			return
 		}
 		storage.wait(r)
@@ -73,20 +73,20 @@ func (r *ReadOnlyGTS) lowPriorityExecute(storage *Storage) {
 	status := PREPARED
 	if r.selfAbort {
 		log.Debugf("txn %v is already self abort", r.txnId)
-		status = ABORT
+		status = EARLY_ABORT
 	}
 
 	if status == PREPARED {
 		available := storage.checkKeysAvailable(r)
 		if !available {
-			status = ABORT
+			status = CONFLICT_ABORT
 		}
 	}
 
 	if status == PREPARED {
 		waiting := storage.hasWaitingTxn(r)
 		if waiting {
-			status = ABORT
+			status = WAITING_ABORT
 		}
 	}
 

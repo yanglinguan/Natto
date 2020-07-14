@@ -21,8 +21,8 @@ func (p *FastPrepareRequestOp) Execute(coordinator *Coordinator) {
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(txnId)
 	log.Debugf("txn %v receive fast prepared result from partition %v result %v",
 		txnId, p.request.PrepareResult.TxnId, p.request.PrepareResult.PrepareStatus)
-	if twoPCInfo.status == ABORT {
-		log.Debugf("txn %v is already abort", txnId)
+	if twoPCInfo.status.IsAbort() {
+		log.Debugf("txn %v is already abort abort reason %v", txnId, twoPCInfo.status.String())
 		return
 	}
 
@@ -47,10 +47,11 @@ func (p *FastPrepareRequestOp) Execute(coordinator *Coordinator) {
 	}
 	log.Debugf("txn %v pId %v fast path success", txnId, pId)
 	leaderPrepareRequest := twoPCInfo.fastPathPreparePartition[pId].leaderResult.request.PrepareResult
-	switch status {
-	case ABORT:
-		twoPCInfo.status = ABORT
+	if status.IsAbort() {
+		twoPCInfo.status = status
 		coordinator.checkResult(twoPCInfo)
+	}
+	switch status {
 	case PREPARED:
 		coordinator.checkResult(twoPCInfo)
 	case CONDITIONAL_PREPARED:
@@ -60,11 +61,4 @@ func (p *FastPrepareRequestOp) Execute(coordinator *Coordinator) {
 	case REORDER_PREPARED:
 		coordinator.reorderPrepare(leaderPrepareRequest)
 	}
-	//if status == ABORT {
-	//	twoPCInfo.status = ABORT
-	//} else {
-	//	twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(status, true, p.request.PrepareResult)
-	//}
-	//
-	//coordinator.checkResult(twoPCInfo)
 }

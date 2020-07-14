@@ -41,6 +41,8 @@ type ReadAndPrepareOp interface {
 	GetCoordinatorPartitionId() int
 	GetTimestamp() int64
 	SetReadReply(reply *rpc.ReadAndPrepareReply)
+	IsPassTimestamp() bool
+	IsSelfAbort() bool
 
 	BlockClient()
 	UnblockClient()

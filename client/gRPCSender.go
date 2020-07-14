@@ -10,21 +10,24 @@ import (
 )
 
 type ReadAndPrepareSender struct {
-	request     *rpc.ReadAndPrepareRequest
-	execution   *ExecutionRecord
+	request        *rpc.ReadAndPrepareRequest
+	txnId          string // this txnId may differ from request.Txn.TxnId when retry happens
+	executionCount int64
+	//execution   *ExecutionRecord
 	timeout     time.Duration
 	dstServerId int
 	client      *Client
 }
 
 func NewReadAndPrepareSender(request *rpc.ReadAndPrepareRequest,
-	txn *ExecutionRecord, dstServerId int, client *Client) *ReadAndPrepareSender {
+	executionCount int64, txnId string, dstServerId int, client *Client) *ReadAndPrepareSender {
 	r := &ReadAndPrepareSender{
-		request:     request,
-		execution:   txn,
-		timeout:     0,
-		dstServerId: dstServerId,
-		client:      client,
+		request:        request,
+		executionCount: executionCount,
+		timeout:        0,
+		txnId:          txnId,
+		dstServerId:    dstServerId,
+		client:         client,
 	}
 
 	return r
@@ -51,26 +54,31 @@ func (s *ReadAndPrepareSender) Send() {
 		}
 	} else {
 		logrus.Infof("RECEIVE ReadResult %v from %v status %v", s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status)
-		s.execution.readAndPrepareReply <- reply
+
+		op := NewReadAndPrepareReplyOp(s.txnId, s.executionCount, reply)
+		s.client.AddOperation(op)
+		//s.execution.readAndPrepareReply <- reply
 	}
 }
 
 type ReadOnlySender struct {
-	request     *rpc.ReadAndPrepareRequest
-	execution   *ExecutionRecord
-	timeout     time.Duration
-	dstServerId int
-	client      *Client
+	request        *rpc.ReadAndPrepareRequest
+	executionCount int64
+	txnId          string // this txnId may differ from request.Txn.TxnId when retry happens
+	timeout        time.Duration
+	dstServerId    int
+	client         *Client
 }
 
 func NewReadOnlySender(request *rpc.ReadAndPrepareRequest,
-	txn *ExecutionRecord, dstServerId int, client *Client) *ReadOnlySender {
+	executionCount int64, txnId string, dstServerId int, client *Client) *ReadOnlySender {
 	s := &ReadOnlySender{
-		request:     request,
-		execution:   txn,
-		timeout:     0,
-		dstServerId: dstServerId,
-		client:      client,
+		request:        request,
+		executionCount: executionCount,
+		timeout:        0,
+		txnId:          txnId,
+		dstServerId:    dstServerId,
+		client:         client,
 	}
 
 	return s
@@ -97,23 +105,26 @@ func (s *ReadOnlySender) Send() {
 		}
 	} else {
 		logrus.Infof("RECEIVE ReadOnly %v from %v status %v", s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status)
-		s.execution.readAndPrepareReply <- reply
+		op := NewReadOnlyReplyOp(s.txnId, s.executionCount, reply)
+		s.client.AddOperation(op)
+		//s.execution.readAndPrepareReply <- reply
 	}
 }
 
 type CommitRequestSender struct {
-	request     *rpc.CommitRequest
-	txn         *Transaction
+	request *rpc.CommitRequest
+	//txn         *Transaction
+	txnId       string
 	timeout     time.Duration
 	dstServerId int
 	client      *Client
 }
 
 func NewCommitRequestSender(request *rpc.CommitRequest,
-	txn *Transaction, dstServerId int, client *Client) *CommitRequestSender {
+	txnId string, dstServerId int, client *Client) *CommitRequestSender {
 	s := &CommitRequestSender{
 		request:     request,
-		txn:         txn,
+		txnId:       txnId,
 		timeout:     0,
 		dstServerId: dstServerId,
 		client:      client,
@@ -133,7 +144,9 @@ func (c *CommitRequestSender) Send() {
 	reply, err := client.Commit(context.Background(), c.request)
 	if err == nil {
 		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, conn.GetDstAddr())
-		c.txn.commitReply <- reply
+		op := NewCommitReplyOp(c.txnId, reply)
+		c.client.AddOperation(op)
+		//c.txn.commitReply <- reply
 	} else {
 		if dstServerId, handled := utils.HandleError(err); handled {
 			logrus.Debugf("resend ReadAndPrepare %v to %v", c.request.TxnId, dstServerId)

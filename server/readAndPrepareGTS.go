@@ -90,14 +90,6 @@ func NewReadAndPrepareGTS(request *rpc.ReadAndPrepareRequest, server *Server) *R
 		writeKeyList:    make([]string, 0),
 	}
 
-	//for i, k := range request.Txn.ReadKeyList {
-	//	r.readKeyList[i] = k
-	//}
-	//
-	//for i, k := range request.Txn.WriteKeyList {
-	//	r.writeKeyList[i] = k
-	//}
-
 	r.processKey(request.Txn.ReadKeyList, server, READ)
 	r.processKey(request.Txn.WriteKeyList, server, WRITE)
 
@@ -168,7 +160,7 @@ func (o *ReadAndPrepareGTS) executeHighPriority(storage *Storage) {
 	} else {
 		if o.passedTimestamp {
 			storage.setReadResult(o, -1, false)
-			storage.selfAbort(o)
+			storage.selfAbort(o, PASS_TIMESTAMP_ABORT)
 			return
 		}
 
@@ -215,20 +207,20 @@ func (o *ReadAndPrepareGTS) executeLowPriority(storage *Storage) {
 	// first check if keys are available and if there is waiting txn (only high priority txn will wait)
 	if o.selfAbort {
 		log.Debugf("txn %v is already self abort by scheduler", o.txnId)
-		storage.selfAbort(o)
+		storage.selfAbort(o, EARLY_ABORT)
 		return
 	}
 
 	available := storage.checkKeysAvailable(o)
 	if !available {
 		log.Debugf("txn %v key is not available, abort", o.txnId)
-		storage.selfAbort(o)
+		storage.selfAbort(o, CONFLICT_ABORT)
 		return
 	}
 	wait := storage.hasWaitingTxn(o)
 	if wait {
 		log.Debugf("txn %v there is waiting txn, abort", o.txnId)
-		storage.selfAbort(o)
+		storage.selfAbort(o, WAITING_ABORT)
 		return
 	}
 
@@ -312,4 +304,12 @@ func (o *ReadAndPrepareGTS) GetAllReadKeys() map[string]bool {
 
 func (o *ReadAndPrepareGTS) setSelfAbort() {
 	o.selfAbort = true
+}
+
+func (o *ReadAndPrepareGTS) IsPassTimestamp() bool {
+	return o.passedTimestamp
+}
+
+func (o *ReadAndPrepareGTS) IsSelfAbort() bool {
+	return o.selfAbort
 }

@@ -258,7 +258,7 @@ func (s *Storage) checkPrepare(key string) {
 	for op != nil {
 		txnId := op.GetTxnId()
 		// skip the aborted txn
-		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status == ABORT {
+		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status.IsAbort() {
 			log.Debugf("txn %v is already abort remove from the queue of key %v", txnId, key)
 			s.kvStore.RemoveFromWaitingList(op)
 			continue

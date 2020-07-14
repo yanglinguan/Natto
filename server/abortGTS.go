@@ -20,10 +20,11 @@ func (a AbortGTS) Execute(storage *Storage) {
 	txnId := a.abortRequest.TxnId
 	if txnInfo, exist := storage.txnStore[txnId]; exist {
 		txnInfo.receiveFromCoordinator = true
+		if txnInfo.status.IsAbort() {
+			log.Debugf("txn %v is already abort it self %v abort reason", txnId, txnInfo.status.String())
+			return
+		}
 		switch txnInfo.status {
-		case ABORT:
-			log.Infof("txn %v is already abort it self", txnId)
-			break
 		case COMMIT:
 			log.Fatalf("Error: txn %v is already committed", txnId)
 			break
@@ -35,7 +36,7 @@ func (a AbortGTS) Execute(storage *Storage) {
 	} else {
 		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
 		storage.txnStore[txnId] = NewTxnInfo()
-		storage.txnStore[txnId].status = ABORT
+		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.txnStore[txnId].receiveFromCoordinator = true
 
 		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
@@ -44,16 +45,18 @@ func (a AbortGTS) Execute(storage *Storage) {
 
 func (a AbortGTS) abortProcessedTxn(storage *Storage) {
 	txnId := a.abortRequest.TxnId
-	switch storage.txnStore[txnId].status {
-	case PREPARED, CONDITIONAL_PREPARED, REORDER_PREPARED:
-		log.Infof("ABORT: %v (coordinator) PREPARED", txnId)
-		storage.txnStore[txnId].status = ABORT
+	if storage.txnStore[txnId].status.IsPrepare() {
+		log.Debugf("ABORT: %v (coordinator) PREPARED", txnId)
+		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
 		storage.releaseKeyAndCheckPrepare(txnId)
-		break
+		return
+	}
+
+	switch storage.txnStore[txnId].status {
 	case WAITING:
 		log.Infof("ABORT: %v (coordinator) INIT", txnId)
-		storage.txnStore[txnId].status = ABORT
+		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.setReadResult(storage.txnStore[txnId].readAndPrepareRequestOp, -1, false)
 		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
 		storage.releaseKeyAndCheckPrepare(txnId)

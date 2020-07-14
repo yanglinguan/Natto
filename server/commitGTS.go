@@ -16,30 +16,11 @@ func NewCommitGTS(request *rpc.CommitRequest) *CommitGTS {
 func (c *CommitGTS) Execute(storage *Storage) {
 	txnId := c.request.TxnId
 	log.Infof("COMMITTED: %v", txnId)
-	if txnInfo, exist := storage.txnStore[txnId]; !exist || (txnInfo.status != PREPARED &&
-		txnInfo.status != CONDITIONAL_PREPARED &&
-		txnInfo.status != REORDER_PREPARED) {
-		log.WithFields(log.Fields{
-			"txnId":  txnId,
-			"status": txnInfo.status,
-		}).Fatal("txn should be prepared before commit")
+	if txnInfo, exist := storage.txnStore[txnId]; !exist || !txnInfo.status.IsPrepare() {
+		log.Fatalf("txn %v status %v should be prepared before commit", txnId, txnInfo.status.String())
 	}
 
 	storage.commit(txnId, COMMIT, c.request.WriteKeyValList)
-
-	//storage.txnStore[txnId].status = COMMIT
-	//storage.txnStore[txnId].isFastPrepare = c.request.IsFastPathSuccess
-
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
-
-	//storage.txnStore[txnId].commitTime = time.Now()
-
 	storage.releaseKeyAndCheckPrepare(txnId)
-
-	//storage.writeToDB(c.request.WriteKeyValList)
-	//storage.txnStore[txnId].receiveFromCoordinator = true
-	//storage.txnStore[txnId].commitOrder = storage.committed
-
-	//storage.committed++
-	//storage.print()
 }

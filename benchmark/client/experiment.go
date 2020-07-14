@@ -52,8 +52,20 @@ func (o *OpenLoopExperiment) Execute() {
 }
 
 func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
-	execTxn(o.client, txn)
+	o.retry(txn)
 	o.wg.Done()
+}
+
+func (o *OpenLoopExperiment) retry(txn *workload.Txn) {
+	commit, retry, waitTime, _ := execTxn(o.client, txn)
+	if commit || !retry {
+		logrus.Debugf("txn %v commit result %v retry %v", txn.TxnId, commit, retry)
+		return
+	}
+
+	logrus.Debugf("RETRY txn %v wait time %v", txn.TxnId, waitTime)
+	time.Sleep(waitTime)
+	o.retry(txn)
 }
 
 func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration, time.Duration) {
@@ -75,7 +87,7 @@ func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duratio
 	txn.GenWriteData(readResult)
 
 	for k, v := range txn.WriteData {
-		logrus.Infof("write key %v: %v", k, v)
+		logrus.Debugf("write key %v: %v", k, v)
 	}
 
 	return client.Commit(txn.WriteData, txn.TxnId)

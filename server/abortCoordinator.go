@@ -22,7 +22,7 @@ func (a AbortCoordinator) Execute(coordinator *Coordinator) {
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(txnId)
 
 	twoPCInfo.abortRequest = a.abortRequest
-	twoPCInfo.status = ABORT
+	twoPCInfo.status = CLIENT_ABORT
 
 	coordinator.checkResult(twoPCInfo)
 }

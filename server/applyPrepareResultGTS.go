@@ -40,43 +40,38 @@ func (p *GTSApplyPrepareReplicationMsg) fastPathExecution(storage *Storage) {
 		return
 	}
 
-	log.Debugf("txn %v fast path status %v, slow path status %v", p.msg.TxnId, storage.txnStore[p.msg.TxnId].status, p.msg.Status)
-	switch storage.txnStore[p.msg.TxnId].status {
-	case PREPARED, CONDITIONAL_PREPARED, REORDER_PREPARED:
-		storage.txnStore[p.msg.TxnId].status = p.msg.Status
-		if p.msg.Status == ABORT {
+	currentStatus := storage.txnStore[p.msg.TxnId].status
+	log.Debugf("txn %v fast path status %v, slow path status %v", p.msg.TxnId, currentStatus.String(), p.msg.Status.String())
+	storage.txnStore[p.msg.TxnId].status = p.msg.Status
+	if currentStatus.IsPrepare() {
+		if p.msg.Status.IsAbort() {
 			log.Debugf("CONFLICT: txn %v fast path prepare but slow path abort, abort", p.msg.TxnId)
 			storage.releaseKeyAndCheckPrepare(p.msg.TxnId)
 		}
-		break
-	case ABORT:
-		storage.txnStore[p.msg.TxnId].status = p.msg.Status
-		if p.msg.Status == PREPARED || p.msg.Status == CONDITIONAL_PREPARED || p.msg.Status == REORDER_PREPARED {
+	} else if currentStatus.IsAbort() {
+		if p.msg.Status.IsPrepare() {
 			storage.txnStore[p.msg.TxnId].preparedTime = time.Now()
 			log.Debugf("CONFLICT: txn %v fast path abort but slow path prepare, prepare", p.msg.TxnId)
 			storage.kvStore.RecordPrepared(storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp)
 		}
-		break
-	case WAITING:
-		log.Debugf("txn %v fast path waiting the lock slow path status %v", p.msg.TxnId, p.msg.Status)
-		storage.txnStore[p.msg.TxnId].status = p.msg.Status
+	} else if currentStatus == WAITING {
+		log.Debugf("txn %v fast path waiting the lock slow path status %v", p.msg.TxnId, p.msg.Status.String())
+		// should be ReadAndPrepareGTS. readonly should not send to replica if readonly optimization is on
 		op, ok := storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp.(*ReadAndPrepareGTS)
 		if !ok {
 			log.Fatalf("txn %v read and prepare should gts", op.txnId)
 		}
 		storage.kvStore.RemoveFromWaitingList(op)
 		storage.setReadResult(storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp, -1, false)
-		if p.msg.Status == PREPARED || p.msg.Status == CONDITIONAL_PREPARED || p.msg.Status == REORDER_PREPARED {
+		if p.msg.Status.IsPrepare() {
 			storage.txnStore[p.msg.TxnId].preparedTime = time.Now()
 			storage.kvStore.RecordPrepared(storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp)
 		}
-		break
-	case INIT:
-		log.Debugf("txn %v fast path not stated slow path status %v ", p.msg.TxnId, p.msg.Status)
+	} else if currentStatus == INIT {
+		log.Debugf("txn %v fast path not stated slow path status %v ", p.msg.TxnId, p.msg.Status.String())
 		storage.txnStore[p.msg.TxnId].status = p.msg.Status
-		if p.msg.Status == PREPARED || p.msg.Status == CONDITIONAL_PREPARED || p.msg.Status == REORDER_PREPARED {
+		if p.msg.Status.IsPrepare() {
 			storage.kvStore.RecordPrepared(storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp)
 		}
-		break
 	}
 }

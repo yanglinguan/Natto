@@ -26,10 +26,6 @@ func (p *PrepareResultReplicationOp) Execute(storage *Storage) {
 		return
 	}
 
-	//if !storage.server.IsLeader() {
-	//	return
-	//}
-
 	//Replicates the prepare result to followers.
 	replicationMsg := ReplicationMsg{
 		TxnId:             p.txnId,
@@ -39,7 +35,7 @@ func (p *PrepareResultReplicationOp) Execute(storage *Storage) {
 		HighPriority:      storage.txnStore[p.txnId].readAndPrepareRequestOp.GetPriority(),
 	}
 
-	if replicationMsg.Status != ABORT {
+	if !replicationMsg.Status.IsAbort() {
 		replicationMsg.PreparedReadKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.ReadKeyVerList
 		replicationMsg.PreparedWriteKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.WriteKeyVerList
 	}

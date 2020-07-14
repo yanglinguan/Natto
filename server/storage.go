@@ -105,7 +105,7 @@ func (s *Storage) setTxnStatus(txnId string, status TxnStatus) {
 }
 
 // set the read value, return back to client
-func (s Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus bool) {
+func (s *Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus bool) {
 	txnId := op.GetTxnId()
 	log.Debugf("txn %v set read result", txnId)
 	if s.txnStore[txnId].sendToClient {
@@ -124,7 +124,7 @@ func (s Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus 
 		reply.Status = int32(status)
 	}
 
-	if reply.Status != int32(ABORT) {
+	if !TxnStatus(reply.Status).IsAbort() {
 		log.Debugf("get key %v", op.GetReadKeys())
 		for _, rk := range op.GetReadKeys() {
 			//log.Debugf("get key %v", rk)
@@ -166,7 +166,7 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 
 	s.txnStore[txnId].prepareCounter++
 
-	if s.txnStore[txnId].status != ABORT {
+	if !s.txnStore[txnId].status.IsAbort() {
 		s.txnStore[txnId].preparedTime = time.Now()
 
 		for _, rk := range op.GetReadKeys() {
@@ -210,8 +210,8 @@ func (s *Storage) replicateCommitResult(txnId string, writeData []*rpc.KeyValue)
 	op.Execute(s)
 }
 
-func (s *Storage) selfAbort(op ReadAndPrepareOp) {
-	s.txnStore[op.GetTxnId()].status = ABORT
+func (s *Storage) selfAbort(op ReadAndPrepareOp, status TxnStatus) {
+	s.txnStore[op.GetTxnId()].status = status
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(op.GetTxnId())
 }
@@ -219,17 +219,17 @@ func (s *Storage) selfAbort(op ReadAndPrepareOp) {
 func (s *Storage) initTxnIfNotExist(msg ReplicationMsg) bool {
 	if _, exist := s.txnStore[msg.TxnId]; !exist {
 		s.txnStore[msg.TxnId] = NewTxnInfo()
-		if msg.Status == PREPARED {
-			s.txnStore[msg.TxnId].readAndPrepareRequestOp =
-				s.server.operationCreator.createReadAndPrepareOpWithReplicationMsg(msg)
-			s.txnStore[msg.TxnId].prepareResultRequest = &rpc.PrepareResultRequest{
-				TxnId:           msg.TxnId,
-				ReadKeyVerList:  msg.PreparedReadKeyVersion,
-				WriteKeyVerList: msg.PreparedWriteKeyVersion,
-				PartitionId:     int32(s.server.partitionId),
-				PrepareStatus:   int32(msg.Status),
-			}
+		//if s.isPrepareByStatus(msg.Status) {
+		s.txnStore[msg.TxnId].readAndPrepareRequestOp =
+			s.server.operationCreator.createReadAndPrepareOpWithReplicationMsg(msg)
+		s.txnStore[msg.TxnId].prepareResultRequest = &rpc.PrepareResultRequest{
+			TxnId:           msg.TxnId,
+			ReadKeyVerList:  msg.PreparedReadKeyVersion,
+			WriteKeyVerList: msg.PreparedWriteKeyVersion,
+			PartitionId:     int32(s.server.partitionId),
+			PrepareStatus:   int32(msg.Status),
 		}
+		//}
 		return false
 	}
 	return true

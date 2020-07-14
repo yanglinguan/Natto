@@ -79,7 +79,7 @@ func (o *ReadAndPrepareOCC) Execute(storage *Storage) {
 	if available {
 		storage.prepare(o)
 	} else {
-		storage.selfAbort(o)
+		storage.selfAbort(o, CONFLICT_ABORT)
 	}
 }
 
@@ -133,4 +133,12 @@ func (o *ReadAndPrepareOCC) GetReadRequest() *rpc.ReadAndPrepareRequest {
 
 func (o *ReadAndPrepareOCC) GetTimestamp() int64 {
 	return o.request.Timestamp
+}
+
+func (o *ReadAndPrepareOCC) IsPassTimestamp() bool {
+	return false
+}
+
+func (o *ReadAndPrepareOCC) IsSelfAbort() bool {
+	return false
 }

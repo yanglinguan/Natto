@@ -11,7 +11,11 @@ type PartitionStatus struct {
 	counter                  int32
 }
 
-func NewPartitionStatus(status TxnStatus, isFastPrepare bool, prepareResult *rpc.PrepareResultRequest) *PartitionStatus {
+func NewPartitionStatus(
+	status TxnStatus,
+	isFastPrepare bool,
+	prepareResult *rpc.PrepareResultRequest) *PartitionStatus {
+
 	p := &PartitionStatus{
 		status:                   status,
 		isFastPrepare:            isFastPrepare,

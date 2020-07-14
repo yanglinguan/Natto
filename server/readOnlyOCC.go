@@ -27,7 +27,7 @@ func (r *ReadOnlyOCC) Execute(storage *Storage) {
 	available := storage.checkKeysAvailable(r)
 	status := PREPARED
 	if !available {
-		status = ABORT
+		status = CONFLICT_ABORT
 	}
 	storage.setReadResult(r, status, true)
 }

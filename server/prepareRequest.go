@@ -29,15 +29,15 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	}
 
 	// if the txn already abort, do noting
-	if twoPCInfo.status == ABORT {
-		log.Debugf("txn %v is already abort", txnId)
+	if twoPCInfo.status.IsAbort() {
+		log.Debugf("txn %v is already abort abort reason %v", txnId, twoPCInfo.status.String())
 		return
 	}
 
 	status := TxnStatus(p.request.PrepareStatus)
 
-	if status == ABORT {
-		twoPCInfo.status = ABORT
+	if status.IsAbort() {
+		twoPCInfo.status = status
 		coordinator.checkResult(twoPCInfo)
 		return
 	}
@@ -49,14 +49,15 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	if info, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
 		if info.counter < p.request.Counter {
 			log.Debugf("txn %v counter is %v greater than current counter %v status %v",
-				txnId, p.request.Counter, info.counter, status)
+				txnId, p.request.Counter, info.counter, status.String())
 			twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(status, false, p.request)
 		} else if info.counter > p.request.Counter {
-			log.Debugf("txn %v counter is %v less than current counter is %v status %v", txnId, p.request.Counter, info.counter, status)
+			log.Debugf("txn %v counter is %v less than current counter is %v status %v",
+				txnId, p.request.Counter, info.counter, status.String())
 			return
 		} else if info.isFastPrepare {
 			log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
-				p.request.TxnId, pId, twoPCInfo.partitionPrepareResult[pId].status,
+				p.request.TxnId, pId, twoPCInfo.partitionPrepareResult[pId].status.String(),
 				twoPCInfo.partitionPrepareResult[pId].isFastPrepare)
 			return
 		}

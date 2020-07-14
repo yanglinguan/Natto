@@ -5,7 +5,6 @@ import (
 	"Carousel-GTS/connection"
 	"Carousel-GTS/latencyPredictor"
 	"Carousel-GTS/rpc"
-	"Carousel-GTS/server"
 	"Carousel-GTS/utils"
 	"fmt"
 	"github.com/sirupsen/logrus"
@@ -17,76 +16,6 @@ import (
 	"time"
 )
 
-type LatInfo struct {
-	addr   string        // replica network address
-	rt     time.Duration // roundtrip time including queuing delay
-	qDelay time.Duration // queuing delay (in ns) on the replica
-}
-
-type LatTimeInfo struct {
-	addr       string        // replica network address
-	rt         time.Duration // roundtrip time including queuing delay
-	timeOffset time.Duration // time offset between the clock time of sending (on client) and processing (on server)
-}
-
-type Transaction struct {
-	txnId        string
-	commitReply  chan *rpc.CommitReply
-	commitResult int
-	startTime    time.Time
-	endTime      time.Time
-	execCount    int64
-	fastPrepare  bool
-	executions   []*ExecutionRecord
-}
-
-type ExecutionRecord struct {
-	rpcTxn               *rpc.Transaction
-	readAndPrepareReply  chan *rpc.ReadAndPrepareReply
-	readKeyValueVersion  []*rpc.KeyValueVersion
-	isAbort              bool
-	isConditionalPrepare bool
-	readFromReplica      bool
-}
-
-func NewExecutionRecord(rpcTxn *rpc.Transaction) *ExecutionRecord {
-	e := &ExecutionRecord{
-		rpcTxn:              rpcTxn,
-		readAndPrepareReply: make(chan *rpc.ReadAndPrepareReply, len(rpcTxn.ParticipatedPartitionIds)),
-		readKeyValueVersion: make([]*rpc.KeyValueVersion, 0),
-		isAbort:             false,
-	}
-	return e
-}
-
-type SendOp struct {
-	txnId        string
-	readKeyList  []string
-	writeKeyList []string
-	readResult   map[string]string
-	isAbort      bool
-	wait         chan bool
-	priority     bool
-}
-
-func (o *SendOp) BlockOwner() bool {
-	return <-o.wait
-}
-
-type CommitOp struct {
-	txnId         string
-	writeKeyValue map[string]string
-	wait          chan bool
-	result        bool
-	retry         bool
-	waitTime      time.Duration
-	expectWait    time.Duration // try to keep the target rate
-}
-
-func (o *CommitOp) BlockOwner() bool {
-	return <-o.wait
-}
-
 type Client struct {
 	clientId           int
 	Config             configuration.Configuration
@@ -94,11 +23,9 @@ type Client struct {
 
 	connections []connection.Connection
 
-	sendTxnRequest   chan *SendOp
-	commitTxnRequest chan *CommitOp
+	operations chan Operation
 
 	txnStore map[string]*Transaction
-	lock     sync.Mutex
 
 	count          int
 	timeLeg        time.Duration
@@ -107,7 +34,6 @@ type Client struct {
 	latencyPredictor *latencyPredictor.LatencyPredictor
 	probeC           chan *LatInfo
 	probeTimeC       chan *LatTimeInfo
-	latencyMap       []int64 // serverId -> latency (ms)
 }
 
 func NewClient(clientId int, configFile string) *Client {
@@ -118,10 +44,8 @@ func NewClient(clientId int, configFile string) *Client {
 		Config:             config,
 		clientDataCenterId: config.GetDataCenterIdByClientId(clientId),
 		connections:        make([]connection.Connection, len(config.GetServerAddress())),
-		sendTxnRequest:     make(chan *SendOp, queueLen),
-		commitTxnRequest:   make(chan *CommitOp, queueLen),
 		txnStore:           make(map[string]*Transaction),
-		lock:               sync.Mutex{},
+		operations:         make(chan Operation, queueLen),
 		count:              0,
 		timeLeg:            time.Duration(0),
 	}
@@ -146,19 +70,17 @@ func NewClient(clientId int, configFile string) *Client {
 			c.Config.GetProbeWindowLen(),
 			c.Config.GetProbeWindowMinSize())
 		if c.Config.IsProbeTime() {
-			c.probeTimeC = make(chan *LatTimeInfo, c.Config.GetQueueLen())
+			c.probeTimeC = make(chan *LatTimeInfo, queueLen)
 		} else {
-			c.probeC = make(chan *LatInfo, c.Config.GetQueueLen())
+			c.probeC = make(chan *LatInfo, queueLen)
 		}
-
 	}
 
 	return c
 }
 
 func (c *Client) Start() {
-	go c.sendReadAndPrepareRequest()
-	go c.sendCommitRequest()
+	go c.processOperation()
 
 	if c.Config.GetServerMode() != configuration.OCC && c.Config.IsDynamicLatency() {
 		if c.Config.IsProbeTime() {
@@ -171,119 +93,10 @@ func (c *Client) Start() {
 	}
 }
 
-func (c *Client) processProbe() {
+func (c *Client) processOperation() {
 	for {
-		latInfo := <-c.probeC
-		oneWayLat := (latInfo.rt + latInfo.qDelay) / 2
-		c.latencyPredictor.AddProbeRet(&latencyPredictor.ProbeRet{
-			Addr: latInfo.addr,
-			Rt:   oneWayLat,
-		})
-	}
-}
-
-func (c *Client) processProbeTime() {
-	for {
-		latTimeInfo := <-c.probeTimeC
-		c.latencyPredictor.AddProbeRet(&latencyPredictor.ProbeRet{
-			Addr: latTimeInfo.addr,
-			Rt:   latTimeInfo.timeOffset,
-		})
-	}
-}
-
-func (c *Client) probing() {
-	probeTimer := time.NewTimer(c.Config.GetProbeInterval())
-	for {
-		<-probeTimer.C
-		c.probe()
-		probeTimer.Reset(c.Config.GetProbeInterval())
-	}
-}
-
-func (c *Client) probingTime() {
-	probeTimer := time.NewTimer(c.Config.GetProbeInterval())
-	for {
-		<-probeTimer.C
-		c.probeTime()
-		probeTimer.Reset(c.Config.GetProbeInterval())
-	}
-}
-
-func (c *Client) probe() {
-	var wg sync.WaitGroup
-	for sId := range c.connections {
-		wg.Add(1)
-		go func(sId int) {
-			sender := NewProbeSender(sId, c)
-			start := time.Now()
-			queueingDelay := sender.Send()
-			rt := time.Since(start)
-			c.probeC <- &LatInfo{
-				addr:   c.Config.GetServerAddressByServerId(sId),
-				rt:     rt,
-				qDelay: time.Duration(queueingDelay),
-			}
-			wg.Done()
-		}(sId)
-	}
-
-	if c.Config.IsProbeBlocking() {
-		wg.Wait()
-	}
-}
-
-func (c *Client) probeTime() {
-	var wg sync.WaitGroup
-	for sId := range c.connections {
-		wg.Add(1)
-		go func(sId int) {
-			sender := NewProbeTimeSender(sId, c)
-			start := time.Now()
-			pTime := sender.Send()
-			rt := time.Since(start)
-			c.probeTimeC <- &LatTimeInfo{
-				addr:       c.Config.GetServerAddressByServerId(sId),
-				rt:         rt,
-				timeOffset: time.Duration(pTime - start.UnixNano()),
-			}
-			wg.Done()
-		}(sId)
-	}
-
-	if c.Config.IsProbeBlocking() {
-		wg.Wait()
-	}
-}
-
-func (c *Client) predictOneWayLatency(serverList []int) int64 {
-	var max int64 = 0
-	for _, sId := range serverList {
-		addr := c.Config.GetServerAddressByServerId(sId)
-		lat := c.latencyPredictor.PredictLat(addr)
-		if lat > max {
-			max = lat
-		}
-	}
-	return max
-}
-
-func (c *Client) sendReadAndPrepareRequest() {
-	for {
-		op := <-c.sendTxnRequest
-		if len(op.writeKeyList) == 0 && c.Config.GetIsReadOnly() {
-			//	&&(c.Config.GetServerMode() == configuration.OCC || !c.Config.GetPriority() || !c.Config.IsConditionalPrepare()) {
-			c.handleReadOnlyRequest(op)
-		} else {
-			c.handleReadAndPrepareRequest(op)
-		}
-	}
-}
-
-func (c *Client) sendCommitRequest() {
-	for {
-		op := <-c.commitTxnRequest
-		c.handleCommitRequest(op)
+		op := <-c.operations
+		op.Execute(c)
 	}
 }
 
@@ -291,374 +104,113 @@ func (c *Client) getTxnId(txnId string) string {
 	return "c" + strconv.Itoa(c.clientId) + "-" + txnId
 }
 
-func (c *Client) genTxnIdToServer() string {
-	c.count++
-	return "c" + strconv.Itoa(c.clientId) + "-" + strconv.Itoa(c.count)
+func (c *Client) genTxnIdToServer(txnId string) string {
+	//c.count++
+	tId := fmt.Sprintf("%v-%v", txnId, c.txnStore[txnId].execCount)
+	//return "c" + strconv.Itoa(c.clientId) + "-" + strconv.Itoa(c.count)
+	return tId
 }
 
 func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string, priority bool) (map[string]string, bool) {
-	sendOp := &SendOp{
-		txnId:        c.getTxnId(txnId),
-		readKeyList:  readKeyList,
-		writeKeyList: writeKeyList,
-		readResult:   make(map[string]string),
-		wait:         make(chan bool, 1),
-		priority:     priority,
+	var op ReadOp
+	tId := c.getTxnId(txnId)
+	if len(writeKeyList) > 0 {
+		op = NewReadAndPrepareOp(tId, priority, readKeyList, writeKeyList)
+	} else {
+		op = NewReadOnly(tId, priority, readKeyList, writeKeyList)
+
 	}
-
-	c.sendTxnRequest <- sendOp
-
-	sendOp.BlockOwner()
-
-	return sendOp.readResult, sendOp.isAbort
+	c.operations <- op
+	op.Block()
+	return op.GetReadResult(), op.IsAbort()
 }
 
-func (c *Client) waitReadAndPrepareRequest(op *SendOp, execution *ExecutionRecord) {
-	// wait for result
-	result := make(map[string]*rpc.KeyValueVersion)
-	readLeader := make(map[string]bool)
-	for {
-		readAndPrepareReply := <-execution.readAndPrepareReply
-		execution.isAbort = execution.isAbort || readAndPrepareReply.Status == int32(server.ABORT)
-		execution.isConditionalPrepare = execution.isConditionalPrepare ||
-			(!execution.isAbort && readAndPrepareReply.Status == int32(server.CONDITIONAL_PREPARED))
-		for _, kv := range readAndPrepareReply.KeyValVerList {
-			if value, exist := result[kv.Key]; exist && value.Version >= kv.Version {
-				if readAndPrepareReply.IsLeader {
-					readLeader[kv.Key] = readAndPrepareReply.IsLeader
-				}
-				continue
-			}
-
-			result[kv.Key] = kv
-			readLeader[kv.Key] = readAndPrepareReply.IsLeader
-			//execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
-		}
-
-		if execution.isAbort || len(result) == len(execution.rpcTxn.ReadKeyList) {
-			break
-		}
-
-	}
-	op.isAbort = execution.isAbort
-	if !execution.isAbort {
-		for key, kv := range result {
-			op.readResult[key] = kv.Value
-			execution.readFromReplica = execution.readFromReplica || !readLeader[key]
-			execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
-		}
-	}
-
-	op.wait <- true
-}
-
-func (c *Client) getTxnAndExecution(txnId string) (*Transaction, *ExecutionRecord) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+func (c *Client) getCurrentExecutionTxnId(txnId string) string {
 	exec := c.txnStore[txnId].execCount
-	return c.txnStore[txnId], c.txnStore[txnId].executions[exec]
+	return c.txnStore[txnId].executions[exec].rpcTxnId
 }
 
-func (c *Client) addTxnIfNotExist(txnId string, rpcTxn *rpc.Transaction) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+func (c *Client) getCurrentExecutionCount(txnId string) int64 {
+	return c.txnStore[txnId].execCount
+}
 
-	execution := NewExecutionRecord(rpcTxn)
+func (c *Client) getCurrentExecution(txnId string) *ExecutionRecord {
+	currentCont := c.txnStore[txnId].execCount
+	return c.txnStore[txnId].executions[currentCont]
+}
+
+func (c *Client) getExecution(txnId string, count int64) *ExecutionRecord {
+	return c.txnStore[txnId].executions[count]
+}
+
+func (c *Client) getTxn(txnId string) *Transaction {
+	return c.txnStore[txnId]
+}
+
+func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64 {
+	var maxDelay int64 = 0
+	if c.Config.IsDynamicLatency() {
+		maxDelay = c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
+		maxDelay += c.Config.GetDelay().Nanoseconds()
+		maxDelay += time.Now().UnixNano()
+	} else {
+		maxDelay = c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
+		maxDelay += c.Config.GetDelay().Nanoseconds()
+		maxDelay += time.Now().UnixNano()
+	}
+
+	return maxDelay
+}
+
+func (c *Client) addTxnIfNotExist(op ReadOp) {
+
+	txnId := op.GetTxnId()
+	rpcTxnId := c.genTxnIdToServer(txnId)
 
 	if _, exist := c.txnStore[txnId]; exist {
 		// if exist increment the execution number
 		c.txnStore[txnId].execCount++
-		logrus.Infof("RETRY txn %v: %v", txnId, c.txnStore[txnId].execCount)
+		op.ClearReadKeyList()
+		op.ClearWriteKeyList()
+		logrus.Debugf("RETRY txn %v: %v", txnId, c.txnStore[txnId].execCount)
 	} else {
 		// otherwise add new txn
-		txn := &Transaction{
-			txnId:        txnId,
-			commitReply:  make(chan *rpc.CommitReply, 1),
-			commitResult: 0,
-			startTime:    time.Now(),
-			endTime:      time.Time{},
-			execCount:    0,
-			executions:   make([]*ExecutionRecord, 0),
-		}
-		c.txnStore[txnId] = txn
+		c.txnStore[txnId] = NewTransaction(op, c)
 	}
+
+	execution := NewExecutionRecord(op, rpcTxnId, len(c.txnStore[txnId].readKeyList))
 
 	c.txnStore[txnId].executions = append(c.txnStore[txnId].executions, execution)
 }
 
-func (c *Client) separatePartition(op *SendOp) (map[int][][]string, map[int]bool) {
-	// separate key into partitions
-	partitionSet := make(map[int][][]string)
-	participants := make(map[int]bool)
-	if c.Config.GetServerMode() != configuration.OCC && c.Config.GetPriority() && c.Config.IsConditionalPrepare() {
-		for _, key := range op.readKeyList {
-			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("read key %v, pId %v", key, pId)
-			participants[pId] = true
-		}
-
-		for _, key := range op.writeKeyList {
-			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("write key %v, pId %v", key, pId)
-			participants[pId] = true
-		}
-
-		// if the priority optimization enable, send the all keys to partitions
-		for pId := range participants {
-			if _, exist := partitionSet[pId]; !exist {
-				partitionSet[pId] = make([][]string, 2)
-			}
-			partitionSet[pId][0] = op.readKeyList
-			partitionSet[pId][1] = op.writeKeyList
-		}
-	} else {
-		for _, key := range op.readKeyList {
-			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("read key %v, pId %v", key, pId)
-			if _, exist := partitionSet[pId]; !exist {
-				partitionSet[pId] = make([][]string, 2)
-			}
-			partitionSet[pId][0] = append(partitionSet[pId][0], key)
-			participants[pId] = true
-		}
-
-		for _, key := range op.writeKeyList {
-			pId := c.Config.GetPartitionIdByKey(key)
-			logrus.Debugf("write key %v, pId %v", key, pId)
-			if _, exist := partitionSet[pId]; !exist {
-				partitionSet[pId] = make([][]string, 2)
-			}
-			partitionSet[pId][1] = append(partitionSet[pId][1], key)
-			participants[pId] = true
-		}
-
-	}
-
-	return partitionSet, participants
-
-}
-
-func (c *Client) handleReadOnlyRequest(op *SendOp) {
-	partitionSet, participants := c.separatePartition(op)
-	participatedPartitions := make([]int32, len(participants))
-	serverDcIds := make(map[int]bool)
-	serverList := make([]int, 0)
-	i := 0
-	for pId := range participants {
-		participatedPartitions[i] = int32(pId)
-		serverId := c.Config.GetLeaderIdByPartitionId(pId)
-		serverList = append(serverList, serverId)
-		dcId := c.Config.GetDataCenterIdByServerId(serverId)
-		serverDcIds[dcId] = true
-		i++
-	}
-
-	t := &rpc.Transaction{
-		TxnId:                    c.genTxnIdToServer(),
-		ReadKeyList:              op.readKeyList,
-		WriteKeyList:             op.writeKeyList,
-		ParticipatedPartitionIds: participatedPartitions,
-		CoordPartitionId:         int32(-1), // with read-only optimization, read-only txn does not need send to coord
-		ReadOnly:                 true,
-		HighPriority:             op.priority,
-	}
-
-	c.addTxnIfNotExist(op.txnId, t)
-
-	_, execution := c.getTxnAndExecution(op.txnId)
-
-	var maxDelay int64 = 0
-	if c.Config.IsDynamicLatency() {
-		maxDelay = c.predictOneWayLatency(serverList) * 1000000 // change to nanoseconds
-		logrus.Debugf("txn %v client's dc %v server's dc %v server list %v txn max delay %v extra delay %v",
-			op.txnId,
-			c.clientDataCenterId, serverDcIds, serverList,
-			time.Duration(maxDelay),
-			c.Config.GetDelay())
-		maxDelay += c.Config.GetDelay().Nanoseconds()
-		maxDelay += time.Now().UnixNano()
-	} else {
-		maxDelay = c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
-		maxDelay += c.Config.GetDelay().Nanoseconds()
-		maxDelay += time.Now().UnixNano()
-	}
-
-	// send read and prepare request to each partition
-	for pId, keyLists := range partitionSet {
-		txn := &rpc.Transaction{
-			TxnId:                    execution.rpcTxn.TxnId,
-			ReadKeyList:              keyLists[0],
-			WriteKeyList:             keyLists[1],
-			ParticipatedPartitionIds: participatedPartitions,
-			CoordPartitionId:         int32(-1),
-			ReadOnly:                 true,
-			HighPriority:             op.priority,
-		}
-
-		request := &rpc.ReadAndPrepareRequest{
-			Txn:              txn,
-			IsRead:           false,
-			IsNotParticipant: !participants[pId],
-			Timestamp:        maxDelay,
-			ClientId:         "c" + strconv.Itoa(c.clientId),
-		}
-
-		// read-only txn only send to partition leader
-		partitionLeaderId := c.Config.GetLeaderIdByPartitionId(pId)
-
-		sender := NewReadOnlySender(request, execution, partitionLeaderId, c)
-		go sender.Send()
-	}
-
-	go c.waitReadAndPrepareRequest(op, execution)
-}
-
-//func (c *Client) waitReadOnlyRequest(op *SendOp, execution *ExecutionRecord) {
-//
-//}
-
-func (c *Client) handleReadAndPrepareRequest(op *SendOp) {
-	// separate key into partitions
-	partitionSet, participants := c.separatePartition(op)
-
-	participatedPartitions := make([]int32, len(partitionSet))
-	serverDcIds := make(map[int]bool)
-	serverIdList := make([]int, 0)
-	i := 0
-	for pId := range participants {
-		participatedPartitions[i] = int32(pId)
-		serverList := c.Config.GetServerIdListByPartitionId(pId)
-		for _, sId := range serverList {
-			serverIdList = append(serverIdList, sId)
-			dcId := c.Config.GetDataCenterIdByServerId(sId)
-			serverDcIds[dcId] = true
-		}
-
-		i++
-	}
-
-	leaderIdList := c.Config.GetLeaderIdListByDataCenterId(c.clientDataCenterId)
-	coordinatorPartitionId := c.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
-	logrus.Debugf("txn %v client datacenterId %v local leader %v coordinatorId %v",
-		op.txnId, c.clientDataCenterId, leaderIdList, coordinatorPartitionId)
-	for _, lId := range leaderIdList {
-		pLId := c.Config.GetPartitionIdByServerId(lId)
-		if _, exist := partitionSet[pLId]; exist {
-			coordinatorPartitionId = pLId
-			break
-		}
-	}
-
-	if _, exist := partitionSet[coordinatorPartitionId]; !exist {
-		partitionSet[coordinatorPartitionId] = make([][]string, 2)
-	}
-
-	t := &rpc.Transaction{
-		TxnId:                    c.genTxnIdToServer(),
-		ReadKeyList:              op.readKeyList,
-		WriteKeyList:             op.writeKeyList,
-		ParticipatedPartitionIds: participatedPartitions,
-		CoordPartitionId:         int32(coordinatorPartitionId),
-		ReadOnly:                 len(op.writeKeyList) == 0,
-		HighPriority:             op.priority,
-	}
-
-	c.addTxnIfNotExist(op.txnId, t)
-
-	_, execution := c.getTxnAndExecution(op.txnId)
-
-	var maxDelay int64 = 0
-	if c.Config.IsDynamicLatency() {
-		maxDelay = c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
-		logrus.Debugf("txn %v client's dc %v server's dc %v server list %v txn max delay %v extra delay %v",
-			op.txnId,
-			c.clientDataCenterId, serverDcIds, serverIdList,
-			time.Duration(maxDelay),
-			c.Config.GetDelay())
-		maxDelay += c.Config.GetDelay().Nanoseconds()
-		maxDelay += time.Now().UnixNano()
-	} else {
-		maxDelay = c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
-		maxDelay += c.Config.GetDelay().Nanoseconds()
-		maxDelay += time.Now().UnixNano()
-	}
-
-	// send read and prepare request to each partition
-	for pId, keyLists := range partitionSet {
-		txn := &rpc.Transaction{
-			TxnId:                    execution.rpcTxn.TxnId,
-			ReadKeyList:              keyLists[0],
-			WriteKeyList:             keyLists[1],
-			ParticipatedPartitionIds: participatedPartitions,
-			CoordPartitionId:         int32(coordinatorPartitionId),
-			ReadOnly:                 len(op.writeKeyList) == 0,
-			HighPriority:             op.priority,
-		}
-
-		request := &rpc.ReadAndPrepareRequest{
-			Txn:              txn,
-			IsRead:           false,
-			IsNotParticipant: !participants[pId],
-			Timestamp:        maxDelay,
-			ClientId:         "c" + strconv.Itoa(c.clientId),
-		}
-
-		if request.IsNotParticipant || (request.Txn.ReadOnly && c.Config.GetIsReadOnly()) ||
-			!c.Config.GetFastPath() {
-			// only send to the leader of non-participant partition
-			sId := c.Config.GetLeaderIdByPartitionId(pId)
-			sender := NewReadAndPrepareSender(request, execution, sId, c)
-			go sender.Send()
-		} else {
-			sIdList := c.Config.GetServerIdListByPartitionId(pId)
-			for _, sId := range sIdList {
-				sender := NewReadAndPrepareSender(request, execution, sId, c)
-				go sender.Send()
-			}
-		}
-	}
-
-	go c.waitReadAndPrepareRequest(op, execution)
+func (c *Client) AddOperation(op Operation) {
+	c.operations <- op
 }
 
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration, time.Duration) {
-	commitOp := &CommitOp{
-		txnId:         c.getTxnId(txnId),
-		writeKeyValue: writeKeyValue,
-		wait:          make(chan bool, 1),
-		retry:         false,
-		expectWait:    time.Duration(0),
+	tId := c.getTxnId(txnId)
+	var commitOp CommitOp
+	if len(c.txnStore[tId].writeKeyList) == 0 && c.Config.GetIsReadOnly() {
+		commitOp = NewCommitReadOnlyOp(tId)
+	} else {
+		commitOp = NewCommitOp(tId, writeKeyValue)
 	}
 
-	c.commitTxnRequest <- commitOp
-	commitOp.BlockOwner()
-	return commitOp.result, commitOp.retry, commitOp.waitTime, commitOp.expectWait
+	c.getCurrentExecution(tId).setCommitOp(commitOp)
+	c.AddOperation(commitOp)
+
+	commitOp.Block()
+
+	return commitOp.GetResult()
 }
 
 func (c *Client) Abort(txnId string) (bool, time.Duration) {
-	txn, _ := c.getTxnAndExecution(c.getTxnId(txnId))
-	return c.isRetryTxn(txn.execCount + 1)
-}
+	tId := c.getTxnId(txnId)
+	op := NewAbortOp(tId)
+	c.AddOperation(op)
 
-func (c *Client) waitCommitReply(op *CommitOp, ongoingTxn *Transaction, execution *ExecutionRecord) {
-	result := <-ongoingTxn.commitReply
-
-	ongoingTxn.endTime = time.Now()
-	latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
-	if result.Result {
-		ongoingTxn.commitResult = 1
-		//ongoingTxn.fastPrepare = result.FastPrepare
-	} else {
-		ongoingTxn.commitResult = 0
-		op.retry, op.waitTime = c.isRetryTxn(ongoingTxn.execCount + 1)
-	}
-	op.result = result.Result
-	if c.Config.GetTargetRate() > 0 {
-		if op.result || c.Config.GetRetryMode() == configuration.OFF {
-			op.expectWait = c.tryToMaintainTxnTargetRate(latency)
-		}
-	}
-	op.wait <- true
+	op.Block()
+	return op.isRetry, op.waitTime
 }
 
 func (c *Client) isRetryTxn(execNum int64) (bool, time.Duration) {
@@ -683,61 +235,6 @@ func (c *Client) isRetryTxn(execNum int64) (bool, time.Duration) {
 		waitTime = c.Config.GetRetryInterval() * time.Duration(randomFactor)
 	}
 	return true, waitTime
-}
-
-func (c *Client) handleCommitRequest(op *CommitOp) {
-	ongoingTxn, execution := c.getTxnAndExecution(op.txnId)
-
-	if len(op.writeKeyValue) == 0 && c.Config.GetIsReadOnly() && !execution.isConditionalPrepare {
-		ongoingTxn.endTime = time.Now()
-		logrus.Debugf("read only txn %v commit", op.txnId)
-		ongoingTxn.commitResult = 1
-		op.result = true
-		if c.Config.GetTargetRate() > 0 {
-			latency := ongoingTxn.endTime.Sub(ongoingTxn.startTime)
-			op.expectWait = c.tryToMaintainTxnTargetRate(latency)
-		}
-		op.wait <- true
-		return
-	}
-
-	writeKeyValueList := make([]*rpc.KeyValue, len(op.writeKeyValue))
-	i := 0
-	for k, v := range op.writeKeyValue {
-		writeKeyValueList[i] = &rpc.KeyValue{
-			Key:   k,
-			Value: v,
-		}
-		i++
-	}
-	readKeyVerList := make([]*rpc.KeyVersion, 0)
-	// if all keys read from leader, we do not need to send read version to coordinator
-	if execution.readFromReplica {
-		readKeyVerList := make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
-		i = 0
-		for _, kv := range execution.readKeyValueVersion {
-			readKeyVerList[i] = &rpc.KeyVersion{
-				Key:     kv.Key,
-				Version: kv.Version,
-			}
-			i++
-		}
-	}
-
-	request := &rpc.CommitRequest{
-		TxnId:            execution.rpcTxn.TxnId,
-		WriteKeyValList:  writeKeyValueList,
-		FromCoordinator:  false,
-		ReadKeyVerList:   readKeyVerList,
-		IsReadAnyReplica: execution.readFromReplica,
-	}
-
-	coordinatorId := c.Config.GetLeaderIdByPartitionId(int(execution.rpcTxn.CoordPartitionId))
-	sender := NewCommitRequestSender(request, ongoingTxn, coordinatorId, c)
-
-	go sender.Send()
-
-	go c.waitCommitReply(op, ongoingTxn, execution)
 }
 
 func (c *Client) PrintServerStatus(commitTxn []int) {
@@ -784,12 +281,12 @@ func (c *Client) PrintTxnStatisticData() {
 
 	for _, txn := range c.txnStore {
 		key := make(map[int64]bool)
-		for _, ks := range txn.executions[0].rpcTxn.ReadKeyList {
+		for _, ks := range txn.readKeyList {
 			k := utils.ConvertToInt(ks)
 			key[k] = true
 		}
 
-		for _, ks := range txn.executions[0].rpcTxn.WriteKeyList {
+		for _, ks := range txn.writeKeyList {
 			k := utils.ConvertToInt(ks)
 			key[k] = true
 		}
@@ -800,17 +297,16 @@ func (c *Client) PrintTxnStatisticData() {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
-			txn.executions[txn.execCount].rpcTxn.TxnId,
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+			txn.txnId,
 			txn.commitResult,
-			txn.endTime.Sub(txn.startTime).Nanoseconds(),
+			txn.executions[txn.execCount].endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
-			txn.endTime.UnixNano(),
+			txn.executions[txn.execCount].endTime.UnixNano(),
 			keyList,
 			txn.execCount,
-			txn.executions[txn.execCount].rpcTxn.ReadOnly,
-			txn.executions[txn.execCount].rpcTxn.HighPriority,
-			txn.fastPrepare,
+			txn.isReadOnly(),
+			txn.priority,
 		)
 		_, err = file.WriteString(s)
 		if err != nil {
@@ -854,4 +350,76 @@ func (c *Client) tryToMaintainTxnTargetRate(latency time.Duration) time.Duration
 		}
 		return 0
 	}
+}
+
+func (c *Client) separatePartition(op ReadOp) (map[int][][]string, map[int]bool) {
+	// separate key into partitions
+	partitionSet := make(map[int][][]string)
+	participants := make(map[int]bool)
+	if c.Config.GetServerMode() != configuration.OCC &&
+		c.Config.GetPriority() && c.Config.IsEarlyAbort() {
+		for _, key := range op.GetReadKeyList() {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("read key %v, pId %v", key, pId)
+			participants[pId] = true
+		}
+
+		for _, key := range op.GetWriteKeyList() {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("write key %v, pId %v", key, pId)
+			participants[pId] = true
+		}
+
+		// if the priority optimization enable, send the all keys to partitions
+		for pId := range participants {
+			if _, exist := partitionSet[pId]; !exist {
+				partitionSet[pId] = make([][]string, 2)
+			}
+			partitionSet[pId][0] = op.GetReadKeyList()
+			partitionSet[pId][1] = op.GetWriteKeyList()
+		}
+	} else {
+		for _, key := range op.GetReadKeyList() {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("read key %v, pId %v", key, pId)
+			if _, exist := partitionSet[pId]; !exist {
+				partitionSet[pId] = make([][]string, 2)
+			}
+			partitionSet[pId][0] = append(partitionSet[pId][0], key)
+			participants[pId] = true
+		}
+
+		for _, key := range op.GetWriteKeyList() {
+			pId := c.Config.GetPartitionIdByKey(key)
+			logrus.Debugf("write key %v, pId %v", key, pId)
+			if _, exist := partitionSet[pId]; !exist {
+				partitionSet[pId] = make([][]string, 2)
+			}
+			partitionSet[pId][1] = append(partitionSet[pId][1], key)
+			participants[pId] = true
+		}
+
+	}
+
+	return partitionSet, participants
+
+}
+
+func (c *Client) getParticipantPartition(participants map[int]bool) ([]int32, map[int]bool, []int) {
+	participatedPartitions := make([]int32, len(participants))
+	serverDcIds := make(map[int]bool)
+	serverIdList := make([]int, 0)
+	i := 0
+	for pId := range participants {
+		participatedPartitions[i] = int32(pId)
+		serverList := c.Config.GetServerIdListByPartitionId(pId)
+		for _, sId := range serverList {
+			serverIdList = append(serverIdList, sId)
+			dcId := c.Config.GetDataCenterIdByServerId(sId)
+			serverDcIds[dcId] = true
+		}
+		i++
+	}
+
+	return participatedPartitions, serverDcIds, serverIdList
 }

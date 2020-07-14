@@ -33,8 +33,8 @@ func (c *CommitCoordinator) Execute(coordinator *Coordinator) {
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(txnId)
 	twoPCInfo.commitRequestOp = c
 
-	if twoPCInfo.status == ABORT || twoPCInfo.status == COMMIT {
-		log.Infof("TXN %v already aborted", txnId)
+	if twoPCInfo.status.IsAbort() || twoPCInfo.status == COMMIT {
+		log.Debugf("TXN %v already aborted status %v", txnId, twoPCInfo.status.String())
 		c.result = twoPCInfo.status == COMMIT
 		c.unblockClient()
 		return
