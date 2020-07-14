@@ -170,7 +170,6 @@ func (c *Client) addTxnIfNotExist(op ReadOp) {
 	var rpcTxnId string
 	if _, exist := c.txnStore[txnId]; exist {
 		// if exist increment the execution number
-		rpcTxnId = c.genTxnIdToServer(txnId)
 		c.txnStore[txnId].execCount++
 		op.ClearReadKeyList()
 		op.ClearWriteKeyList()
@@ -178,9 +177,9 @@ func (c *Client) addTxnIfNotExist(op ReadOp) {
 	} else {
 		// otherwise add new txn
 		c.txnStore[txnId] = NewTransaction(op, c)
-		rpcTxnId = c.genTxnIdToServer(txnId)
 	}
 
+	rpcTxnId = c.genTxnIdToServer(txnId)
 	execution := NewExecutionRecord(op, rpcTxnId, len(c.txnStore[txnId].readKeyList))
 
 	c.txnStore[txnId].executions = append(c.txnStore[txnId].executions, execution)
