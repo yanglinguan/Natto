@@ -41,7 +41,9 @@ func (s *ReadAndPrepareSender) Send() {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	logrus.Infof("SEND ReadAndPrepare %v to %v (%v)", s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId)
+	logrus.Debugf("SEND ReadAndPrepare %v to %v (%v) delay %v",
+		s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId,
+		s.request.Timestamp)
 
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err != nil {
@@ -53,7 +55,7 @@ func (s *ReadAndPrepareSender) Send() {
 			logrus.Fatalf("cannot send txn %v readAndPrepare to server %v: %v", s.request.Txn.TxnId, conn.GetDstAddr(), err)
 		}
 	} else {
-		logrus.Infof("RECEIVE ReadResult %v from %v status %v", s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status)
+		logrus.Debugf("RECEIVE ReadResult %v from %v status %v", s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status)
 
 		op := NewReadAndPrepareReplyOp(s.txnId, s.executionCount, reply)
 		s.client.AddOperation(op)

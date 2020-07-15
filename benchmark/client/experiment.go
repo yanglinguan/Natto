@@ -48,6 +48,7 @@ func (o *OpenLoopExperiment) Execute() {
 		c++
 	}
 
+	logrus.Debugf("waiting for all txn commit total %v", c)
 	o.wg.Wait()
 }
 

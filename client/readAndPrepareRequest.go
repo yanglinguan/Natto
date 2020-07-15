@@ -48,6 +48,8 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 
 	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds)
 
+	logrus.Debugf("txn %v maxDelay")
+
 	// send read and prepare request to each partition
 	for pId, keyLists := range txn.partitionSet {
 		request := op.buildRequest(
