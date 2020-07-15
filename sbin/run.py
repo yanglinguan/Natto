@@ -326,33 +326,51 @@ def main():
     start_time = time.time()
     build()
     end_build = time.time()
-    print("build use %.5fs" % (end_build - start_time))
+    build_use = end_build - start_time
+    print("build use %.5fs" % build_use)
     parse_server_machine()
     parse_client_machine()
     deploy()
     end_deploy = time.time()
-    print("deploy use %.5fs" % (end_deploy - end_build))
+    deploy_use = end_deploy - end_build
+    print("deploy use %.5fs" % deploy_use)
     start_servers()
     time.sleep(15)
     end_start_server = time.time()
-    print("start server use (+15s) %.5fs" % (end_start_server - end_deploy))
+    start_server_use = end_start_server - end_deploy
+    print("start server use (+15s) %.5fs" % start_server_use)
     enforce_leader()
     end_select_leader = time.time()
-    print("select leader used %.5fs" % (end_select_leader - end_start_server))
+    select_leader_use = end_select_leader - end_start_server
+    print("select leader used %.5fs" % select_leader_use)
     start_clients()
     end_client = time.time()
-    print("clients finish used %.5fs" % (end_client - end_select_leader))
+    client_use = end_client - end_select_leader
+    print("clients finish used %.5fs" % client_use)
     dir_name = collect_client_log()
     print_server_status(dir_name)
     end_server = time.time()
-    print("server finish used %.5fs" % (end_server - end_client))
+    server_use = end_server - end_client
+    print("server finish used %.5fs" % server_use)
     collect_server_log(dir_name)
     end_collect = time.time()
-    print("collect log used %.5fs" % (end_collect - end_server))
+    collect_use = end_collect - end_server
+    print("collect log used %.5fs" % collect_use)
     stop_clients()
     stop_servers()
     end_time = time.time()
+    stop_server_use = end_time - end_collect
+    print("stop client and server use %.5f", stop_server_use)
+    print("-----")
     print("entire exp use %.5fs" % (end_time - start_time))
+    print("build use %.5fs" % build_use)
+    print("deploy use %.5fs" % deploy_use)
+    print("start server use (+15s) %.5fs" % start_server_use)
+    print("select leader used %.5fs" % select_leader_use)
+    print("run clients used %.5fs" % client_use)
+    print("server finish used %.5fs" % server_use)
+    print("collect log used %.5fs" % collect_use)
+    print("stop client and server use %.5f", stop_server_use)
 
 
 if __name__ == "__main__":
