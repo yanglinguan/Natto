@@ -62,12 +62,13 @@ for value in combo:
     fileName = ""
     for v in value:
         name = var_names[i]
-        fileName += name
-        if name == "zipfAlpha":
-            v = int(v*100)
-        fileName += "_" + str(v) + "-"
-        i += 1
         e[name] = v
+        fileName += name
+        x = v
+        if name == "zipfAlpha":
+            x = int(v*100)
+        fileName += "_" + str(x) + "-"
+        i += 1
     fileName = fileName[:-1]
     fileName += ".json"
     fileName = os.path.join(args.directory, fileName)
