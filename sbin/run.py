@@ -360,7 +360,7 @@ def main():
     stop_servers()
     end_time = time.time()
     stop_server_use = end_time - end_collect
-    print("stop client and server use %.5f", stop_server_use)
+    print("stop client and server use %.5f" % stop_server_use)
     print("-----")
     print("entire exp use %.5fs" % (end_time - start_time))
     print("build use %.5fs" % build_use)
@@ -370,7 +370,7 @@ def main():
     print("run clients used %.5fs" % client_use)
     print("server finish used %.5fs" % server_use)
     print("collect log used %.5fs" % collect_use)
-    print("stop client and server use %.5f", stop_server_use)
+    print("stop client and server use %.5f" % stop_server_use)
 
 
 if __name__ == "__main__":

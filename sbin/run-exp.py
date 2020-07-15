@@ -21,6 +21,11 @@ arg_parser.add_argument('-p', '--password', dest="password", nargs='?',
 arg_parser.add_argument('-r', '--receiverEmail', dest="receiverEmail", nargs='?',
                         help='receive email address', required=False)
 
+arg_parser.add_argument('-m', '--machines', dest="machines", nargs='?',
+                        help='machines config file', required=False)
+arg_parser.add_argument('-dir', '--directory', dest="directory", nargs='?',
+                        help='config file directory', required=False)
+
 args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
@@ -80,6 +85,10 @@ def notification(message):
 
 def main():
     finishes = 0
+
+    if args.machines is not None and args.directory is not None:
+        subprocess.call([bin_path + "gen_config.py", "-m", args.machines, "-d", args.directory])
+        subprocess.call(["cd", args.directory])
 
     for i in range(1):
         finish, succ, failed = run_exp(i)
