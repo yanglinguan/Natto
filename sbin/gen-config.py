@@ -63,6 +63,8 @@ for value in combo:
     for v in value:
         name = var_names[i]
         fileName += name
+        if name == "zipfAlpha":
+            v = int(v*100)
         fileName += "_" + str(v) + "-"
         i += 1
         e[name] = v
