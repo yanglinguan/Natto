@@ -1,0 +1,94 @@
+{
+  "server": {
+    "nums": 3,
+    "partitions": 3,
+    "replicationFactor": 1,
+    "failure": 1,
+    "raftPortBase": 20000,
+    "rpcPortBase": 10000
+  },
+  "client_nums": [5],
+  "server_machines": [
+  "localhost",
+  "localhost",
+  "localhost"
+  ],
+  "client_machines": [
+    "localhost"
+  ],
+  "latency": {
+    "variance": "10ms",
+    "distribution": "pareto",
+    "oneWayDelay": [
+      [
+        "0ms",
+        "50ms",
+        "100ms"
+      ],
+      [
+        "50ms",
+        "0ms",
+        "80ms"
+      ],
+      [
+        "100ms",
+        "80ms",
+        "0ms"
+      ]
+    ]
+  },
+  "fix_exp": {
+    "readOnly": true,
+    "checkWaiting": false,
+    "replication": true,
+    "totalKey": 10000000,
+    "RPCPoolSize": 0,
+    "keySize": 64,
+    "duration": "90s",
+    "totalTxn": 1000,
+    "targetRate": 100,
+    "dynamicLatency": {
+      "mode": false,
+      "probeWindowLen": "1s",
+      "probeWindowMinSize": 10,
+      "probeInterval": "10ms",
+      "blocking": false,
+      "probeTime": false
+    },
+    "workload": {
+      "type": "ycsbt",
+      "retwis": {
+        "addUserRatio": 5,
+        "followUnfollowRatio": 15,
+        "postTweetRatio": 30,
+        "loadTimelineRatio": 50
+      },
+      "highPriority": 100
+    },
+    "seed": 0,
+    "queueLen": 10240,
+    "retry": {
+      "mode": "exp",
+      "interval": "10ms",
+      "maxRetry": 20,
+      "maxSlot": 32
+    },
+    "ssh": {
+      "username": "l69yang",
+      "identity": ""
+    },
+    "runDir": "/ssd1/carousel-gts/"
+  },
+  "var_exp": {
+    "mode":  ["gts", "occ"],
+    "fastPath": [false],
+    "delay": ["10ms"],
+    "txnSize": [2],
+    "openLoop": [true],
+    "txnRate":  [100, 200, 400, 600, 800],
+    "zipfAlpha": [0.5, 0.75, 0.85, 0.95],
+    "timeWindow": ["0ms"],
+    "conditionalPrepare":  [false],
+    "optimisticReorder":  [false]
+  }
+}
