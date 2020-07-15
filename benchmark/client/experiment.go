@@ -52,6 +52,7 @@ func (o *OpenLoopExperiment) Execute() {
 }
 
 func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
+	logrus.Debugf("exec txn %v ", txn.TxnId)
 	o.retry(txn)
 	o.wg.Done()
 }
