@@ -323,19 +323,36 @@ def build():
 
 
 def main():
+    start_time = time.time()
     build()
+    end_build = time.time()
+    print("build use %.5fs" % (end_build - start_time))
     parse_server_machine()
     parse_client_machine()
     deploy()
+    end_deploy = time.time()
+    print("deploy use %.5fs" % (end_deploy - end_build))
     start_servers()
     time.sleep(15)
+    end_start_server = time.time()
+    print("start server use (+15s) %.5fs" % (end_start_server - end_deploy))
     enforce_leader()
+    end_select_leader = time.time()
+    print("select leader used %.5fs" % (end_select_leader - end_start_server))
     start_clients()
+    end_client = time.time()
+    print("clients finish used %.5fs" % (end_client - end_select_leader))
     dir_name = collect_client_log()
     print_server_status(dir_name)
+    end_server = time.time()
+    print("server finish used %.5fs" % (end_server - end_client))
     collect_server_log(dir_name)
+    end_collect = time.time()
+    print("collect log used %.5fs" % (end_collect - end_server))
     stop_clients()
     stop_servers()
+    end_time = time.time()
+    print("entire exp use %.5fs" % (end_time - start_time))
 
 
 if __name__ == "__main__":
