@@ -194,14 +194,14 @@ func (c *Client) AddOperation(op Operation) {
 
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration, time.Duration) {
 	tId := c.getTxnId(txnId)
-	var commitOp CommitOp
-	if len(c.txnStore[tId].writeKeyList) == 0 && c.Config.GetIsReadOnly() {
-		commitOp = NewCommitReadOnlyOp(tId)
-	} else {
-		commitOp = NewCommitOp(tId, writeKeyValue)
-	}
-
-	c.getCurrentExecution(tId).setCommitOp(commitOp)
+	commitOp := NewCommitOp(tId, writeKeyValue)
+	//var commitOp CommitOp
+	//if len(writeKeyValue) == 0 && c.Config.GetIsReadOnly() {
+	//	commitOp = NewCommitReadOnlyOp(tId)
+	//} else {
+	//
+	//}
+	//
 	c.AddOperation(commitOp)
 
 	commitOp.Block()
@@ -304,7 +304,7 @@ func (c *Client) PrintTxnStatisticData() {
 
 		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.txnId,
-			txn.commitResult,
+			txn.executions[txn.execCount].commitResult,
 			txn.executions[txn.execCount].endTime.Sub(txn.startTime).Nanoseconds(),
 			txn.startTime.UnixNano(),
 			txn.executions[txn.execCount].endTime.UnixNano(),

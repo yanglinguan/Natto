@@ -2,6 +2,7 @@ package client
 
 import (
 	"Carousel-GTS/rpc"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
@@ -32,6 +33,21 @@ func NewCommitOp(txnId string, writeKeyValue map[string]string) *Commit {
 func (op *Commit) Execute(client *Client) {
 	//ongoingTxn := client.txnStore[op.txnId]
 	execution := client.getCurrentExecution(op.txnId)
+	execution.setCommitOp(op)
+
+	if client.getTxn(op.txnId).isReadOnly() && client.Config.GetIsReadOnly() {
+		ongoingTxn := client.getTxn(op.txnId)
+		execution.endTime = time.Now()
+		logrus.Debugf("read only txn %v commit", op.txnId)
+		execution.commitResult = 1
+		op.result = true
+		if client.Config.GetTargetRate() > 0 {
+			latency := execution.endTime.Sub(ongoingTxn.startTime)
+			op.expectWait = client.tryToMaintainTxnTargetRate(latency)
+		}
+		op.Unblock()
+		return
+	}
 
 	writeKeyValueList := make([]*rpc.KeyValue, len(op.writeKeyValue))
 	i := 0

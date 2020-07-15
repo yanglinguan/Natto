@@ -32,10 +32,10 @@ func (op *CommitReply) Execute(client *Client) {
 	waitTime := time.Duration(0)
 	expWait := time.Duration(0)
 	if op.reply.Result {
-		ongoingTxn.commitResult = 1
+		execution.commitResult = 1
 		//ongoingTxn.fastPrepare = result.FastPrepare
 	} else {
-		ongoingTxn.commitResult = 0
+		execution.commitResult = 0
 		isRetry, waitTime = client.isRetryTxn(ongoingTxn.execCount + 1)
 	}
 	//op.result = op.reply.Result

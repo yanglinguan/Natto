@@ -11,8 +11,8 @@ type Transaction struct {
 	writeKeyList []string
 	priority     bool
 	//commitReply  chan *rpc.CommitReply
-	commitResult int
-	startTime    time.Time
+	//commitResult int
+	startTime time.Time
 
 	execCount  int64
 	executions []*ExecutionRecord
@@ -30,8 +30,8 @@ func NewTransaction(op ReadOp, client *Client) *Transaction {
 		readKeyList:  op.GetReadKeyList(),
 		writeKeyList: op.GetWriteKeyList(),
 		priority:     op.GetPriority(),
-		commitResult: 0,
-		startTime:    time.Now(),
+		//commitResult: 0,
+		startTime: time.Now(),
 		//endTime:      time.Time{},
 		execCount:  0,
 		executions: make([]*ExecutionRecord, 0),
@@ -49,11 +49,12 @@ func (t *Transaction) isReadOnly() bool {
 
 type ExecutionRecord struct {
 	readAndPrepareOp       ReadOp
-	commitOp               CommitOp
+	commitOp               *Commit
 	rpcTxnId               string
 	readKeyNum             int
 	coordinatorPartitionId int
 	endTime                time.Time
+	commitResult           int
 	//rpcTxn               *rpc.Transaction
 	//readAndPrepareReply  chan *rpc.ReadAndPrepareReply
 	readKeyValueVersion  []*rpc.KeyValueVersion
@@ -90,6 +91,6 @@ func (e *ExecutionRecord) setCoordinatorPartitionId(pId int) {
 	e.coordinatorPartitionId = pId
 }
 
-func (e *ExecutionRecord) setCommitOp(c CommitOp) {
+func (e *ExecutionRecord) setCommitOp(c *Commit) {
 	e.commitOp = c
 }
