@@ -205,13 +205,10 @@ def analyse_throughput(txn_map):
             max_time = value["start"]
         if value["commit"]:
             count += 1
-            count += value["exeCount"]
             if value["priority"]:
                 count_high += 1
-                count_high += value["exeCount"]
             else:
                 count_low += 1
-                count_low += value["exeCount"]
 
     throughput = float(count * 1000000000) / (max_time - min_time)
 
