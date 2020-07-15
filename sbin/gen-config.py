@@ -131,7 +131,7 @@ var_value = [
 
 combo = list(itertools.product(*var_value))
 
-print(combo)
+# print(combo)
 
 eList = []
 
@@ -142,7 +142,7 @@ for value in combo:
     for v in value:
         name = var_names[i]
         fileName += name
-        fileName += "(" + str(v) + ")-"
+        fileName += "_" + str(v) + "-"
         i += 1
         e[name] = v
     fileName = fileName[:-1]
