@@ -54,6 +54,18 @@ combo = list(itertools.product(*var_value))
 
 # print(combo)
 
+shortName = {
+    "optimisticReorder": "oR",
+    "conditionalPrepare": "cP",
+    "workloadhighPriority": "hP",
+    "retrymaxRetry": "maxRetry",
+    "zipfAlpha": "zipf",
+    "workloadtype": "workload",
+    "fastPath": "fP",
+    "openLoop": "oL",
+    "timeWindow": "tw"
+}
+
 eList = []
 
 for value in combo:
@@ -68,6 +80,8 @@ for value in combo:
             e[items[0]][items[1]] = v
         else:
             e[name] = v
+        if n in shortName:
+            n = shortName[n]
         fileName += n
         x = v
         if name == "zipfAlpha":
@@ -96,6 +110,6 @@ for combo in config_combo:
     config["experiment"]["fileName"] += ".json"
     # config["experiment"]["fileName"] = os.path.join(args.directory, config["experiment"]["fileName"])
     f = config["experiment"]["fileName"]
-    print(f, len(f))
+    # print(f, len(f))
     with open(os.path.join(args.directory, f), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
