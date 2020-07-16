@@ -179,14 +179,15 @@ func (o *ReadAndPrepareGTS) executeFromQueue(storage *Storage) bool {
 	available, reorderTxn := storage.checkKeysAvailableFromQueue(o)
 
 	if available && len(reorderTxn) == 0 {
+		storage.setReadResult(o, -1, false)
 		storage.prepare(o)
 	} else if available {
+		storage.setReadResult(o, -1, false)
 		storage.reverseReorderPrepare(o, reorderTxn)
 	} else {
 		return false
 	}
 
-	storage.setReadResult(o, -1, false)
 	storage.removeFromQueue(o)
 
 	return true

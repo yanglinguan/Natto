@@ -34,7 +34,7 @@ func (a AbortGTS) Execute(storage *Storage) {
 			break
 		}
 	} else {
-		log.Infof("ABORT %v (coordinator init txnInfo)", txnId)
+		log.Debugf("ABORT %v (coordinator init txnInfo)", txnId)
 		storage.txnStore[txnId] = NewTxnInfo()
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.txnStore[txnId].receiveFromCoordinator = true
@@ -55,7 +55,7 @@ func (a AbortGTS) abortProcessedTxn(storage *Storage) {
 
 	switch storage.txnStore[txnId].status {
 	case WAITING:
-		log.Infof("ABORT: %v (coordinator) INIT", txnId)
+		log.Debugf("ABORT: %v (coordinator) INIT", txnId)
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.setReadResult(storage.txnStore[txnId].readAndPrepareRequestOp, -1, false)
 		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))

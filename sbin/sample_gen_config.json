@@ -85,10 +85,14 @@
     "delay": ["10ms"],
     "txnSize": [2],
     "openLoop": [true],
-    "txnRate":  [100, 200, 400, 600, 800],
+    "txnRate":  [100],
     "zipfAlpha": [0.5, 0.75, 0.85, 0.95],
     "timeWindow": ["0ms"],
     "conditionalPrepare":  [false],
-    "optimisticReorder":  [false]
+    "optimisticReorder":  [false],
+    "workload_highPriority": [10],
+    "workload_type": ["ycsbt"],
+    "retry_mode": ["exp", "const"],
+    "retry_maxRetry": [20, -1]
   }
 }

@@ -62,16 +62,21 @@ for value in combo:
     fileName = ""
     for v in value:
         name = var_names[i]
-        e[name] = v
-        fileName += name
+        items = name.split("_")
+        n = "".join(items)
+        if len(items) == 2:
+            e[items[0]][items[1]] = v
+        else:
+            e[name] = v
+        fileName += n
         x = v
         if name == "zipfAlpha":
             x = int(v*100)
         fileName += "_" + str(x) + "-"
         i += 1
-    fileName = fileName[:-1]
-    fileName += ".json"
-    fileName = os.path.join(args.directory, fileName)
+    # fileName = fileName[:-1]
+    # fileName += ".json"
+    # fileName = os.path.join(args.directory, fileName)
     e["fileName"] = fileName
     eList.append(e)
 
@@ -86,6 +91,11 @@ for combo in config_combo:
         name = config_name[i]
         config[name] = c
         i += 1
+
+    config["experiment"]["fileName"] += "client_" + str(config["clients"]["nums"])
+    config["experiment"]["fileName"] += ".json"
+    # config["experiment"]["fileName"] = os.path.join(args.directory, config["experiment"]["fileName"])
     f = config["experiment"]["fileName"]
-    with open(f, "w") as fp:
+    print(f, len(f))
+    with open(os.path.join(args.directory, f), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
