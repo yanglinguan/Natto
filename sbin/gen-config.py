@@ -3,6 +3,7 @@ import argparse
 import json
 import itertools
 import os
+import copy
 
 arg_parser = argparse.ArgumentParser(description="generate config file.")
 
@@ -52,8 +53,6 @@ for name in var:
 
 combo = list(itertools.product(*var_value))
 
-# print(combo)
-
 shortName = {
     "optimisticReorder": "oR",
     "conditionalPrepare": "cP",
@@ -70,10 +69,11 @@ eList = []
 
 for value in combo:
     i = 0
-    e = exp.copy()
+    e = copy.deepcopy(exp)
     fileName = ""
     for v in value:
         name = var_names[i]
+        i += 1
         items = name.split("_")
         n = "".join(items)
         if len(items) == 2:
@@ -87,10 +87,6 @@ for value in combo:
         if name == "zipfAlpha":
             x = int(v*100)
         fileName += "_" + str(x) + "-"
-        i += 1
-    # fileName = fileName[:-1]
-    # fileName += ".json"
-    # fileName = os.path.join(args.directory, fileName)
     e["fileName"] = fileName
     eList.append(e)
 
@@ -108,8 +104,6 @@ for combo in config_combo:
 
     config["experiment"]["fileName"] += "client_" + str(config["clients"]["nums"])
     config["experiment"]["fileName"] += ".json"
-    # config["experiment"]["fileName"] = os.path.join(args.directory, config["experiment"]["fileName"])
     f = config["experiment"]["fileName"]
-    # print(f, len(f))
     with open(os.path.join(args.directory, f), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
