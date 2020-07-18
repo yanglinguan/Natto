@@ -345,7 +345,7 @@ def error_bar(path, prefix):
         right = mean + 2 * std
 
         result[key] = {"mean": mean, "left": left, "right": right}
-    file_name = prefix + ".result"
+    file_name = prefix + ".final"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
 
