@@ -43,6 +43,7 @@ def run_exp(i):
             if f.endswith(".json"):
                 run_list.append(f)
     finishes = 0
+    errorRun = []
     for f in run_list:
         p = multiprocessing.Process(target=run, name="run", args=(i, f))
         p.start()
@@ -52,9 +53,10 @@ def run_exp(i):
             subprocess.call([bin_path + "stop.py", "-c", f])
             p.terminate()
             p.join()
-            return finishes, False, f
+            errorRun.append(f.split(".")[0]+"-"+str(i))
+            # return finishes, False, f
         finishes = finishes + 1
-    return finishes, True, ""
+    return finishes, True, errorRun
 
 
 def run(i, f):
@@ -90,16 +92,22 @@ def main():
         subprocess.call([bin_path + "gen_config.py", "-m", args.machines, "-d", args.directory])
         subprocess.call(["cd", args.directory])
 
-    for i in range(1):
+    errorRun = []
+    for i in range(2):
         finish, succ, failed = run_exp(i)
         if succ:
             finishes += finish
         else:
-            notification("error " + failed + " exp failed")
-            return
+            for f in failed:
+                errorRun.append(f)
+            error = ",".join(failed)
+            notification("error " + error + " exp failed")
+            # return
 
-    if finishes > 1:
-        notification("experiment is finish")
+    if finishes > 1 or len(errorRun) > 0:
+        error = ",".join(errorRun)
+        notification("experiment is finish. errors: " + error)
+
 
 
 if __name__ == "__main__":
