@@ -318,6 +318,34 @@ def analyse(dir_name):
         json.dump(result, f, indent=4)
 
 
+def error_bar(path, prefix):
+    lists = os.listdir(path)
+    result = {}
+    for f in lists:
+        if f.startswith(prefix) and f.endswith(".result"):
+            data = json.load(f)
+            for key in data:
+                value = data[key]
+                if key not in result:
+                    result[key] = []
+                result[key].append(value)
+
+    for key in result:
+        value = result[key]
+        if isinstance(value[0], list):
+            continue
+        mean = numpy.average(value)
+        std = numpy.std(value)
+
+        left = mean - 2 * std
+        right = mean + 2 * std
+
+        result[key] = {"mean": mean, "left": left, "right": right}
+    file_name = prefix + ".result"
+    with open(file_name, "w") as f:
+        json.dump(result, f, indent=4)
+
+
 def main():
     if args.config is not None:
         analyse(args.config)
@@ -327,6 +355,11 @@ def main():
         for f in lists:
             if os.path.isdir(os.path.join(path, f)):
                 analyse(f)
+
+        for f in lists:
+            if f.endswith(".json"):
+                prefix = f.split(".")[0]
+                error_bar(path, prefix)
 
 
 if __name__ == "__main__":
