@@ -35,7 +35,7 @@ bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 timeout = 20 * 60
 n = 1
 if args.num is not None:
-    n = args.num
+    n = int(args.num)
 
 
 def run_exp(i):
