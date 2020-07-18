@@ -32,7 +32,7 @@ args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
-timeout = 20 * 60
+timeout = 12 * 60
 n = 1
 if args.num is not None:
     n = int(args.num)
@@ -106,12 +106,12 @@ def main():
             for f in failed:
                 errorRun.append(f)
             error = ",".join(failed)
-            notification("error " + error + " exp failed")
+            notification("need to rerun config " + error + " exp failed")
             # return
 
-    if finishes > 1 or len(errorRun) > 0:
-        error = ",".join(errorRun)
-        notification("experiment is finish. errors: " + error)
+    # if finishes > 1 or len(errorRun) > 0:
+    error = ",".join(errorRun)
+    notification("experiment is finish. need to rerun config " + error)
 
 
 if __name__ == "__main__":
