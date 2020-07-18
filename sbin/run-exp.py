@@ -32,7 +32,7 @@ args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
-timeout = 10 * 60
+timeout = 20 * 60
 n = 1
 if args.num is not None:
     n = args.num
@@ -56,7 +56,7 @@ def run_exp(i):
         if p.is_alive():
             print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it")
             subprocess.call([bin_path + "stop.py", "-c", f])
-            p.terminate()
+            # p.terminate()
             p.join()
             errorRun.append(f.split(".")[0] + "-" + str(i))
             # return finishes, False, f
