@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import itertools
 import json
 import os
 import argparse
@@ -323,7 +324,9 @@ def error_bar(path, prefix):
     result = {}
     for f in lists:
         if f.startswith(prefix) and f.endswith(".result"):
-            data = json.load(f)
+            fp = open(os.path.join(path, f), "r")
+            data = json.load(fp)
+            fp.close()
             for key in data:
                 value = data[key]
                 if key not in result:
@@ -333,6 +336,7 @@ def error_bar(path, prefix):
     for key in result:
         value = result[key]
         if isinstance(value[0], list):
+            result[key] = list(itertools.chain(*result[key]))
             continue
         mean = numpy.average(value)
         std = numpy.std(value)
