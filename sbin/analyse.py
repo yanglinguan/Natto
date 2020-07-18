@@ -339,12 +339,9 @@ def error_bar(path, prefix):
             result[key] = list(itertools.chain(*result[key]))
             continue
         mean = numpy.average(value)
-        std = numpy.std(value)
+        yerr = 2 * numpy.std(value)
 
-        left = mean - 2 * std
-        right = mean + 2 * std
-
-        result[key] = {"mean": mean, "left": left, "right": right}
+        result[key] = {"mean": mean, "yerr": yerr}
     file_name = prefix + ".final"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
