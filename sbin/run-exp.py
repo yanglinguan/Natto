@@ -25,12 +25,17 @@ arg_parser.add_argument('-m', '--machines', dest="machines", nargs='?',
                         help='machines config file', required=False)
 arg_parser.add_argument('-dir', '--directory', dest="directory", nargs='?',
                         help='config file directory', required=False)
+arg_parser.add_argument('-n', '--num', dest="num", nargs='?',
+                        help='number of run', required=False)
 
 args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
 timeout = 10 * 60
+n = 1
+if args.num is not None:
+    n = args.num
 
 
 def run_exp(i):
@@ -49,11 +54,11 @@ def run_exp(i):
         p.start()
         p.join(timeout)
         if p.is_alive():
-            print("config " + f + " is still running after " + str(timeout/60) + " min, kill it")
+            print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it")
             subprocess.call([bin_path + "stop.py", "-c", f])
             p.terminate()
             p.join()
-            errorRun.append(f.split(".")[0]+"-"+str(i))
+            errorRun.append(f.split(".")[0] + "-" + str(i))
             # return finishes, False, f
         finishes = finishes + 1
     return finishes, True, errorRun
@@ -93,7 +98,7 @@ def main():
         subprocess.call(["cd", args.directory])
 
     errorRun = []
-    for i in range(2):
+    for i in range(n):
         finish, succ, failed = run_exp(i)
         if succ:
             finishes += finish
@@ -107,7 +112,6 @@ def main():
     if finishes > 1 or len(errorRun) > 0:
         error = ",".join(errorRun)
         notification("experiment is finish. errors: " + error)
-
 
 
 if __name__ == "__main__":
