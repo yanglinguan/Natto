@@ -297,7 +297,9 @@ def analyse_fast_prepare_rate(txn_map):
 def analyse(dir_name):
     setting = parseSetting.getSetting(dir_name)
     clientN = int(setting["client"])
-    if len([File.endswith(".statistic") for File in os.listdir(dir_name)]) != clientN:
+    n = len([f for f in os.listdir(dir_name)
+             if f.endswith('.statistic') and os.path.isfile(os.path.join(dir_name, f))])
+    if n != clientN:
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN))
         return
 
