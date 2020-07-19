@@ -294,6 +294,10 @@ def analyse_fast_prepare_rate(txn_map):
 
 
 def analyse(dir_name):
+    if not any(File.endswith(".statistic") for File in os.listdir(dir_name)):
+        print(dir_name + " does not contain *.statistic file, rerun")
+        return
+
     print(dir_name)
     path = dir_name
     analyse_waiting(path)
