@@ -18,6 +18,7 @@ func (s *Storage) reorderPrepare(op *ReadAndPrepareGTS) {
 	}
 	log.Debugf("txn %v reorder prepare", op.txnId)
 	s.txnStore[op.txnId].status = REORDER_PREPARED
+	s.kvStore.RecordPrepared(op)
 	s.setReadResult(op, -1, false)
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(op.GetTxnId())
@@ -202,10 +203,13 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
 	log.Debugf("txn %v can conditional prepare condition %v", op.txnId, overlapPartition)
 
 	s.txnStore[op.txnId].status = CONDITIONAL_PREPARED
+	s.txnStore[op.txnId].isConditionalPrepare = true
+	s.kvStore.RecordPrepared(op)
 	s.setReadResult(op, -1, false)
 	s.setConditionPrepare(op, overlapPartition)
 	s.replicatePreparedResult(op.txnId)
-
+	// add to the queue if condition fail it can prepare as usual
+	s.wait(op)
 }
 
 func (s *Storage) wait(op GTSOp) {
@@ -258,11 +262,17 @@ func (s *Storage) checkPrepare(key string) {
 	for op != nil {
 		txnId := op.GetTxnId()
 		// skip the aborted txn
-		if txnInfo, exist := s.txnStore[txnId]; exist && txnInfo.status.IsAbort() {
-			log.Debugf("txn %v is already abort remove from the queue of key %v", txnId, key)
-			s.kvStore.RemoveFromWaitingList(op)
-			continue
+		if txnInfo, exist := s.txnStore[txnId]; exist {
+			if txnInfo.status.IsAbort() ||
+				(txnInfo.isConditionalPrepare && txnInfo.status == COMMIT) {
+				log.Debugf("txn %v status: %v condition prepare: %v key: %v",
+					txnId, txnInfo.status, txnInfo.isConditionalPrepare, key)
+				s.kvStore.RemoveFromWaitingList(op)
+				op = s.kvStore.GetNextWaitingTxn(key)
+				continue
+			}
 		}
+
 		prepare := op.executeFromQueue(s)
 		if !prepare {
 			break

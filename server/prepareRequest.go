@@ -23,14 +23,23 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	log.Debugf("txn %v receive prepared result from partition %v result %v",
 		txnId, p.request.PartitionId, p.request.PrepareStatus)
 
-	if !coordinator.server.config.GetFastPath() && twoPCInfo.status == COMMIT {
-		log.Fatalf("txn %v cannot commit without the result from partition %v", txnId, p.request.PartitionId)
-		return
-	}
+	//if !coordinator.server.config.GetFastPath() && twoPCInfo.status == COMMIT {
+	//	log.Fatalf("txn %v cannot commit without the result from partition %v", txnId, p.request.PartitionId)
+	//	return
+	//}
 
 	// if the txn already abort, do noting
 	if twoPCInfo.status.IsAbort() {
-		log.Debugf("txn %v is already abort abort reason %v", txnId, twoPCInfo.status.String())
+		log.Debugf("txn %v is already abort abort reason %v",
+			txnId, twoPCInfo.status.String())
+		return
+	}
+
+	if twoPCInfo.status == COMMIT {
+		log.Debugf("txn %v is already commit", txnId)
+		if !coordinator.server.config.GetFastPath() && !twoPCInfo.conditionPrepare {
+			log.Fatalf("txn %v is not fast and not conditional prepare", txnId)
+		}
 		return
 	}
 

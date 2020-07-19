@@ -103,6 +103,7 @@ type TxnInfo struct {
 	hasWaitingButNoWriteReadConflict bool
 	selfAbort                        bool
 	prepareCounter                   int32
+	isConditionalPrepare             bool
 }
 
 func NewTxnInfo() *TxnInfo {

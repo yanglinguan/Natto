@@ -16,7 +16,7 @@ func NewCommitGTS(request *rpc.CommitRequest) *CommitGTS {
 func (c *CommitGTS) Execute(storage *Storage) {
 	txnId := c.request.TxnId
 	log.Infof("COMMITTED: %v", txnId)
-	if txnInfo, exist := storage.txnStore[txnId]; !exist || !txnInfo.status.IsPrepare() {
+	if txnInfo, exist := storage.txnStore[txnId]; !exist {
 		log.Fatalf("txn %v status %v should be prepared before commit", txnId, txnInfo.status.String())
 	}
 

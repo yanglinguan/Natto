@@ -113,10 +113,10 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			}
 			if info.readRequest.Txn.HighPriority && c.server.config.IsConditionalPrepare() {
 				if info.conditionGraph.IsCyclic() {
-					log.Debugf("txn %v condition has cycle, abort", info.txnId)
+					log.Debugf("txn %v condition has cycle, condition abort", info.txnId)
 					info.status = CONDITION_ABORT
 					//info.abortReason = CYCLE
-					c.sendToParticipantsAndClient(info)
+					//c.sendToParticipantsAndClient(info)
 					return
 				}
 				log.Debugf("txn %v no cycle detected", info.txnId)

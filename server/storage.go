@@ -71,15 +71,30 @@ func (s *Storage) checkKeysAvailable(op ReadAndPrepareOp) bool {
 	txnId := op.GetTxnId()
 	for _, rk := range op.GetReadKeys() {
 		if s.kvStore.IsTxnHoldWrite(rk) {
-			log.Debugf("txn %v (read) : there is txn holding (write) hold key %v", txnId, rk)
-			return false
+			if _, exist := s.kvStore.GetTxnHoldWrite(rk)[txnId]; !exist {
+				log.Debugf("txn %v (read) : there is txn holding (write) hold key %v", txnId, rk)
+				return false
+			}
 		}
 	}
 
 	for _, wk := range op.GetWriteKeys() {
-		if s.kvStore.IsTxnHoldWrite(wk) || s.kvStore.IsTxnHoldRead(wk) {
-			log.Debugf("txn %v (write) : there is txn hold key %v", txnId, wk)
-			return false
+		if s.kvStore.IsTxnHoldWrite(wk) {
+			if _, exist := s.kvStore.GetTxnHoldWrite(wk)[txnId]; !exist {
+				log.Debugf("txn %v (write) : there is txn hold key %v", txnId, wk)
+				return false
+			}
+		}
+
+		if s.kvStore.IsTxnHoldRead(wk) {
+			if len(s.kvStore.GetTxnHoldRead(wk)) > 1 {
+				return false
+			}
+
+			if _, exist := s.kvStore.GetTxnHoldRead(wk)[txnId]; !exist {
+				log.Debugf("txn %v (write) : there is txn hold key %v", txnId, wk)
+				return false
+			}
 		}
 	}
 
