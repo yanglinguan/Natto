@@ -14,7 +14,7 @@ func NewOCCApplyPrepareReplicationMsg(msg ReplicationMsg) *OCCApplyPrepareReplic
 func (o *OCCApplyPrepareReplicationMsg) Execute(storage *Storage) {
 	log.Debugf("txn %v apply prepare result %v", o.msg.TxnId, o.msg.Status)
 	if storage.server.IsLeader() {
-		storage.sendPrepareResult(o.msg.TxnId)
+		storage.sendPrepareResult(o.msg.TxnId, o.msg.Status)
 		return
 	}
 

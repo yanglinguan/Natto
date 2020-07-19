@@ -87,6 +87,7 @@ func (t TxnStatus) String() string {
 type TxnInfo struct {
 	readAndPrepareRequestOp          ReadAndPrepareOp
 	prepareResultRequest             *rpc.PrepareResultRequest
+	conditionalPrepareResultRequest  *rpc.PrepareResultRequest
 	status                           TxnStatus
 	receiveFromCoordinator           bool
 	sendToClient                     bool

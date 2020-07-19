@@ -17,7 +17,7 @@ func NewGTSApplyPrepareReplicationMsg(msg ReplicationMsg) *GTSApplyPrepareReplic
 func (p *GTSApplyPrepareReplicationMsg) Execute(storage *Storage) {
 	log.Debugf("txn %v apply prepare result %v", p.msg.TxnId, p.msg.Status)
 	if storage.server.IsLeader() {
-		storage.sendPrepareResult(p.msg.TxnId)
+		storage.sendPrepareResult(p.msg.TxnId, p.msg.Status)
 		if p.msg.Status == REVERSE_REORDER_PREPARED {
 			storage.sendReverseReorderRequest(p.msg.TxnId)
 		}

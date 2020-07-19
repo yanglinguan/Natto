@@ -43,10 +43,14 @@ func NewStorage(server *Server) *Storage {
 	return s
 }
 
-func (s *Storage) sendPrepareResult(txnId string) {
+func (s *Storage) sendPrepareResult(txnId string, status TxnStatus) {
 	coordinatorPartitionId := s.txnStore[txnId].readAndPrepareRequestOp.GetCoordinatorPartitionId()
 	dstServerId := s.server.config.GetLeaderIdByPartitionId(coordinatorPartitionId)
-	sender := NewPrepareResultSender(s.txnStore[txnId].prepareResultRequest, dstServerId, s.server)
+	prepareResultRequest := s.txnStore[txnId].prepareResultRequest
+	if status == CONDITIONAL_PREPARED {
+		prepareResultRequest = s.txnStore[txnId].conditionalPrepareResultRequest
+	}
+	sender := NewPrepareResultSender(prepareResultRequest, dstServerId, s.server)
 	go sender.Send()
 }
 

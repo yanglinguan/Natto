@@ -95,10 +95,10 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
 	}
 
-	if s.txnStore[txnId].prepareResultRequest != nil {
-		log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
-		return
-	}
+	//if s.txnStore[txnId].prepareResultRequest != nil {
+	//	log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
+	//	return
+	//}
 
 	prepareResultRequest := &rpc.PrepareResultRequest{
 		TxnId:           txnId,
@@ -140,7 +140,7 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 		i++
 	}
 
-	s.txnStore[txnId].prepareResultRequest = prepareResultRequest
+	s.txnStore[txnId].conditionalPrepareResultRequest = prepareResultRequest
 }
 
 func (s *Storage) checkConditionTxn(op *ReadAndPrepareGTS) (bool, map[string]bool) {
@@ -201,6 +201,14 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
 
 	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op.txnId, lowTxnList)
 	log.Debugf("txn %v can conditional prepare condition %v", op.txnId, overlapPartition)
+	if len(overlapPartition) == 1 {
+		if _, exist := overlapPartition[s.server.partitionId]; exist {
+			log.Debugf("txn %v condition is it self wait, condition %v",
+				op.txnId, overlapPartition)
+			s.wait(op)
+			return
+		}
+	}
 
 	s.txnStore[op.txnId].status = CONDITIONAL_PREPARED
 	s.txnStore[op.txnId].isConditionalPrepare = true

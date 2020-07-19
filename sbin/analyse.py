@@ -10,7 +10,9 @@ import parseSetting
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
 # Cluster configuration file
-arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
+arg_parser.add_argument('-d', '--resultDir', dest='resultDir', nargs='?',
+                        help='result dir', required=False)
+arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='?',
                         help='configuration file', required=False)
 args = arg_parser.parse_args()
 
@@ -357,16 +359,20 @@ def error_bar(path, prefix):
 
 
 def main():
-    if args.config is not None:
-        analyse(args.config)
+    if args.resultDir is not None:
+        analyse(args.resultDir)
     else:
         path = os.getcwd()
         lists = os.listdir(path)
-        for f in lists:
+        prefix = ""
+        if args.configFile is not None:
+            prefix = args.configFile.split(".")[0]
+        fLists = [f for f in lists if f.startswith(prefix)]
+        for f in fLists:
             if os.path.isdir(os.path.join(path, f)):
                 analyse(f)
 
-        for f in lists:
+        for f in fLists:
             if f.endswith(".json"):
                 prefix = f.split(".")[0]
                 error_bar(path, prefix)

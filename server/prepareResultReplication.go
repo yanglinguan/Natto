@@ -21,7 +21,7 @@ func (p *PrepareResultReplicationOp) Execute(storage *Storage) {
 	if !storage.server.config.GetReplication() {
 		log.Debugf("txn %v config no replication send result to coordinator", p.txnId)
 		//s.setReadResult(s.txnStore[txnId].readAndPrepareRequestOp)
-		storage.sendPrepareResult(p.txnId)
+		storage.sendPrepareResult(p.txnId, storage.txnStore[p.txnId].status)
 		//s.readyToSendPrepareResultToCoordinator(s.txnStore[txnId].prepareResultOp)
 		return
 	}

@@ -37,7 +37,8 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 
 	if twoPCInfo.status == COMMIT {
 		log.Debugf("txn %v is already commit", txnId)
-		if !coordinator.server.config.GetFastPath() && !twoPCInfo.conditionPrepare {
+		if twoPCInfo.status == PREPARED &&
+			!coordinator.server.config.GetFastPath() && !twoPCInfo.conditionPrepare {
 			log.Fatalf("txn %v is not fast and not conditional prepare", txnId)
 		}
 		return
