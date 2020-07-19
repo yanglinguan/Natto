@@ -5,6 +5,7 @@ import os
 import argparse
 import sys
 import numpy
+import parseSetting
 
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
@@ -294,8 +295,10 @@ def analyse_fast_prepare_rate(txn_map):
 
 
 def analyse(dir_name):
-    if not any(File.endswith(".statistic") for File in os.listdir(dir_name)):
-        print(dir_name + " does not contain *.statistic file, rerun")
+    setting = parseSetting.getSetting(dir_name)
+    clientN = int(setting["client"])
+    if len([File.endswith(".statistic") for File in os.listdir(dir_name)]) != clientN:
+        print(dir_name + " does not contain *.statistic file, requires " + str(clientN))
         return
 
     print(dir_name)
