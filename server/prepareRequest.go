@@ -58,6 +58,12 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	pId := int(p.request.PartitionId)
 	if info, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
 		if info.counter < p.request.Counter {
+			if twoPCInfo.partitionPrepareResult[pId].status == CONDITIONAL_PREPARED {
+				r := twoPCInfo.partitionPrepareResult[pId].prepareResult
+				for c := range r.Conditions {
+					twoPCInfo.conditionGraph.RemoveEdge(c, int(r.PartitionId))
+				}
+			}
 			log.Debugf("txn %v counter is %v greater than current counter %v status %v",
 				txnId, p.request.Counter, info.counter, status.String())
 			twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(status, false, p.request)

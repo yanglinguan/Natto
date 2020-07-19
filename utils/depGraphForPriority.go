@@ -27,6 +27,29 @@ func (g *DepGraph) AddEdge(s int, t int) {
 	g.adjList[s] = append(g.adjList[s], t)
 }
 
+func (g *DepGraph) RemoveEdge(s int, t int) {
+	if s == t {
+		return
+	}
+	i := 0
+	found := false
+	for idx, v := range g.adjList[s] {
+		if v == t {
+			i = idx
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return
+	}
+
+	g.adjList[s][i] = g.adjList[s][len(g.adjList[s])-1]
+	//g.adjList[s][len(g.adjList[s])-1] = 0
+	g.adjList[s] = g.adjList[s][:len(g.adjList[s])-1]
+}
+
 func (g *DepGraph) isCyclicUtil(i int, visited []bool, recStack []bool) bool {
 	if recStack[i] {
 		return true
