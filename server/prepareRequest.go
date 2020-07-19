@@ -21,7 +21,7 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(txnId)
 
 	log.Debugf("txn %v receive prepared result from partition %v result %v",
-		txnId, p.request.PartitionId, p.request.PrepareStatus)
+		txnId, p.request.PartitionId, TxnStatus(p.request.PrepareStatus).String())
 
 	//if !coordinator.server.config.GetFastPath() && twoPCInfo.status == COMMIT {
 	//	log.Fatalf("txn %v cannot commit without the result from partition %v", txnId, p.request.PartitionId)
