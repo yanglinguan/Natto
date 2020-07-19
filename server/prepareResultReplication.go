@@ -36,13 +36,19 @@ func (p *PrepareResultReplicationOp) Execute(storage *Storage) {
 	}
 
 	if !replicationMsg.Status.IsAbort() {
-		replicationMsg.PreparedReadKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.ReadKeyVerList
-		replicationMsg.PreparedWriteKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.WriteKeyVerList
+		if replicationMsg.Status == CONDITIONAL_PREPARED {
+			replicationMsg.PreparedReadKeyVersion = storage.txnStore[p.txnId].conditionalPrepareResultRequest.ReadKeyVerList
+			replicationMsg.PreparedWriteKeyVersion = storage.txnStore[p.txnId].conditionalPrepareResultRequest.WriteKeyVerList
+			replicationMsg.Conditions = storage.txnStore[p.txnId].conditionalPrepareResultRequest.Conditions
+		} else {
+			replicationMsg.PreparedReadKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.ReadKeyVerList
+			replicationMsg.PreparedWriteKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.WriteKeyVerList
+		}
 	}
 
-	if replicationMsg.Status == CONDITIONAL_PREPARED {
-		replicationMsg.Conditions = storage.txnStore[p.txnId].prepareResultRequest.Conditions
-	}
+	//if replicationMsg.Status == CONDITIONAL_PREPARED {
+	//	replicationMsg.Conditions = storage.txnStore[p.txnId].prepareResultRequest.Conditions
+	//}
 
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(replicationMsg); err != nil {
