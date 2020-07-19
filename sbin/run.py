@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import argparse
+import datetime
 import json
 import time
 import threading
@@ -343,6 +344,8 @@ def main():
     end_select_leader = time.time()
     select_leader_use = end_select_leader - end_start_server
     print("select leader used %.5fs" % select_leader_use)
+    start_client_time = datetime.Now().strftime("%H:%M:%S")
+    print("start client at time ", start_client_time)
     start_clients()
     end_client = time.time()
     client_use = end_client - end_select_leader

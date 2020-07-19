@@ -38,6 +38,16 @@ if args.num is not None:
     n = int(args.num)
 
 
+def getNextRunCount(f):
+    prefix = f.split(".")[0]
+    i = 0
+    runN = prefix + "-" + str(i)
+    while os.path.exists(runN):
+        i += 1
+        runN = prefix + "-" + str(i)
+    return i
+
+
 def run_exp(i):
     run_list = []
     if args.config is not None:
@@ -50,7 +60,8 @@ def run_exp(i):
     finishes = 0
     errorRun = []
     for f in run_list:
-        p = multiprocessing.Process(target=run, name="run", args=(i, f))
+        nextRun = getNextRunCount(f)
+        p = multiprocessing.Process(target=run, name="run", args=(nextRun, f))
         p.start()
         p.join(timeout)
         if p.is_alive():
