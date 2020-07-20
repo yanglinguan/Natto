@@ -18,7 +18,12 @@ func main() {
 	utils.ConfigLogger(isDebug)
 
 	c := client.NewClient(clientId, configFile)
-	baseWorkload := workload.NewAbstractWorkload(c.Config.GetKeyNum(), c.Config.GetZipfAlpha(), c.Config.GetKeySize())
+	baseWorkload := workload.NewAbstractWorkload(
+		c.Config.GetKeyNum(),
+		c.Config.GetZipfAlpha(),
+		c.Config.GetKeySize(),
+		c.Config.GetHighPriorityRate(),
+	)
 	var expWorkload workload.Workload
 	var exp Experiment
 	switch c.Config.GetWorkLoad() {

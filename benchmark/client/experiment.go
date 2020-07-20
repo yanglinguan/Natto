@@ -4,7 +4,6 @@ import (
 	"Carousel-GTS/benchmark/workload"
 	"Carousel-GTS/client"
 	"github.com/sirupsen/logrus"
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -71,15 +70,14 @@ func (o *OpenLoopExperiment) retry(txn *workload.Txn) {
 }
 
 func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration, time.Duration) {
-	writeKeyList := make([]string, len(txn.WriteData))
-	i := 0
-	for key := range txn.WriteData {
-		writeKeyList[i] = key
-		i++
-	}
-	p := rand.Intn(100)
-	priority := p < client.Config.GetHighPriorityRate()
-	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, writeKeyList, txn.TxnId, priority)
+	//writeKeyList := make([]string, len(txn.WriteData))
+	//i := 0
+	//for key := range txn.WriteData {
+	//	writeKeyList[i] = key
+	//	i++
+	//}
+	//
+	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, txn.WriteKeys, txn.TxnId, txn.Priority)
 
 	if isAbort {
 		retry, waitTime := client.Abort(txn.TxnId)

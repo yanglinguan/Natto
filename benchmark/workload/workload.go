@@ -9,7 +9,9 @@ import (
 type Txn struct {
 	TxnId     string
 	ReadKeys  []string
+	WriteKeys []string
 	WriteData map[string]string
+	Priority  bool
 }
 
 func (t *Txn) GenWriteData(readData map[string]string) {
@@ -36,7 +38,8 @@ type AbstractWorkload struct {
 	zipfReady bool      // If zipfian distribution has been initialized
 	txnCount  int64
 
-	keySize int // the size of value in Bytes
+	keySize            int // the size of value in Bytes
+	priorityPercentage int
 	//val     string
 }
 
@@ -44,11 +47,13 @@ func NewAbstractWorkload(
 	keyNum int64,
 	zipfAlpha float64,
 	keySize int,
+	priorityPercentage int,
 ) *AbstractWorkload {
 	workload := &AbstractWorkload{
-		KeyNum:  keyNum,
-		alpha:   zipfAlpha,
-		keySize: keySize,
+		KeyNum:             keyNum,
+		alpha:              zipfAlpha,
+		keySize:            keySize,
+		priorityPercentage: priorityPercentage,
 	}
 	workload.zipf = nil
 	workload.zipfReady = false
@@ -66,6 +71,7 @@ func (workload *AbstractWorkload) buildTxn(
 	txn := &Txn{
 		TxnId:     txnId,
 		ReadKeys:  make([]string, 0),
+		WriteKeys: make([]string, 0),
 		WriteData: make(map[string]string),
 	}
 
@@ -84,7 +90,11 @@ func (workload *AbstractWorkload) buildTxn(
 	for i := 0; i < wN; i++ {
 		//txn.WriteData[keyList[i]] = keyList[i] // uses the key as the data, like in TAPIR's benchmark
 		txn.WriteData[keyList[i]] = ""
+		txn.WriteKeys = append(txn.WriteKeys, keyList[i])
 	}
+
+	p := rand.Intn(100)
+	txn.Priority = p < workload.priorityPercentage
 
 	return txn
 }
