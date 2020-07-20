@@ -101,7 +101,7 @@ func (c *Client) processOperation() {
 }
 
 func (c *Client) getTxnId(txnId string) string {
-	return "c" + strconv.Itoa(c.clientId) + "-" + txnId
+	return strconv.Itoa(c.clientId) + "-" + txnId
 }
 
 func (c *Client) genTxnIdToServer(txnId string) string {
@@ -167,7 +167,7 @@ func (c *Client) addTxnIfNotExist(op ReadOp) {
 	txnId := op.GetTxnId()
 	//rpcTxnId := c.genTxnIdToServer(txnId)
 
-	var rpcTxnId string
+	//var rpcTxnId string
 	if _, exist := c.txnStore[txnId]; exist {
 		// if exist increment the execution number
 		c.txnStore[txnId].execCount++
@@ -179,7 +179,7 @@ func (c *Client) addTxnIfNotExist(op ReadOp) {
 		c.txnStore[txnId] = NewTransaction(op, c)
 	}
 
-	rpcTxnId = c.genTxnIdToServer(txnId)
+	rpcTxnId := c.genTxnIdToServer(txnId)
 	execution := NewExecutionRecord(op, rpcTxnId, len(c.txnStore[txnId].readKeyList))
 
 	logrus.Debugf("txn %v added, keys",

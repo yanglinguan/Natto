@@ -104,7 +104,7 @@ func (op *ReadAndPrepare) buildRequest(
 		IsRead:           false,
 		IsNotParticipant: !isParticipants,
 		Timestamp:        maxDelay,
-		ClientId:         "c" + strconv.Itoa(client.clientId),
+		ClientId:         strconv.Itoa(client.clientId),
 	}
 
 	return request
