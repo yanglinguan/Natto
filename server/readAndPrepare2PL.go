@@ -72,6 +72,7 @@ func (o *ReadAndPrepare2PL) Execute(storage *Storage) {
 		}
 	} else {
 		if storage.hasYoungerPrepare(o) {
+			storage.setReadResult(o, -1, false)
 			storage.selfAbort(o, WOUND_ABORT)
 		} else {
 			storage.wait(o)
