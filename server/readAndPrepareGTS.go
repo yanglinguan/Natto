@@ -35,14 +35,12 @@ func NewReadAndPrepareGTSWithReplicatedMsg(msg *ReplicationMsg) *ReadAndPrepareG
 
 func NewReadAndPrepareGTSProbe() *ReadAndPrepareGTS {
 	r := &ReadAndPrepareGTS{
-		ReadAndPrepare2PL: &ReadAndPrepare2PL{},
-		allKeys:           nil,
-		allReadKeys:       nil,
-		allWriteKeys:      nil,
-		passedTimestamp:   false,
-		selfAbort:         false,
+		ReadAndPrepare2PL: &ReadAndPrepare2PL{
+			ReadAndPrepareBase: &ReadAndPrepareBase{
+				clientWait: make(chan bool, 1),
+			},
+		},
 	}
-	r.clientWait = make(chan bool, 1)
 	return r
 }
 
