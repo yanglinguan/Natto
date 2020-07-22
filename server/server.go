@@ -68,6 +68,8 @@ func NewServer(serverId int, configFile string) *Server {
 		//server.scheduler = NewTimestampScheduler(server)
 		//server.storage = NewGTSStorage(server)
 		break
+	case configuration.TwoPL:
+		server.operationCreator = NewTwoPLOperationCreator(server)
 	default:
 		log.Fatal("server mode should be either OCC or GTS")
 		break

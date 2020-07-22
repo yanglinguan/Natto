@@ -16,6 +16,7 @@ type ServerMode int
 const (
 	OCC ServerMode = iota
 	GTS
+	TwoPL
 	//GtsDepGraph
 	//GTSReorder
 )

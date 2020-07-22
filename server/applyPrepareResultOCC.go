@@ -3,10 +3,10 @@ package server
 import log "github.com/sirupsen/logrus"
 
 type OCCApplyPrepareReplicationMsg struct {
-	msg ReplicationMsg
+	msg *ReplicationMsg
 }
 
-func NewOCCApplyPrepareReplicationMsg(msg ReplicationMsg) *OCCApplyPrepareReplicationMsg {
+func NewOCCApplyPrepareReplicationMsg(msg *ReplicationMsg) *OCCApplyPrepareReplicationMsg {
 	o := &OCCApplyPrepareReplicationMsg{msg: msg}
 	return o
 }

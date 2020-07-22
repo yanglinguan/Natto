@@ -16,11 +16,11 @@ func NewPriorityQueue() *PriorityQueue {
 	return pq
 }
 
-func (q *PriorityQueue) Pop() GTSOp {
-	return heap.Pop(&q.minHeap).(GTSOp)
+func (q *PriorityQueue) Pop() LockingOp {
+	return heap.Pop(&q.minHeap).(LockingOp)
 }
 
-func (q *PriorityQueue) Peek() GTSOp {
+func (q *PriorityQueue) Peek() LockingOp {
 	if q.minHeap.Len() == 0 {
 		return nil
 	}
@@ -32,11 +32,11 @@ func (q *PriorityQueue) Len() int {
 	return q.minHeap.Len()
 }
 
-func (q *PriorityQueue) Push(op GTSOp) {
+func (q *PriorityQueue) Push(op LockingOp) {
 	heap.Push(&q.minHeap, op)
 }
 
-func (q *PriorityQueue) Remove(op GTSOp) {
+func (q *PriorityQueue) Remove(op LockingOp) {
 	for i := 0; i < len(q.minHeap); i++ {
 		if q.minHeap[i].GetTxnId() == op.GetTxnId() {
 			q.minHeap[i], q.minHeap[len(q.minHeap)-1] = q.minHeap[len(q.minHeap)-1], q.minHeap[i]
@@ -48,7 +48,7 @@ func (q *PriorityQueue) Remove(op GTSOp) {
 	heap.Init(&q.minHeap)
 }
 
-type MinHeap []GTSOp
+type MinHeap []LockingOp
 
 func (pq MinHeap) Len() int {
 	return len(pq)
@@ -57,13 +57,13 @@ func (pq MinHeap) Len() int {
 func (pq MinHeap) Less(i, j int) bool {
 	requestI := pq[i].GetReadRequest()
 	requestJ := pq[j].GetReadRequest()
-	if requestI.Timestamp == requestJ.Timestamp {
-		if requestI.ClientId == requestJ.ClientId {
-			return requestI.Txn.TxnId < requestJ.Txn.TxnId
-		}
-		return requestI.ClientId < requestJ.ClientId
+	if requestI.Timestamp < requestJ.Timestamp {
+		return true
+	} else if requestI.Txn.TxnId < requestJ.Txn.TxnId {
+		return true
 	}
-	return requestI.Timestamp < requestJ.Timestamp
+
+	return requestI.ClientId < requestJ.ClientId
 }
 
 func (pq MinHeap) Swap(i, j int) {

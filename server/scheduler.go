@@ -25,7 +25,7 @@ import (
 type Scheduler struct {
 	server         *Server
 	priorityQueue  *PriorityQueue
-	pendingOp      chan ScheduleOperation
+	pendingOp      chan GTSOp
 	timer          *time.Timer
 	highPrioritySL *utils.SkipList
 }
@@ -34,7 +34,7 @@ func NewScheduler(server *Server) *Scheduler {
 	ts := &Scheduler{
 		server:         server,
 		priorityQueue:  NewPriorityQueue(),
-		pendingOp:      make(chan ScheduleOperation, server.config.GetQueueLen()),
+		pendingOp:      make(chan GTSOp, server.config.GetQueueLen()),
 		timer:          time.NewTimer(0),
 		highPrioritySL: utils.NewSkipList(),
 	}
@@ -113,7 +113,10 @@ func (ts *Scheduler) resetTimer() {
 		nextTime := nextOp.GetReadRequest().Timestamp
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
-			op := ts.priorityQueue.Pop()
+			op, ok := ts.priorityQueue.Pop().(GTSOp)
+			if !ok {
+				log.Fatalf("txn %v should be convert to GTSOP only GTS should schedule", op.GetTxnId())
+			}
 			if ts.server.config.GetPriority() && ts.server.config.IsEarlyAbort() {
 				if op.GetReadRequest().Txn.HighPriority {
 					ts.highPrioritySL.Delete(op, op.GetReadRequest().Timestamp)
@@ -130,6 +133,6 @@ func (ts *Scheduler) resetTimer() {
 	}
 }
 
-func (ts *Scheduler) AddOperation(op ScheduleOperation) {
+func (ts *Scheduler) AddOperation(op GTSOp) {
 	ts.pendingOp <- op
 }

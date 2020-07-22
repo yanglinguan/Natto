@@ -1,8 +1,8 @@
 package server
 
 import (
+	"Carousel-GTS/configuration"
 	"Carousel-GTS/utils"
-	"container/list"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -14,109 +14,6 @@ const (
 	READ KeyType = iota
 	WRITE
 )
-
-type WaitingList interface {
-	Push(op GTSOp)
-	Front() GTSOp
-	Remove(gts GTSOp)
-	Len() int
-
-	InQueue(txnId string) bool
-	GetWaitingItems() map[string]GTSOp
-}
-
-type Queue struct {
-	waitingOp   *list.List
-	waitingItem map[string]*list.Element
-}
-
-func NewQueue() *Queue {
-	q := &Queue{
-		waitingOp:   list.New(),
-		waitingItem: make(map[string]*list.Element),
-	}
-	return q
-}
-
-func (q *Queue) InQueue(txnId string) bool {
-	_, exist := q.waitingItem[txnId]
-	return exist
-}
-
-func (q *Queue) GetWaitingItems() map[string]GTSOp {
-
-	return make(map[string]GTSOp)
-}
-
-func (q *Queue) Push(op GTSOp) {
-	item := q.waitingOp.PushBack(op)
-	q.waitingItem[op.GetTxnId()] = item
-}
-
-func (q *Queue) Front() GTSOp {
-	front := q.waitingOp.Front()
-	if front == nil {
-		return nil
-	}
-	return q.waitingOp.Front().Value.(GTSOp)
-}
-
-func (q *Queue) Remove(op GTSOp) {
-	txnId := op.GetTxnId()
-	if _, exist := q.waitingItem[txnId]; !exist {
-		return
-	}
-	q.waitingOp.Remove(q.waitingItem[txnId])
-	delete(q.waitingItem, txnId)
-}
-
-func (q *Queue) Len() int {
-	return q.waitingOp.Len()
-}
-
-type PQueue struct {
-	waitingOp   *PriorityQueue
-	waitingItem map[string]GTSOp
-}
-
-func NewPQueue() *PQueue {
-	q := &PQueue{
-		waitingOp:   NewPriorityQueue(),
-		waitingItem: make(map[string]GTSOp),
-	}
-	return q
-}
-
-func (q *PQueue) InQueue(txnId string) bool {
-	_, exist := q.waitingItem[txnId]
-	return exist
-}
-
-func (q *PQueue) GetWaitingItems() map[string]GTSOp {
-	return q.waitingItem
-}
-
-func (q *PQueue) Push(op GTSOp) {
-	q.waitingOp.Push(op)
-	q.waitingItem[op.GetTxnId()] = op
-}
-
-func (q *PQueue) Front() GTSOp {
-	return q.waitingOp.Peek()
-}
-
-func (q *PQueue) Remove(op GTSOp) {
-	if _, exist := q.waitingItem[op.GetTxnId()]; !exist {
-		return
-	}
-
-	q.waitingOp.Remove(op)
-	delete(q.waitingItem, op.GetTxnId())
-}
-
-func (q *PQueue) Len() int {
-	return q.waitingOp.Len()
-}
 
 type KeyInfo struct {
 	Value            string
@@ -149,13 +46,14 @@ func newKeyInfoWithQueue(value string) *KeyInfo {
 	return k
 }
 
-func newKeyInfo(value string, reorder bool) *KeyInfo {
-	if reorder {
-		return newKeyInfoWithPriorityQueue(value)
-	} else {
-		return newKeyInfoWithQueue(value)
-	}
-}
+//
+//func newKeyInfo(value string, reorder bool) *KeyInfo {
+//	if reorder {
+//		return newKeyInfoWithPriorityQueue(value)
+//	} else {
+//		return newKeyInfoWithQueue(value)
+//	}
+//}
 
 // Not thread safe
 type KVStore struct {
@@ -173,7 +71,12 @@ func NewKVStore(server *Server) *KVStore {
 
 // add key value pair
 func (kv *KVStore) AddKeyValue(key string, value string) {
-	kv.keys[key] = newKeyInfo(value, kv.server.config.IsOptimisticReorder())
+	if kv.server.config.IsOptimisticReorder() || kv.server.config.GetServerMode() == configuration.TwoPL {
+		kv.keys[key] = newKeyInfoWithPriorityQueue(value)
+	} else {
+		kv.keys[key] = newKeyInfoWithQueue(value)
+	}
+	//kv.keys[key] = newKeyInfo(value, kv.server.config.IsOptimisticReorder() || kv.server.config.GetServerMode() == configuration.TwoPL)
 }
 
 // check if key exists
@@ -196,12 +99,13 @@ func (kv *KVStore) Put(key string, value string) {
 		kv.keys[key].Value = value
 		kv.keys[key].Version++
 	} else {
-		kv.keys[key] = newKeyInfo(value, kv.server.config.IsOptimisticReorder())
+		kv.keys[key] = newKeyInfoWithQueue(value)
+		//kv.keys[key] = newKeyInfo(value, kv.server.config.IsOptimisticReorder())
 	}
 }
 
 // add keys to waiting list
-func (kv *KVStore) AddToWaitingList(op GTSOp) {
+func (kv *KVStore) AddToWaitingList(op LockingOp) {
 	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		kv.keys[key].WaitingQueue.Push(op)
@@ -210,8 +114,12 @@ func (kv *KVStore) AddToWaitingList(op GTSOp) {
 	}
 }
 
+func (kv *KVStore) WaitingOnKey(op LockingOp, key string) {
+	kv.keys[key].WaitingQueue.Push(op)
+}
+
 // remove txn from the waiting list
-func (kv *KVStore) RemoveFromWaitingList(op GTSOp) {
+func (kv *KVStore) RemoveFromWaitingList(op LockingOp) {
 	// only high priority will wait
 	if !op.GetPriority() {
 		return
@@ -346,7 +254,7 @@ func (kv *KVStore) GetTxnHoldRead(key string) map[string]bool {
 	return kv.keys[key].PreparedTxnRead
 }
 
-func (kv *KVStore) HasWaitingTxn(op GTSOp) bool {
+func (kv *KVStore) HasWaitingTxn(op LockingOp) bool {
 	//waiting := false
 	for key := range op.GetKeyMap() {
 		//kv.checkExistHandleKeyNotExistError(key)
@@ -378,7 +286,7 @@ func (kv *KVStore) HasWaitingTxn(op GTSOp) bool {
 //
 //}
 
-func (kv *KVStore) GetNextWaitingTxn(key string) GTSOp {
+func (kv *KVStore) GetNextWaitingTxn(key string) LockingOp {
 	kv.checkExistHandleKeyNotExistError(key)
 	if kv.keys[key].WaitingQueue.Len() > 0 {
 		e := kv.keys[key].WaitingQueue.Front()

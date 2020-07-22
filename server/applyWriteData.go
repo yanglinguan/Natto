@@ -3,10 +3,10 @@ package server
 import log "github.com/sirupsen/logrus"
 
 type ApplyWriteData struct {
-	msg ReplicationMsg
+	msg *ReplicationMsg
 }
 
-func NewApplyWriteData(msg ReplicationMsg) *ApplyWriteData {
+func NewApplyWriteData(msg *ReplicationMsg) *ApplyWriteData {
 	return &ApplyWriteData{msg: msg}
 }
 

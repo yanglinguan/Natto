@@ -11,7 +11,7 @@ func NewReleaseReadOnly(txnId string) *ReleaseReadOnly {
 }
 
 func (r *ReleaseReadOnly) Execute(storage *Storage) {
-	op, ok := storage.txnStore[r.txnId].readAndPrepareRequestOp.(*ReadOnlyGTS)
+	op, ok := storage.txnStore[r.txnId].readAndPrepareRequestOp.(LockingOp)
 	if !ok {
 		logrus.Fatalf("txn %v should be read only gts")
 	}

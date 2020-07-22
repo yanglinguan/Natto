@@ -55,16 +55,16 @@ func (r *Raft) handleReplicatedOp(data *string) {
 		var operation CoordinatorOperation
 		switch replicationMsg.MsgType {
 		case WriteDataMsg:
-			operation = NewApplyWriteData(replicationMsg)
+			operation = NewApplyWriteData(&replicationMsg)
 		}
 		r.server.coordinator.AddOperation(operation)
 	} else {
 		var operation Operation
 		switch replicationMsg.MsgType {
 		case PrepareResultMsg:
-			operation = r.server.operationCreator.createApplyPrepareResultReplicationOp(replicationMsg)
+			operation = r.server.operationCreator.createApplyPrepareResultReplicationOp(&replicationMsg)
 		case CommitResultMsg:
-			operation = r.server.operationCreator.createApplyCommitResultReplicationOp(replicationMsg)
+			operation = r.server.operationCreator.createApplyCommitResultReplicationOp(&replicationMsg)
 		}
 
 		r.server.storage.AddOperation(operation)

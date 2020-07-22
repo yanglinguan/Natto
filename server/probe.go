@@ -1,18 +1,21 @@
 package server
 
 type ProbeOp struct {
-	wait chan bool
+	*ReadAndPrepareGTS
+	//wait chan bool
 }
 
 func NewProbeOp() *ProbeOp {
-	p := &ProbeOp{wait: make(chan bool)}
+	p := &ProbeOp{
+		NewReadAndPrepareGTSProbe(),
+	}
 	return p
 }
 
-func (p *ProbeOp) Schedule(scheduler *Scheduler) {
-	p.wait <- true
+func (p *ProbeOp) Start(server *Server) {
+	server.scheduler.AddOperation(p)
 }
 
-func (p *ProbeOp) BlockClient() {
-	<-p.wait
+func (p *ProbeOp) Schedule(scheduler *Scheduler) {
+	p.clientWait <- true
 }

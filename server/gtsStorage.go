@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (s *Storage) hasWaitingTxn(op GTSOp) bool {
+func (s *Storage) hasWaitingTxn(op LockingOp) bool {
 	return s.kvStore.HasWaitingTxn(op)
 }
 
@@ -25,7 +25,9 @@ func (s *Storage) reorderPrepare(op *ReadAndPrepareGTS) {
 }
 
 func (s *Storage) outTimeWindow(low ReadAndPrepareOp, high ReadAndPrepareOp) bool {
-	duration := time.Duration(high.GetTimestamp() - low.GetTimestamp())
+	lowGTS := low.(GTSOp)
+	highGTS := low.(GTSOp)
+	duration := time.Duration(highGTS.GetTimestamp() - lowGTS.GetTimestamp())
 	return duration > s.server.config.GetTimeWindow()
 }
 
@@ -220,13 +222,13 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
 	s.wait(op)
 }
 
-func (s *Storage) wait(op GTSOp) {
+func (s *Storage) wait(op LockingOp) {
 	log.Debugf("txn %v wait", op.GetTxnId())
 	s.txnStore[op.GetTxnId()].status = WAITING
 	s.kvStore.AddToWaitingList(op)
 }
 
-func (s *Storage) removeFromQueue(op GTSOp) {
+func (s *Storage) removeFromQueue(op LockingOp) {
 	s.kvStore.RemoveFromWaitingList(op)
 }
 
@@ -292,7 +294,7 @@ func (s *Storage) checkPrepare(key string) {
 // release the keys that txn holds
 // check if there is txn can be prepared when keys are released
 func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
-	op, ok := s.txnStore[txnId].readAndPrepareRequestOp.(GTSOp)
+	op, ok := s.txnStore[txnId].readAndPrepareRequestOp.(LockingOp)
 	if !ok {
 		log.Fatalf("txn %v should be readAndPrepareGTS", txnId)
 	}
@@ -305,8 +307,8 @@ func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
 	}
 }
 
-func (s *Storage) ReleaseReadOnly(op *ReadOnlyGTS) {
-	for key := range op.keyMap {
+func (s *Storage) ReleaseReadOnly(op LockingOp) {
+	for key := range op.GetKeyMap() {
 		s.checkPrepare(key)
 	}
 }

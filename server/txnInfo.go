@@ -22,6 +22,7 @@ const (
 	CONFLICT_ABORT
 	WAITING_ABORT
 	COORDINATOR_ABORT
+	WOUND_ABORT
 	// mark by coordinator
 	CLIENT_ABORT
 	READ_VERSION_ABORT
@@ -31,7 +32,7 @@ const (
 func (t TxnStatus) IsAbort() bool {
 	switch t {
 	case PASS_TIMESTAMP_ABORT, EARLY_ABORT, CONFLICT_ABORT, WAITING_ABORT,
-		READ_VERSION_ABORT, CONDITION_ABORT, CLIENT_ABORT:
+		READ_VERSION_ABORT, CONDITION_ABORT, CLIENT_ABORT, WOUND_ABORT:
 		return true
 	default:
 		return false
@@ -79,6 +80,8 @@ func (t TxnStatus) String() string {
 		return "READ_VERSION_ABORT"
 	case CONDITION_ABORT:
 		return "CONDITION_ABORT"
+	case WOUND_ABORT:
+		return "WOUND_ABORT"
 	default:
 		return fmt.Sprintf("%d", int(t))
 	}

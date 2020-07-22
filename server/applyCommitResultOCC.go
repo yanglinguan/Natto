@@ -5,10 +5,10 @@ import (
 )
 
 type ApplyCommitResultOCC struct {
-	msg ReplicationMsg
+	msg *ReplicationMsg
 }
 
-func NewApplyCommitResultOCC(msg ReplicationMsg) *ApplyCommitResultOCC {
+func NewApplyCommitResultOCC(msg *ReplicationMsg) *ApplyCommitResultOCC {
 	return &ApplyCommitResultOCC{msg: msg}
 }
 

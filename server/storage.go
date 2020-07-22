@@ -15,6 +15,10 @@ type Storage struct {
 	totalCommit            int
 
 	operations chan Operation
+
+	// logic timestamp assign to txn when txn start to execute
+	// deadlock prevention (wound wait) will use this timestamp
+	counter int64
 }
 
 // only this thread can modify the kv store and txn store
@@ -235,7 +239,7 @@ func (s *Storage) selfAbort(op ReadAndPrepareOp, status TxnStatus) {
 	s.replicatePreparedResult(op.GetTxnId())
 }
 
-func (s *Storage) initTxnIfNotExist(msg ReplicationMsg) bool {
+func (s *Storage) initTxnIfNotExist(msg *ReplicationMsg) bool {
 	if _, exist := s.txnStore[msg.TxnId]; !exist {
 		s.txnStore[msg.TxnId] = NewTxnInfo()
 		//if s.isPrepareByStatus(msg.Status) {

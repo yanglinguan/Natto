@@ -7,20 +7,8 @@ import (
 )
 
 type ReadAndPrepareGTS struct {
-	txnId string
+	*ReadAndPrepare2PL
 
-	// client prepareResult
-	request *rpc.ReadAndPrepareRequest
-	// read result will send to client
-	reply *rpc.ReadAndPrepareReply
-	// client will block on this chan until read prepareResult is ready
-	clientWait chan bool
-
-	// The index is needed by update and is maintained by the heap.Interface methods.
-	index int // The index of the item in the heap.
-
-	// keys in this partition
-	keyMap map[string]bool
 	// include keys in other partition
 	allKeys      map[string]bool
 	allReadKeys  map[string]bool
@@ -31,67 +19,50 @@ type ReadAndPrepareGTS struct {
 
 	// true: there is a conflict high priority txn within. only low priority txn will selfAbort
 	selfAbort bool
-
-	// for
-	probeWait chan bool
-	probe     bool
-
-	highPriority bool
-
-	readKeyList  []string
-	writeKeyList []string
 }
 
-func NewReadAndPrepareGTSWithReplicatedMsg(msg ReplicationMsg, server *Server) *ReadAndPrepareGTS {
+func NewReadAndPrepareGTSWithReplicatedMsg(msg *ReplicationMsg) *ReadAndPrepareGTS {
 	r := &ReadAndPrepareGTS{
-		request:         nil,
-		clientWait:      nil,
-		index:           0,
-		reply:           nil,
-		keyMap:          make(map[string]bool),
-		allKeys:         make(map[string]bool),
-		allReadKeys:     make(map[string]bool),
-		allWriteKeys:    make(map[string]bool),
-		passedTimestamp: false,
-		txnId:           msg.TxnId,
-		highPriority:    msg.HighPriority,
-		readKeyList:     make([]string, len(msg.PreparedReadKeyVersion)),
-		writeKeyList:    make([]string, len(msg.PreparedWriteKeyVersion)),
+		ReadAndPrepare2PL: NewReadAndPrepare2PLWithReplicationMsg(msg),
+		allKeys:           make(map[string]bool),
+		allReadKeys:       make(map[string]bool),
+		allWriteKeys:      make(map[string]bool),
+		passedTimestamp:   false,
 	}
 
-	for i, kv := range msg.PreparedReadKeyVersion {
-		r.readKeyList[i] = kv.Key
+	return r
+}
+
+func NewReadAndPrepareGTSProbe() *ReadAndPrepareGTS {
+	r := &ReadAndPrepareGTS{
+		ReadAndPrepare2PL: &ReadAndPrepare2PL{},
+		allKeys:           nil,
+		allReadKeys:       nil,
+		allWriteKeys:      nil,
+		passedTimestamp:   false,
+		selfAbort:         false,
 	}
-
-	for i, kv := range msg.PreparedWriteKeyVersion {
-		r.writeKeyList[i] = kv.Key
-	}
-
-	r.processKey(r.readKeyList, server, READ)
-	r.processKey(r.writeKeyList, server, WRITE)
-
+	r.clientWait = make(chan bool, 1)
 	return r
 }
 
 func NewReadAndPrepareGTS(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPrepareGTS {
 	r := &ReadAndPrepareGTS{
-		request:         request,
-		clientWait:      make(chan bool, 1),
-		index:           0,
-		reply:           nil,
-		keyMap:          make(map[string]bool),
-		allKeys:         make(map[string]bool),
-		passedTimestamp: false,
-		txnId:           request.Txn.TxnId,
-		allReadKeys:     make(map[string]bool),
-		allWriteKeys:    make(map[string]bool),
-		highPriority:    request.Txn.HighPriority,
-		readKeyList:     make([]string, 0),
-		writeKeyList:    make([]string, 0),
+		ReadAndPrepare2PL: NewReadAndPrepareLock2PL(request),
+		allKeys:           make(map[string]bool),
+		passedTimestamp:   false,
+		allReadKeys:       make(map[string]bool),
+		allWriteKeys:      make(map[string]bool),
 	}
 
-	r.processKey(request.Txn.ReadKeyList, server, READ)
-	r.processKey(request.Txn.WriteKeyList, server, WRITE)
+	if server.config.IsEarlyAbort() {
+		r.keyMap = make(map[string]bool)
+		r.readKeyList = make([]string, 0)
+		r.writeKeyList = make([]string, 0)
+
+		r.processKey(request.Txn.ReadKeyList, server, READ)
+		r.processKey(request.Txn.WriteKeyList, server, WRITE)
+	}
 
 	return r
 }
@@ -126,14 +97,6 @@ func (o *ReadAndPrepareGTS) Execute(storage *Storage) {
 	} else {
 		o.executeLowPriority(storage)
 	}
-}
-
-func (o *ReadAndPrepareGTS) setIndex(i int) {
-	o.index = i
-}
-
-func (o *ReadAndPrepareGTS) getIndex() int {
-	return o.index
 }
 
 func (o *ReadAndPrepareGTS) executeHighPriority(storage *Storage) {
@@ -247,54 +210,6 @@ func (o *ReadAndPrepareGTS) Schedule(scheduler *Scheduler) {
 	}
 }
 
-func (o *ReadAndPrepareGTS) GetReadKeys() []string {
-	return o.readKeyList
-}
-
-func (o *ReadAndPrepareGTS) GetWriteKeys() []string {
-	return o.writeKeyList
-}
-
-func (o *ReadAndPrepareGTS) GetTxnId() string {
-	return o.txnId
-}
-
-func (o *ReadAndPrepareGTS) GetPriority() bool {
-	return o.highPriority
-}
-
-func (o *ReadAndPrepareGTS) GetReadReply() *rpc.ReadAndPrepareReply {
-	return o.reply
-}
-
-func (o *ReadAndPrepareGTS) GetKeyMap() map[string]bool {
-	return o.keyMap
-}
-
-func (o *ReadAndPrepareGTS) SetReadReply(reply *rpc.ReadAndPrepareReply) {
-	o.reply = reply
-}
-
-func (o *ReadAndPrepareGTS) UnblockClient() {
-	o.clientWait <- true
-}
-
-func (o *ReadAndPrepareGTS) BlockClient() {
-	<-o.clientWait
-}
-
-func (o *ReadAndPrepareGTS) GetCoordinatorPartitionId() int {
-	return int(o.request.Txn.CoordPartitionId)
-}
-
-func (o *ReadAndPrepareGTS) GetReadRequest() *rpc.ReadAndPrepareRequest {
-	return o.request
-}
-
-func (o *ReadAndPrepareGTS) GetTimestamp() int64 {
-	return o.request.Timestamp
-}
-
 func (o *ReadAndPrepareGTS) GetAllWriteKeys() map[string]bool {
 	return o.allWriteKeys
 }
@@ -313,4 +228,12 @@ func (o *ReadAndPrepareGTS) IsPassTimestamp() bool {
 
 func (o *ReadAndPrepareGTS) IsSelfAbort() bool {
 	return o.selfAbort
+}
+
+//func (o *ReadAndPrepareGTS) GetTimestamp() int64 {
+//	return o.request.Timestamp
+//}
+
+func (o *ReadAndPrepareGTS) Start(server *Server) {
+	server.scheduler.AddOperation(o)
 }
