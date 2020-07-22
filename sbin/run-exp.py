@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import datetime
 import multiprocessing
 import smtplib
 import subprocess
@@ -65,7 +66,8 @@ def run_exp(i):
         p.start()
         p.join(timeout)
         if p.is_alive():
-            print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it")
+            print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it at " +
+                  datetime.datetime.now().strftime("%H:%M:%S"))
             subprocess.call([bin_path + "stop.py", "-c", f])
             # p.terminate()
             p.join()
