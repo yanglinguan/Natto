@@ -7,7 +7,7 @@ import (
 type WaitingList interface {
 	Push(op LockingOp)
 	Front() LockingOp
-	Remove(op LockingOp)
+	Remove(op LockingOp) bool
 	Len() int
 
 	InQueue(txnId string) bool
@@ -50,12 +50,13 @@ func (q *Queue) Front() LockingOp {
 	return q.waitingOp.Front().Value.(LockingOp)
 }
 
-func (q *Queue) Remove(op LockingOp) {
+func (q *Queue) Remove(op LockingOp) bool {
 	if _, exist := q.waitingItem[op.GetTxnId()]; !exist {
-		return
+		return false
 	}
 	q.waitingOp.Remove(q.waitingItem[op.GetTxnId()])
 	delete(q.waitingItem, op.GetTxnId())
+	return true
 }
 
 func (q *Queue) Len() int {
@@ -93,13 +94,14 @@ func (q *PQueue) Front() LockingOp {
 	return q.waitingOp.Peek()
 }
 
-func (q *PQueue) Remove(op LockingOp) {
+func (q *PQueue) Remove(op LockingOp) bool {
 	if _, exist := q.waitingItem[op.GetTxnId()]; !exist {
-		return
+		return false
 	}
 
 	q.waitingOp.Remove(op)
 	delete(q.waitingItem, op.GetTxnId())
+	return true
 }
 
 func (q *PQueue) Len() int {
