@@ -18,3 +18,4 @@ exp-result/*
 *.pb.go
 *.pyc
 exp/*
+sbin/graph-script/
