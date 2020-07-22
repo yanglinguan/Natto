@@ -6,7 +6,7 @@ import time
 import threading
 import os
 import subprocess
-from termcolor import colored
+# from termcolor import colored
 
 from paramiko import SSHClient, AutoAddPolicy
 from scp import SCPClient
@@ -329,7 +329,7 @@ def main():
     build()
     end_build = time.time()
     build_use = end_build - start_time
-    print(colored("build use %.5fs" % build_use, 'red'))
+    print("build use %.5fs" % build_use, 'red')
     parse_server_machine()
     parse_client_machine()
     deploy()
