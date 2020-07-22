@@ -15,6 +15,7 @@ type ReadAndPrepare2PL struct {
 func NewReadAndPrepareLock2PL(request *rpc.ReadAndPrepareRequest) *ReadAndPrepare2PL {
 	op := &ReadAndPrepare2PL{
 		ReadAndPrepareBase: NewReadAndPrepareBase(request),
+		keyMap:             make(map[string]bool),
 	}
 
 	for _, key := range request.Txn.ReadKeyList {
