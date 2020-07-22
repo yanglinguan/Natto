@@ -319,6 +319,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				//	f.serverMode = GtsDepGraph
 				//} else if mode == "gts_reorder" {
 				//	f.serverMode = GTSReorder
+			} else if mode == "2PL" {
+				f.serverMode = TwoPL
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
