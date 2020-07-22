@@ -113,13 +113,17 @@ func (o *ReadAndPrepare2PL) GetKeyMap() map[string]bool {
 func (o *ReadAndPrepare2PL) isOlder(other ReadAndPrepareOp) bool {
 	logrus.Debugf("txn %v timestamp %v other txn %v timestamp %v",
 		o.txnId, o.GetTimestamp(), other.GetTxnId(), other.GetTimestamp())
-	if o.GetTimestamp() < other.GetTimestamp() {
-		return true
-	} else if o.txnId < other.GetTxnId() {
-		return true
+	if o.GetTimestamp() == other.GetTimestamp() {
+		return o.txnId < other.GetTxnId()
 	}
-
-	return o.GetClientId() < other.GetClientId()
+	return o.GetTimestamp() < other.GetTimestamp()
+	//if o.GetTimestamp() < other.GetTimestamp() {
+	//	return true
+	//} else if o.txnId < other.GetTxnId() {
+	//	return true
+	//}
+	//
+	//return o.GetClientId() < other.GetClientId()
 }
 
 func (o *ReadAndPrepare2PL) setIndex(i int) {
