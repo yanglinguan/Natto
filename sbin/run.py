@@ -329,7 +329,7 @@ def main():
     build()
     end_build = time.time()
     build_use = end_build - start_time
-    print("build use %.5fs" % build_use, 'red')
+    print("build use %.5fs" % build_use)
     parse_server_machine()
     parse_client_machine()
     deploy()
