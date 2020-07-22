@@ -5,7 +5,7 @@ import "github.com/sirupsen/logrus"
 func (s *Storage) isOldest(op *ReadAndPrepare2PL) bool {
 	for key := range op.GetKeyMap() {
 		nextWaitingTxn := s.kvStore.GetNextWaitingTxn(key)
-		if !op.isOlder(nextWaitingTxn) {
+		if nextWaitingTxn != nil && !op.isOlder(nextWaitingTxn) {
 			logrus.Debugf("txn %v is younger than txn %v so it is not the oldest one",
 				op.txnId, nextWaitingTxn.GetTxnId())
 			return false
