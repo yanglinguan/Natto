@@ -1,6 +1,8 @@
 package server
 
-import "container/list"
+import (
+	"container/list"
+)
 
 type WaitingList interface {
 	Push(op LockingOp)

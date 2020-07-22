@@ -109,14 +109,16 @@ func (kv *KVStore) AddToWaitingList(op LockingOp) {
 	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		kv.keys[key].WaitingQueue.Push(op)
+		log.Debugf("txn %v wait on key %v idx %v",
+			op.GetTxnId(), key, op.getIndex())
 		//item := kv.keys[key].waitingOp.PushBack(op)
 		//kv.keys[key].waitingItem[op.txnId] = item
 	}
 }
 
-func (kv *KVStore) WaitingOnKey(op LockingOp, key string) {
-	kv.keys[key].WaitingQueue.Push(op)
-}
+//func (kv *KVStore) WaitingOnKey(op LockingOp, key string) {
+//	kv.keys[key].WaitingQueue.Push(op)
+//}
 
 // remove txn from the waiting list
 func (kv *KVStore) RemoveFromWaitingList(op LockingOp) {
