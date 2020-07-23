@@ -225,7 +225,8 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
 func (s *Storage) wait(op LockingOp) {
 	log.Debugf("txn %v wait", op.GetTxnId())
 	s.txnStore[op.GetTxnId()].status = WAITING
-	s.kvStore.AddToWaitingList(op)
+	maxQueueLen := s.kvStore.AddToWaitingList(op)
+	s.txnStore[op.GetTxnId()].maxQueueLen = maxQueueLen
 }
 
 func (s *Storage) removeFromQueue(op LockingOp) {

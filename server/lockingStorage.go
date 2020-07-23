@@ -91,6 +91,7 @@ func (s *Storage) woundYoungerTxn(op *ReadAndPrepare2PL) {
 				op.txnId, top.GetTxnId())
 			woundTxn[top.GetTxnId()] = true
 			s.setReadResult(top, -1, false)
+			s.removeFromQueue(top)
 			s.selfAbort(top, WOUND_ABORT)
 		}
 	}

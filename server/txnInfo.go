@@ -108,6 +108,7 @@ type TxnInfo struct {
 	selfAbort                        bool
 	prepareCounter                   int32
 	isConditionalPrepare             bool
+	maxQueueLen                      int
 }
 
 func NewTxnInfo() *TxnInfo {

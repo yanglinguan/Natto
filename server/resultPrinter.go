@@ -30,8 +30,8 @@ func (s Storage) printAllTxn() {
 		if s.server.IsLeader() {
 			line = fmt.Sprintf("%v %v %v %v %v %v %v %v %v %v %v\n",
 				txnId,
-				info.waitingTxnKey,
-				info.waitingTxnDep,
+				info.startTime,
+				info.maxQueueLen,
 				info.preparedTime.Sub(info.startTime).Nanoseconds(),
 				info.commitTime.Sub(info.preparedTime).Nanoseconds(),
 				info.commitTime.Sub(info.startTime).Nanoseconds(),

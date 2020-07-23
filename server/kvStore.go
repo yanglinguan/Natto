@@ -105,15 +105,22 @@ func (kv *KVStore) Put(key string, value string) {
 }
 
 // add keys to waiting list
-func (kv *KVStore) AddToWaitingList(op LockingOp) {
+func (kv *KVStore) AddToWaitingList(op LockingOp) int {
+	maxQueueLen := 0
 	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
+		qLen := kv.keys[key].WaitingQueue.Len()
+		if qLen > maxQueueLen {
+			maxQueueLen = qLen
+		}
 		kv.keys[key].WaitingQueue.Push(op)
 		log.Debugf("txn %v wait on key %v idx %v timestamp %v current top %v ",
 			op.GetTxnId(), key, op.getIndex(), op.GetTimestamp(), kv.keys[key].WaitingQueue.Front().GetTxnId())
 		//item := kv.keys[key].waitingOp.PushBack(op)
 		//kv.keys[key].waitingItem[op.txnId] = item
 	}
+
+	return maxQueueLen
 }
 
 //func (kv *KVStore) WaitingOnKey(op LockingOp, key string) {
