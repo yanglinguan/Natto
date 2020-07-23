@@ -55,8 +55,8 @@ func NewReadAndPrepareGTS(request *rpc.ReadAndPrepareRequest, server *Server) *R
 
 	if server.config.IsEarlyAbort() {
 		r.keyMap = make(map[string]bool)
-		r.readKeyList = make([]string, 0)
-		r.writeKeyList = make([]string, 0)
+		r.readKeyList = make(map[string]bool)
+		r.writeKeyList = make(map[string]bool)
 
 		r.processKey(request.Txn.ReadKeyList, server, READ)
 		r.processKey(request.Txn.WriteKeyList, server, WRITE)
@@ -79,9 +79,9 @@ func (o *ReadAndPrepareGTS) processKey(keys []string, server *Server, keyType Ke
 		}
 
 		if keyType == WRITE {
-			o.writeKeyList = append(o.writeKeyList, key)
+			o.writeKeyList[key] = false
 		} else if keyType == READ {
-			o.readKeyList = append(o.readKeyList, key)
+			o.readKeyList[key] = false
 		}
 		o.keyMap[key] = true
 	}
