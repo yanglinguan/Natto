@@ -63,6 +63,9 @@ func (s *Storage) woundYoungerTxn(op *ReadAndPrepare2PL) {
 	woundTxn := make(map[string]bool)
 	for key := range availableReadKeys {
 		top := s.kvStore.GetNextWaitingTxn(key)
+		if top == nil {
+			continue
+		}
 		if _, exist := woundTxn[top.GetTxnId()]; exist {
 			continue
 		}
@@ -77,6 +80,9 @@ func (s *Storage) woundYoungerTxn(op *ReadAndPrepare2PL) {
 
 	for key := range availableWriteKeys {
 		top := s.kvStore.GetNextWaitingTxn(key)
+		if top == nil {
+			continue
+		}
 		if _, exist := woundTxn[top.GetTxnId()]; exist {
 			continue
 		}
