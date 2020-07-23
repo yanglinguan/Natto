@@ -62,7 +62,7 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareGTS, reorderT
 	s.txnStore[txnId].prepareCounter++
 	s.txnStore[txnId].preparedTime = time.Now()
 
-	for _, rk := range op.GetReadKeys() {
+	for rk := range op.GetReadKeys() {
 		_, version := s.kvStore.Get(rk)
 		prepareResultRequest.ReadKeyVerList = append(prepareResultRequest.ReadKeyVerList,
 			&rpc.KeyVersion{
@@ -72,7 +72,7 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareGTS, reorderT
 		)
 	}
 
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		_, version := s.kvStore.Get(wk)
 		prepareResultRequest.WriteKeyVerList = append(prepareResultRequest.WriteKeyVerList,
 			&rpc.KeyVersion{
@@ -116,7 +116,7 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 
 	s.txnStore[txnId].preparedTime = time.Now()
 
-	for _, rk := range op.GetReadKeys() {
+	for rk := range op.GetReadKeys() {
 		_, version := s.kvStore.Get(rk)
 		prepareResultRequest.ReadKeyVerList = append(prepareResultRequest.ReadKeyVerList,
 			&rpc.KeyVersion{
@@ -126,7 +126,7 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 		)
 	}
 
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		_, version := s.kvStore.Get(wk)
 		prepareResultRequest.WriteKeyVerList = append(prepareResultRequest.WriteKeyVerList,
 			&rpc.KeyVersion{
@@ -148,7 +148,7 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 func (s *Storage) checkConditionTxn(op *ReadAndPrepareGTS) (bool, map[string]bool) {
 	// check if there is high priority txn hold keys
 	lowTxnList := make(map[string]bool)
-	for _, rk := range op.GetReadKeys() {
+	for rk := range op.GetReadKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
 			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
 				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
@@ -161,7 +161,7 @@ func (s *Storage) checkConditionTxn(op *ReadAndPrepareGTS) (bool, map[string]boo
 		}
 	}
 
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
 			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
 				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for read", op.txnId, txnId)
@@ -238,7 +238,7 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareGTS) (bool, map[
 	}
 
 	reorderTxn := make(map[string]bool)
-	for _, rk := range op.GetReadKeys() {
+	for rk := range op.GetReadKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
@@ -247,7 +247,7 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareGTS) (bool, map[
 		}
 	}
 
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil

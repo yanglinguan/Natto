@@ -77,36 +77,44 @@ func (s *Storage) sendReverseReorderRequest(txnId string) {
 
 func (s *Storage) checkKeysAvailable(op ReadAndPrepareOp) bool {
 	txnId := op.GetTxnId()
-	for _, rk := range op.GetReadKeys() {
+	available := true
+	for rk := range op.GetReadKeys() {
 		if s.kvStore.IsTxnHoldWrite(rk) {
 			if _, exist := s.kvStore.GetTxnHoldWrite(rk)[txnId]; !exist {
 				log.Debugf("txn %v (read) : there is txn holding (write) hold key %v", txnId, rk)
-				return false
+				available = false
+				continue
 			}
 		}
+		op.SetReadKeyAvailable(rk)
 	}
 
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		if s.kvStore.IsTxnHoldWrite(wk) {
 			if _, exist := s.kvStore.GetTxnHoldWrite(wk)[txnId]; !exist {
 				log.Debugf("txn %v (write) : there is txn hold key %v", txnId, wk)
-				return false
+				available = false
+				continue
 			}
 		}
 
 		if s.kvStore.IsTxnHoldRead(wk) {
 			if len(s.kvStore.GetTxnHoldRead(wk)) > 1 {
-				return false
+				available = false
+				continue
 			}
 
 			if _, exist := s.kvStore.GetTxnHoldRead(wk)[txnId]; !exist {
 				log.Debugf("txn %v (write) : there is txn hold key %v", txnId, wk)
-				return false
+				available = false
+				continue
 			}
 		}
+
+		op.SetWriteKeyAvailable(wk)
 	}
 
-	return true
+	return available
 }
 
 func (s *Storage) LoadKeys(keys []string) {
@@ -149,7 +157,7 @@ func (s *Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus
 
 	if !TxnStatus(reply.Status).IsAbort() {
 		log.Debugf("get key %v", op.GetReadKeys())
-		for _, rk := range op.GetReadKeys() {
+		for rk := range op.GetReadKeys() {
 			//log.Debugf("get key %v", rk)
 			value, version := s.kvStore.Get(rk)
 			keyValueVersion := &rpc.KeyValueVersion{
@@ -192,7 +200,7 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 	if !s.txnStore[txnId].status.IsAbort() {
 		s.txnStore[txnId].preparedTime = time.Now()
 
-		for _, rk := range op.GetReadKeys() {
+		for rk := range op.GetReadKeys() {
 			_, version := s.kvStore.Get(rk)
 			prepareResultRequest.ReadKeyVerList = append(prepareResultRequest.ReadKeyVerList,
 				&rpc.KeyVersion{
@@ -202,7 +210,7 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 			)
 		}
 
-		for _, wk := range op.GetWriteKeys() {
+		for wk := range op.GetWriteKeys() {
 			_, version := s.kvStore.Get(wk)
 			prepareResultRequest.WriteKeyVerList = append(prepareResultRequest.WriteKeyVerList,
 				&rpc.KeyVersion{

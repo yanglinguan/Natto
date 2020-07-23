@@ -19,7 +19,7 @@ type CoordinatorOperation interface {
 type LockingOp interface {
 	ReadAndPrepareOp
 	executeFromQueue(storage *Storage) bool
-	GetKeyMap() map[string]bool
+	//GetKeyMap() map[string]bool
 	setIndex(i int)
 	getIndex() int
 }
@@ -46,17 +46,21 @@ type GTSOp interface {
 type ReadAndPrepareOp interface {
 	Operation
 	//ScheduleOperation
-	GetReadKeys() []string
-	GetWriteKeys() []string
+	GetReadKeys() map[string]bool
+	GetWriteKeys() map[string]bool
 	GetTxnId() string
 	GetPriority() bool
 	GetReadReply() *rpc.ReadAndPrepareReply
 	GetReadRequest() *rpc.ReadAndPrepareRequest
 	GetCoordinatorPartitionId() int
 	GetClientId() string
-	//GetKeyMap() map[string]bool
+	GetKeyMap() map[string]bool
 	GetTimestamp() int64
 	SetReadReply(reply *rpc.ReadAndPrepareReply)
+	SetReadKeyAvailable(key string)
+	SetWriteKeyAvailable(key string)
+	IsReadKeyAvailable(key string) bool
+	IsWriteKeyAvailable(key string) bool
 	//IsPassTimestamp() bool
 	//IsSelfAbort() bool
 	Start(server *Server)

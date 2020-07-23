@@ -12,8 +12,10 @@ type ReadAndPrepareBase struct {
 	// client will block on this chan until read prepareResult is ready
 	clientWait chan bool
 
-	readKeyList  []string
-	writeKeyList []string
+	readKeyList  map[string]bool // true if readKey is available
+	writeKeyList map[string]bool // true if writeKey is available
+
+	keyMap map[string]bool // true: key is available
 
 	highPriority bool
 }
@@ -24,9 +26,20 @@ func NewReadAndPrepareBase(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareBa
 		request:      request,
 		reply:        nil,
 		clientWait:   make(chan bool, 0),
-		readKeyList:  request.Txn.ReadKeyList,
-		writeKeyList: request.Txn.WriteKeyList,
+		readKeyList:  make(map[string]bool),
+		writeKeyList: make(map[string]bool),
 		highPriority: request.Txn.HighPriority,
+		keyMap:       make(map[string]bool),
+	}
+
+	for _, key := range request.Txn.ReadKeyList {
+		o.keyMap[key] = false
+		o.readKeyList[key] = false
+	}
+
+	for _, key := range request.Txn.WriteKeyList {
+		o.keyMap[key] = false
+		o.writeKeyList[key] = false
 	}
 
 	return o
@@ -39,26 +52,29 @@ func NewReadAndPrepareBaseWithReplicationMsg(msg *ReplicationMsg) *ReadAndPrepar
 		reply:        nil,
 		clientWait:   nil,
 		highPriority: msg.HighPriority,
-		readKeyList:  make([]string, len(msg.PreparedReadKeyVersion)),
-		writeKeyList: make([]string, len(msg.PreparedWriteKeyVersion)),
+		readKeyList:  make(map[string]bool),
+		writeKeyList: make(map[string]bool),
+		keyMap:       make(map[string]bool),
 	}
 
-	for i, kv := range msg.PreparedReadKeyVersion {
-		o.readKeyList[i] = kv.Key
+	for _, kv := range msg.PreparedReadKeyVersion {
+		o.readKeyList[kv.Key] = false
+		o.keyMap[kv.Key] = false
 	}
 
-	for i, kv := range msg.PreparedWriteKeyVersion {
-		o.writeKeyList[i] = kv.Key
+	for _, kv := range msg.PreparedWriteKeyVersion {
+		o.writeKeyList[kv.Key] = false
+		o.keyMap[kv.Key] = false
 	}
 
 	return o
 }
 
-func (o *ReadAndPrepareBase) GetReadKeys() []string {
+func (o *ReadAndPrepareBase) GetReadKeys() map[string]bool {
 	return o.readKeyList
 }
 
-func (o *ReadAndPrepareBase) GetWriteKeys() []string {
+func (o *ReadAndPrepareBase) GetWriteKeys() map[string]bool {
 	return o.writeKeyList
 }
 
@@ -100,4 +116,24 @@ func (o *ReadAndPrepareBase) GetClientId() string {
 
 func (o *ReadAndPrepareBase) GetTimestamp() int64 {
 	return o.request.Timestamp
+}
+
+func (o *ReadAndPrepareBase) GetKeyMap() map[string]bool {
+	return o.keyMap
+}
+
+func (o *ReadAndPrepareBase) SetReadKeyAvailable(key string) {
+	o.readKeyList[key] = true
+}
+
+func (o *ReadAndPrepareBase) SetWriteKeyAvailable(key string) {
+	o.writeKeyList[key] = true
+}
+
+func (o *ReadAndPrepareBase) IsReadKeyAvailable(key string) bool {
+	return o.readKeyList[key]
+}
+
+func (o *ReadAndPrepareBase) IsWriteKeyAvailable(key string) bool {
+	return o.writeKeyList[key]
 }
