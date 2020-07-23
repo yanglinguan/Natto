@@ -153,12 +153,12 @@ func (kv *KVStore) isTop(txnId string, key string) bool {
 // mark prepared keys
 func (kv *KVStore) RecordPrepared(op ReadAndPrepareOp) {
 	txnId := op.GetTxnId()
-	for _, rk := range op.GetReadKeys() {
+	for rk := range op.GetReadKeys() {
 		kv.checkExistHandleKeyNotExistError(rk)
 		//op.readKeyMap[rk] = true
 		kv.keys[rk].PreparedTxnRead[txnId] = op.GetPriority()
 	}
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		kv.checkExistHandleKeyNotExistError(wk)
 		//op.writeKeyMap[wk] = true
 		kv.keys[wk].PreparedTxnWrite[txnId] = op.GetPriority()
@@ -167,13 +167,13 @@ func (kv *KVStore) RecordPrepared(op ReadAndPrepareOp) {
 
 func (kv *KVStore) ReleaseKeys(op ReadAndPrepareOp) {
 	txnId := op.GetTxnId()
-	for _, rk := range op.GetReadKeys() {
+	for rk := range op.GetReadKeys() {
 		kv.checkExistHandleKeyNotExistError(rk)
 		log.Debugf("txn %v release read key %v", txnId, rk)
 		delete(kv.keys[rk].PreparedTxnRead, txnId)
 	}
 
-	for _, wk := range op.GetWriteKeys() {
+	for wk := range op.GetWriteKeys() {
 		kv.checkExistHandleKeyNotExistError(wk)
 		log.Debugf("txn %v release write key %v", txnId, wk)
 		delete(kv.keys[wk].PreparedTxnWrite, txnId)
