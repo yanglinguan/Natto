@@ -84,6 +84,8 @@ func (o *ReadAndPrepare2PL) Execute(storage *Storage) {
 		}
 	}
 
+	storage.wait(o)
+
 }
 
 func (o *ReadAndPrepare2PL) executeFromQueue(storage *Storage) bool {
