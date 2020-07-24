@@ -82,7 +82,7 @@ func NewClient(clientId int, configFile string) *Client {
 func (c *Client) Start() {
 	go c.processOperation()
 
-	if c.Config.GetServerMode() != configuration.OCC && c.Config.IsDynamicLatency() {
+	if c.Config.UseNetworkTimestamp() && c.Config.IsDynamicLatency() {
 		if c.Config.IsProbeTime() {
 			go c.probingTime()
 			go c.processProbeTime()
@@ -149,7 +149,7 @@ func (c *Client) getTxn(txnId string) *Transaction {
 
 func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64 {
 	var maxDelay int64 = 0
-	if c.Config.GetServerMode() != configuration.GTS {
+	if !c.Config.UseNetworkTimestamp() {
 		maxDelay = time.Now().UnixNano()
 		return maxDelay
 	}
@@ -200,13 +200,7 @@ func (c *Client) AddOperation(op Operation) {
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration, time.Duration) {
 	tId := c.getTxnId(txnId)
 	commitOp := NewCommitOp(tId, writeKeyValue)
-	//var commitOp CommitOp
-	//if len(writeKeyValue) == 0 && c.Config.GetIsReadOnly() {
-	//	commitOp = NewCommitReadOnlyOp(tId)
-	//} else {
-	//
-	//}
-	//
+
 	c.AddOperation(commitOp)
 
 	commitOp.Block()
@@ -366,8 +360,7 @@ func (c *Client) separatePartition(op ReadOp) (map[int][][]string, map[int]bool)
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
-	if c.Config.GetServerMode() != configuration.OCC &&
-		c.Config.GetPriority() && c.Config.IsEarlyAbort() {
+	if c.Config.GetServerMode() == configuration.PRIORITY && c.Config.IsEarlyAbort() {
 		for _, key := range op.GetReadKeyList() {
 			pId := c.Config.GetPartitionIdByKey(key)
 			logrus.Debugf("read key %v, pId %v", key, pId)

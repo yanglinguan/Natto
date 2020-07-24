@@ -1,13 +1,12 @@
 package server
 
 type ProbeOp struct {
-	*ReadAndPrepareGTS
-	//wait chan bool
+	*ReadAndPrepareBase
 }
 
 func NewProbeOp() *ProbeOp {
 	p := &ProbeOp{
-		NewReadAndPrepareGTSProbe(),
+		NewReadAndPrepareBase(nil),
 	}
 	return p
 }
@@ -16,6 +15,6 @@ func (p *ProbeOp) Start(server *Server) {
 	server.scheduler.AddOperation(p)
 }
 
-func (p *ProbeOp) Schedule(scheduler *Scheduler) {
+func (p *ProbeOp) Execute(storage *Storage) {
 	p.clientWait <- true
 }

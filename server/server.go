@@ -64,9 +64,9 @@ func NewServer(serverId int, configFile string) *Server {
 		server.operationCreator = NewOCCOperationCreator(server)
 		//server.storage = NewOccStorage(server)
 		break
-	case configuration.GTS:
+	case configuration.PRIORITY:
 		log.Debugf("server mode Timestamp global timestamp")
-		server.operationCreator = NewGTSOperationCreator(server)
+		server.operationCreator = NewPriorityOperationCreator(server)
 		//server.scheduler = NewTimestampScheduler(server)
 		//server.storage = NewGTSStorage(server)
 		break
@@ -167,4 +167,12 @@ func (server *Server) IsLeader() bool {
 	}
 	leaderId := server.GetLeaderServerId()
 	return leaderId == server.serverId
+}
+
+func (server *Server) StartOp(op ReadAndPrepareOp) {
+	if server.config.UseNetworkTimestamp() || server.config.GetServerMode() == configuration.PRIORITY {
+		server.scheduler.AddOperation(op)
+	} else {
+		server.storage.AddOperation(op)
+	}
 }

@@ -38,6 +38,7 @@
     "timeWindow": "10ms",
     "conditionalPrepare": false,
     "optimisticReorder": true,
+    "networkTimestamp": false,
     "dynamicLatency": {
       "mode": true,
       "probeWindowLen": "1s",

@@ -50,15 +50,6 @@ func newKeyInfoWithQueue(value string) *KeyInfo {
 	return k
 }
 
-//
-//func newKeyInfo(value string, reorder bool) *KeyInfo {
-//	if reorder {
-//		return newKeyInfoWithPriorityQueue(value)
-//	} else {
-//		return newKeyInfoWithQueue(value)
-//	}
-//}
-
 // Not thread safe
 type KVStore struct {
 	keys   map[string]*KeyInfo
@@ -75,7 +66,8 @@ func NewKVStore(server *Server) *KVStore {
 
 // add key value pair
 func (kv *KVStore) AddKeyValue(key string, value string) {
-	if kv.server.config.IsOptimisticReorder() || kv.server.config.GetServerMode() == configuration.TwoPL {
+	if kv.server.config.IsOptimisticReorder() ||
+		(kv.server.config.GetServerMode() == configuration.TwoPL && !kv.server.config.UseNetworkTimestamp()) {
 		kv.keys[key] = newKeyInfoWithPriorityQueue(value)
 	} else {
 		kv.keys[key] = newKeyInfoWithQueue(value)
@@ -124,7 +116,7 @@ func (kv *KVStore) AddToWaitingList(op LockingOp) int {
 		}
 		kv.keys[key].WaitingQueue.Push(op)
 		log.Debugf("txn %v wait on key %v idx %v timestamp %v current top %v ",
-			op.GetTxnId(), key, op.getIndex(), op.GetTimestamp(), kv.keys[key].WaitingQueue.Front().GetTxnId())
+			op.GetTxnId(), key, op.GetIndex(), op.GetTimestamp(), kv.keys[key].WaitingQueue.Front().GetTxnId())
 		//item := kv.keys[key].waitingOp.PushBack(op)
 		//kv.keys[key].waitingItem[op.txnId] = item
 	}
@@ -161,7 +153,7 @@ func (kv *KVStore) isTop(txnId string, key string) bool {
 	return front.GetTxnId() == txnId
 }
 
-//func (kv *KVStore) removeFromQueue(op GTSOp) {
+//func (kv *KVStore) removeFromQueue(op PriorityOp) {
 //
 //	kv.keys[key].WaitingQueue.Remove(op)
 //}
@@ -289,7 +281,7 @@ func (kv *KVStore) HasWaitingTxn(op LockingOp) bool {
 		if kv.keys[key].WaitingQueue.Len() > 0 {
 			//for txnId, w := range kv.keys[key].WaitingQueue.GetWaitingItems() {
 			//	log.Debugf("txn %v key %v waiting txn %v idx %v timestamp %v",
-			//		op.GetTxnId(), key, txnId, w.getIndex(), w.GetTimestamp())
+			//		op.GetTxnId(), key, txnId, w.GetIndex(), w.GetTimestamp())
 			//}
 
 			top := kv.keys[key].WaitingQueue.Front()
@@ -305,14 +297,6 @@ func (kv *KVStore) HasWaitingTxn(op LockingOp) bool {
 	//return waiting
 	return false
 }
-
-//func (kv *KVStore) IsTopOfWaitingQueue(key string, txnId string) bool {
-//	kv.checkExistHandleKeyNotExistError(key)
-//	if e, exist := kv.keys[key].waitingItem[txnId]; exist {
-//		front
-//	}
-//
-//}
 
 func (kv *KVStore) GetNextWaitingTxn(key string) LockingOp {
 	kv.checkExistHandleKeyNotExistError(key)

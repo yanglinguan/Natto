@@ -16,11 +16,11 @@ func NewPriorityQueue() *PriorityQueue {
 	return pq
 }
 
-func (q *PriorityQueue) Pop() LockingOp {
-	return heap.Pop(&q.minHeap).(LockingOp)
+func (q *PriorityQueue) Pop() ReadAndPrepareOp {
+	return heap.Pop(&q.minHeap).(ReadAndPrepareOp)
 }
 
-func (q *PriorityQueue) Peek() LockingOp {
+func (q *PriorityQueue) Peek() ReadAndPrepareOp {
 	if q.minHeap.Len() == 0 {
 		return nil
 	}
@@ -32,11 +32,11 @@ func (q *PriorityQueue) Len() int {
 	return q.minHeap.Len()
 }
 
-func (q *PriorityQueue) Push(op LockingOp) {
+func (q *PriorityQueue) Push(op ReadAndPrepareOp) {
 	heap.Push(&q.minHeap, op)
 }
 
-func (q *PriorityQueue) Remove(op LockingOp) {
+func (q *PriorityQueue) Remove(op ReadAndPrepareOp) {
 	for i := 0; i < len(q.minHeap); i++ {
 		if q.minHeap[i].GetTxnId() == op.GetTxnId() {
 			q.minHeap[i], q.minHeap[len(q.minHeap)-1] = q.minHeap[len(q.minHeap)-1], q.minHeap[i]
@@ -48,7 +48,7 @@ func (q *PriorityQueue) Remove(op LockingOp) {
 	heap.Init(&q.minHeap)
 }
 
-type MinHeap []LockingOp
+type MinHeap []ReadAndPrepareOp
 
 func (pq MinHeap) Len() int {
 	return len(pq)
@@ -65,14 +65,14 @@ func (pq MinHeap) Less(i, j int) bool {
 
 func (pq MinHeap) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].setIndex(i)
-	pq[j].setIndex(j)
+	pq[i].SetIndex(i)
+	pq[j].SetIndex(j)
 }
 
 func (pq *MinHeap) Push(x interface{}) {
 	n := len(*pq)
-	item := x.(LockingOp)
-	item.setIndex(n)
+	item := x.(ReadAndPrepareOp)
+	item.SetIndex(n)
 	*pq = append(*pq, item)
 }
 
@@ -81,7 +81,7 @@ func (pq *MinHeap) Pop() interface{} {
 	n := len(old)
 	item := old[n-1]
 	old[n-1] = nil    // avoid memory leak
-	item.setIndex(-1) // for safety
+	item.SetIndex(-1) // for safety
 	*pq = old[0 : n-1]
 	return item
 }

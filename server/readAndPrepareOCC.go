@@ -43,7 +43,3 @@ func (o *ReadAndPrepareOCC) Execute(storage *Storage) {
 		storage.selfAbort(o, CONFLICT_ABORT)
 	}
 }
-
-func (o *ReadAndPrepareOCC) Start(server *Server) {
-	server.storage.AddOperation(o)
-}

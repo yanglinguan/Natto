@@ -15,7 +15,7 @@ type ServerMode int
 
 const (
 	OCC ServerMode = iota
-	GTS
+	PRIORITY
 	TwoPL
 	TO
 	//GtsDepGraph
@@ -93,7 +93,6 @@ type Configuration interface {
 	GetSSHUsername() string
 	GetRunDir() string
 
-	GetPriority() bool
 	GetHighPriorityRate() int
 	GetTargetRate() int
 
@@ -108,6 +107,7 @@ type Configuration interface {
 	IsConditionalPrepare() bool
 
 	IsOptimisticReorder() bool
+	UseNetworkTimestamp() bool
 }
 
 type FileConfiguration struct {
@@ -190,6 +190,7 @@ type FileConfiguration struct {
 	probeTime          bool
 
 	optimisticReorder bool
+	networkTimestamp  bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -314,18 +315,14 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			mode := v.(string)
 			if mode == "occ" {
 				f.serverMode = OCC
-			} else if mode == "gts" {
-				f.serverMode = GTS
-				//} else if mode == "gts_dep_graph" {
-				//	f.serverMode = GtsDepGraph
-				//} else if mode == "gts_reorder" {
-				//	f.serverMode = GTSReorder
+			} else if mode == "priority" {
+				f.serverMode = PRIORITY
 			} else if mode == "2PL" {
 				f.serverMode = TwoPL
 			} else if mode == "TO" {
 				f.serverMode = TO
 			} else {
-				log.Fatalf("server mode should be one of occ, gts, 2PL, TO")
+				log.Fatalf("server mode should be one of occ, priority, 2PL, TO")
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
@@ -438,6 +435,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.conditionalPrepare = v.(bool)
 		} else if key == "optimisticReorder" {
 			f.optimisticReorder = v.(bool)
+		} else if key == "networkTimestamp" {
+			f.networkTimestamp = v.(bool)
 		}
 	}
 }
@@ -733,10 +732,6 @@ func (f *FileConfiguration) GetCheckWaiting() bool {
 	return f.checkWaiting
 }
 
-func (f *FileConfiguration) GetPriority() bool {
-	return f.highPriorityRate < 100 && f.highPriorityRate > 0
-}
-
 func (f *FileConfiguration) GetHighPriorityRate() int {
 	return f.highPriorityRate
 }
@@ -783,4 +778,8 @@ func (f *FileConfiguration) IsConditionalPrepare() bool {
 
 func (f *FileConfiguration) IsOptimisticReorder() bool {
 	return f.optimisticReorder
+}
+
+func (f *FileConfiguration) UseNetworkTimestamp() bool {
+	return f.networkTimestamp
 }

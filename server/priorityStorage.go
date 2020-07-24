@@ -10,7 +10,7 @@ func (s *Storage) hasWaitingTxn(op LockingOp) bool {
 	return s.kvStore.HasWaitingTxn(op)
 }
 
-func (s *Storage) reorderPrepare(op *ReadAndPrepareGTS) {
+func (s *Storage) reorderPrepare(op *ReadAndPrepareHighPriority) {
 	if !s.server.config.IsOptimisticReorder() {
 		log.Debugf("txn %v does not turn on the optimistic reorder wait", op.txnId)
 		s.wait(op)
@@ -25,20 +25,20 @@ func (s *Storage) reorderPrepare(op *ReadAndPrepareGTS) {
 }
 
 func (s *Storage) outTimeWindow(low ReadAndPrepareOp, high ReadAndPrepareOp) bool {
-	lowGTS := low.(GTSOp)
-	highGTS := low.(GTSOp)
+	lowGTS := low.(PriorityOp)
+	highGTS := low.(PriorityOp)
 	duration := time.Duration(highGTS.GetTimestamp() - lowGTS.GetTimestamp())
 	return duration > s.server.config.GetTimeWindow()
 }
 
-func (s *Storage) reverseReorderPrepare(op *ReadAndPrepareGTS, reorderTxn map[string]bool) {
+func (s *Storage) reverseReorderPrepare(op *ReadAndPrepareHighPriority, reorderTxn map[string]bool) {
 	log.Debugf("txn %v reverser reorder", op.txnId)
 	s.txnStore[op.txnId].status = REVERSE_REORDER_PREPARED
 	s.setReverseReorderPrepareResult(op, reorderTxn)
 	s.replicatePreparedResult(op.txnId)
 }
 
-func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareGTS, reorderTxn map[string]bool) {
+func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority, reorderTxn map[string]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
@@ -91,7 +91,7 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareGTS, reorderT
 	s.txnStore[txnId].prepareResultRequest = prepareResultRequest
 }
 
-func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]bool) {
+func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition map[int]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
@@ -145,7 +145,7 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareGTS, condition map[int]b
 	s.txnStore[txnId].conditionalPrepareResultRequest = prepareResultRequest
 }
 
-func (s *Storage) checkConditionTxn(op *ReadAndPrepareGTS) (bool, map[string]bool) {
+func (s *Storage) checkConditionTxn(op *ReadAndPrepareHighPriority) (bool, map[string]bool) {
 	// check if there is high priority txn hold keys
 	lowTxnList := make(map[string]bool)
 	for rk := range op.GetReadKeys() {
@@ -188,7 +188,7 @@ func (s *Storage) checkConditionTxn(op *ReadAndPrepareGTS) (bool, map[string]boo
 	return true, lowTxnList
 }
 
-func (s *Storage) conditionalPrepare(op *ReadAndPrepareGTS) {
+func (s *Storage) conditionalPrepare(op *ReadAndPrepareHighPriority) {
 	if !s.server.config.IsConditionalPrepare() {
 		log.Debugf("txn %v does not turn on conditional Prepare wait", op.txnId)
 		s.wait(op)
@@ -233,7 +233,7 @@ func (s *Storage) removeFromQueue(op LockingOp) {
 	s.kvStore.RemoveFromWaitingList(op)
 }
 
-func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareGTS) (bool, map[string]bool) {
+func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (bool, map[string]bool) {
 	if !s.server.config.IsOptimisticReorder() {
 		return s.checkKeysAvailable(op), nil
 	}
@@ -316,16 +316,16 @@ func (s *Storage) ReleaseReadOnly(op LockingOp) {
 
 func (s *Storage) overlapPartitions(txnId1 string, txnId2 string) map[int]bool {
 	p1 := make(map[int]bool)
-	op, ok := s.txnStore[txnId1].readAndPrepareRequestOp.(*ReadAndPrepareGTS)
+	op, ok := s.txnStore[txnId1].readAndPrepareRequestOp.(PriorityOp)
 	if !ok {
-		log.Fatalf("txn %v cannot convert to read and prepare gts", op.txnId)
+		log.Fatalf("txn %v cannot convert to read and prepare gts", op.GetTxnId())
 	}
-	for key := range op.allKeys {
+	for key := range op.GetAllKeys() {
 		pId := s.server.config.GetPartitionIdByKey(key)
 		p1[pId] = true
 	}
 	result := make(map[int]bool)
-	for key := range op.allKeys {
+	for key := range op.GetAllKeys() {
 		pId := s.server.config.GetPartitionIdByKey(key)
 		if _, exist := p1[pId]; exist {
 			result[pId] = true

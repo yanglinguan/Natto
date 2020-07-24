@@ -33,7 +33,7 @@ func NewApplyCommitResultGTS(msg *ReplicationMsg) *ApplyCommitResultGTS {
 //	if storage.txnStore[a.msg.TxnId].status.IsPrepare() {
 //		storage.releaseKeyAndCheckPrepare(a.msg.TxnId)
 //	} else if storage.txnStore[a.msg.TxnId].status == WAITING {
-//		op, ok := storage.txnStore[a.msg.TxnId].readAndPrepareRequestOp.(*ReadAndPrepareGTS)
+//		op, ok := storage.txnStore[a.msg.TxnId].readAndPrepareRequestOp.(*ReadAndPreparePriority)
 //		if !ok {
 //			log.Fatalf("txn %v op should be readAndPrepareGTS", a.msg.TxnId)
 //		}

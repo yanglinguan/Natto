@@ -1,6 +1,7 @@
 package client
 
 import (
+	"Carousel-GTS/configuration"
 	"Carousel-GTS/rpc"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -59,9 +60,9 @@ func (op *Commit) Execute(client *Client) {
 		i++
 	}
 	readKeyVerList := make([]*rpc.KeyVersion, 0)
-	// if all keys read from leader, we do not need to send read version to coordinator
-	if execution.readFromReplica {
-		readKeyVerList := make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
+	//// if all keys read from leader, we do not need to send read version to coordinator
+	if op.versionCheck(client) {
+		readKeyVerList = make([]*rpc.KeyVersion, len(execution.readKeyValueVersion))
 		i = 0
 		for _, kv := range execution.readKeyValueVersion {
 			readKeyVerList[i] = &rpc.KeyVersion{
@@ -103,4 +104,18 @@ func (op *Commit) SetResult(result bool, isRetry bool, waitTime time.Duration, e
 	op.retry = isRetry
 	op.waitTime = waitTime
 	op.expectWait = expWait
+}
+
+func (op *Commit) versionCheck(client *Client) bool {
+	switch client.Config.GetServerMode() {
+	case configuration.TO, configuration.TwoPL:
+		return false
+	case configuration.OCC:
+		return true
+	case configuration.PRIORITY:
+		return client.txnStore[op.txnId].priority
+	default:
+		logrus.Fatalf("unknow server mode %v", client.Config.GetServerMode())
+		return false
+	}
 }

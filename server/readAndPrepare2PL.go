@@ -9,7 +9,7 @@ type ReadAndPrepare2PL struct {
 	*ReadAndPrepareBase
 
 	//keyMap map[string]bool
-	index int // The index of the item in the heap.
+	//index int // The index of the item in the heap.
 }
 
 func NewReadAndPrepareLock2PL(request *rpc.ReadAndPrepareRequest) *ReadAndPrepare2PL {
@@ -32,16 +32,7 @@ func NewReadAndPrepareLock2PL(request *rpc.ReadAndPrepareRequest) *ReadAndPrepar
 func NewReadAndPrepare2PLWithReplicationMsg(msg *ReplicationMsg) *ReadAndPrepare2PL {
 	op := &ReadAndPrepare2PL{
 		ReadAndPrepareBase: NewReadAndPrepareBaseWithReplicationMsg(msg),
-		//keyMap:             make(map[string]bool),
 	}
-
-	//for _, kv := range msg.PreparedReadKeyVersion {
-	//	op.keyMap[kv.Key] = true
-	//}
-	//
-	//for _, kv := range msg.PreparedWriteKeyVersion {
-	//	op.keyMap[kv.Key] = true
-	//}
 
 	return op
 }
@@ -57,28 +48,39 @@ func (o *ReadAndPrepare2PL) Execute(storage *Storage) {
 
 	storage.AddTxn(o)
 
-	//wound the younger txn
-	storage.woundYoungerTxn(o)
-
 	available := storage.checkKeysAvailable(o)
 	waiting := storage.hasWaitingTxn(o)
+	if storage.server.config.UseNetworkTimestamp() {
+		// when timestamp is used deadlock is prevented
+		if available && !waiting {
+			storage.setReadResult(o, -1, false)
+			storage.prepare(o)
+			return
+		}
+		if o.IsPassTimestamp() {
+			storage.setReadResult(o, -1, false)
+			storage.selfAbort(o, PASS_TIMESTAMP_ABORT)
+		} else {
+			storage.wait(o)
+		}
+		return
+	}
 
 	if available && !waiting {
 		storage.setReadResult(o, -1, false)
 		storage.prepare(o)
+		return
 	} else if available {
 		if storage.isOldest(o) {
 			storage.setReadResult(o, -1, false)
 			storage.prepare(o)
-		} else {
-			storage.wait(o)
+			return
 		}
 	} else {
 		if storage.hasYoungerPrepare(o) {
 			storage.setReadResult(o, -1, false)
 			storage.selfAbort(o, WOUND_ABORT)
-		} else {
-			storage.wait(o)
+			return
 		}
 	}
 
@@ -102,13 +104,6 @@ func (o *ReadAndPrepare2PL) executeFromQueue(storage *Storage) bool {
 	return true
 }
 
-func (o *ReadAndPrepare2PL) Start(server *Server) {
-	server.storage.AddOperation(o)
-}
-
-// if this operation is order than other return -1 (has smaller timestamp)
-// if this operation is younger than other return 1 (has larger timestamp)
-// if this operation is other return 0 (other and this are the same operation)
 func (o *ReadAndPrepare2PL) isOlder(other ReadAndPrepareOp) bool {
 	logrus.Debugf("txn %v timestamp %v other txn %v timestamp %v",
 		o.txnId, o.GetTimestamp(), other.GetTxnId(), other.GetTimestamp())
@@ -116,12 +111,4 @@ func (o *ReadAndPrepare2PL) isOlder(other ReadAndPrepareOp) bool {
 		return o.txnId < other.GetTxnId()
 	}
 	return o.GetTimestamp() < other.GetTimestamp()
-}
-
-func (o *ReadAndPrepare2PL) setIndex(i int) {
-	o.index = i
-}
-
-func (o *ReadAndPrepare2PL) getIndex() int {
-	return o.index
 }

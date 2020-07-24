@@ -56,10 +56,10 @@ func (p *ApplyPrepareReplicationMsgTwoPL) fastPathExecution(storage *Storage) {
 		}
 	} else if currentStatus == WAITING {
 		log.Debugf("txn %v fast path waiting the lock slow path status %v", p.msg.TxnId, p.msg.Status.String())
-		// should be ReadAndPrepareGTS. readonly should not send to replica if readonly optimization is on
+		// should be ReadAndPreparePriority. readonly should not send to replica if readonly optimization is on
 		op, ok := storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp.(LockingOp)
 		if !ok {
-			log.Fatalf("txn %v read and prepare should locking op", op.getIndex())
+			log.Fatalf("txn %v read and prepare should locking op", op.GetIndex())
 		}
 		storage.kvStore.RemoveFromWaitingList(op)
 		storage.setReadResult(storage.txnStore[p.msg.TxnId].readAndPrepareRequestOp, -1, false)

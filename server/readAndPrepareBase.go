@@ -18,19 +18,28 @@ type ReadAndPrepareBase struct {
 	keyMap map[string]bool // true: key is available
 
 	highPriority bool
+
+	index         int
+	passTimestamp bool
 }
 
 func NewReadAndPrepareBase(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareBase {
 	o := &ReadAndPrepareBase{
-		txnId:        request.Txn.TxnId,
+		txnId:        "",
 		request:      request,
 		reply:        nil,
 		clientWait:   make(chan bool, 0),
 		readKeyList:  make(map[string]bool),
 		writeKeyList: make(map[string]bool),
-		highPriority: request.Txn.HighPriority,
+		highPriority: false,
 		keyMap:       make(map[string]bool),
 	}
+
+	if request == nil {
+		return o
+	}
+	o.txnId = request.Txn.TxnId
+	o.highPriority = request.Txn.HighPriority
 
 	for _, key := range request.Txn.ReadKeyList {
 		o.keyMap[key] = false
@@ -136,4 +145,20 @@ func (o *ReadAndPrepareBase) IsReadKeyAvailable(key string) bool {
 
 func (o *ReadAndPrepareBase) IsWriteKeyAvailable(key string) bool {
 	return o.writeKeyList[key]
+}
+
+func (o *ReadAndPrepareBase) GetIndex() int {
+	return o.index
+}
+
+func (o *ReadAndPrepareBase) SetIndex(i int) {
+	o.index = i
+}
+
+func (o *ReadAndPrepareBase) SetPassTimestamp() {
+	o.passTimestamp = true
+}
+
+func (o *ReadAndPrepareBase) IsPassTimestamp() bool {
+	return o.passTimestamp
 }

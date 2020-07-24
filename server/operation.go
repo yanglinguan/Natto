@@ -8,10 +8,6 @@ type Operation interface {
 	Execute(storage *Storage)
 }
 
-//type ScheduleOperation interface {
-//	Schedule(scheduler *Scheduler)
-//}
-
 type CoordinatorOperation interface {
 	Execute(coordinator *Coordinator)
 }
@@ -19,33 +15,21 @@ type CoordinatorOperation interface {
 type LockingOp interface {
 	ReadAndPrepareOp
 	executeFromQueue(storage *Storage) bool
-	//GetKeyMap() map[string]bool
-	setIndex(i int)
-	getIndex() int
 }
 
-type GTSOp interface {
+type PriorityOp interface {
 	LockingOp
-	//ScheduleOperation
-	//executeFromQueue(storage *Storage) bool
-	Schedule(scheduler *Scheduler)
-
-	//setIndex(i int)
-	//getIndex() int
 
 	setSelfAbort()
 
-	//GetKeyMap() map[string]bool
 	GetAllWriteKeys() map[string]bool
 	GetAllReadKeys() map[string]bool
-	//GetTimestamp() int64
-	IsPassTimestamp() bool
+	GetAllKeys() map[string]bool
 	IsSelfAbort() bool
 }
 
 type ReadAndPrepareOp interface {
 	Operation
-	//ScheduleOperation
 	GetReadKeys() map[string]bool
 	GetWriteKeys() map[string]bool
 	GetTxnId() string
@@ -61,9 +45,10 @@ type ReadAndPrepareOp interface {
 	SetWriteKeyAvailable(key string)
 	IsReadKeyAvailable(key string) bool
 	IsWriteKeyAvailable(key string) bool
-	//IsPassTimestamp() bool
-	//IsSelfAbort() bool
-	Start(server *Server)
+	SetPassTimestamp()
+	IsPassTimestamp() bool
+	SetIndex(i int)
+	GetIndex() int
 
 	BlockClient()
 	UnblockClient()
@@ -117,41 +102,48 @@ func (o OCCOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest
 	return NewReadOnlyOCC(request)
 }
 
-type GTSOperationCreator struct {
+type PriorityOperationCreator struct {
 	server *Server
 }
 
-func NewGTSOperationCreator(server *Server) *GTSOperationCreator {
-	g := &GTSOperationCreator{server: server}
+func NewPriorityOperationCreator(server *Server) *PriorityOperationCreator {
+	g := &PriorityOperationCreator{server: server}
 	return g
 }
 
-func (g GTSOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
-	op := NewReadAndPrepareGTS(request, g.server)
-	return op
+func (g PriorityOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	if request.Txn.HighPriority {
+		return NewReadAndPrepareHighPriority(request, g.server)
+	} else {
+		return NewReadAndPrepareLowPriority(request, g.server)
+	}
 }
 
-func (g GTSOperationCreator) createReadAndPrepareOpWithReplicationMsg(msg *ReplicationMsg) ReadAndPrepareOp {
-	return NewReadAndPrepareGTSWithReplicatedMsg(msg)
+func (g PriorityOperationCreator) createReadAndPrepareOpWithReplicationMsg(msg *ReplicationMsg) ReadAndPrepareOp {
+	return NewReadAndPreparePriorityWithReplicatedMsg(msg)
 }
 
-func (g GTSOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
-	return NewReadOnlyGTS(request, g.server)
+func (g PriorityOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	if request.Txn.HighPriority {
+		return NewReadOnlyHighPriority(request, g.server)
+	} else {
+		return NewReadOnlyLowPriority(request, g.server)
+	}
 }
 
-func (g GTSOperationCreator) createApplyPrepareResultReplicationOp(msg *ReplicationMsg) Operation {
+func (g PriorityOperationCreator) createApplyPrepareResultReplicationOp(msg *ReplicationMsg) Operation {
 	return NewApplyPrepareReplicationMsgGTS(msg)
 }
 
-func (g GTSOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
+func (g PriorityOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
 	return NewAbortGTS(abortRequest)
 }
 
-func (g GTSOperationCreator) createCommitOp(request *rpc.CommitRequest) Operation {
+func (g PriorityOperationCreator) createCommitOp(request *rpc.CommitRequest) Operation {
 	return NewCommitGTS(request)
 }
 
-func (g GTSOperationCreator) createApplyCommitResultReplicationOp(msg *ReplicationMsg) Operation {
+func (g PriorityOperationCreator) createApplyCommitResultReplicationOp(msg *ReplicationMsg) Operation {
 	return NewApplyCommitResultGTS(msg)
 }
 

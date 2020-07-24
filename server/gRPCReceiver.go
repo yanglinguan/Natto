@@ -34,9 +34,7 @@ func (server *Server) ReadAndPrepare(ctx context.Context,
 
 	requestOp := server.operationCreator.createReadAndPrepareOp(request)
 
-	requestOp.Start(server)
-
-	//server.scheduler.AddOperation(requestOp)
+	server.StartOp(requestOp)
 
 	// block until read result is ready
 	requestOp.BlockClient()
@@ -68,7 +66,7 @@ func (server *Server) ReadOnly(cts context.Context, request *rpc.ReadAndPrepareR
 	}
 
 	requestOp := server.operationCreator.createReadOnlyOp(request)
-	requestOp.Start(server)
+	server.StartOp(requestOp)
 	//server.scheduler.AddOperation(requestOp)
 	requestOp.BlockClient()
 

@@ -80,7 +80,7 @@
     "runDir": "/ssd1/carousel-gts/"
   },
   "var_exp": {
-    "mode":  ["gts", "occ"],
+    "mode":  ["priority", "occ", "2PL", "TO"],
     "fastPath": [false],
     "delay": ["10ms"],
     "txnSize": [2],
@@ -93,6 +93,7 @@
     "workload_highPriority": [10],
     "workload_type": ["ycsbt"],
     "retry_mode": ["exp", "const"],
-    "retry_maxRetry": [20, -1]
+    "retry_maxRetry": [20, -1],
+    "networkTimestamp": [true]
   }
 }

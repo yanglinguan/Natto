@@ -13,10 +13,6 @@ func NewReadOnly2PL(request *rpc.ReadAndPrepareRequest) *ReadOnly2PL {
 	return &ReadOnly2PL{NewReadAndPrepareLock2PL(request)}
 }
 
-func (o *ReadOnly2PL) Start(server *Server) {
-	server.storage.AddOperation(o)
-}
-
 func (o *ReadOnly2PL) Execute(storage *Storage) {
 	logrus.Debugf("txn %v start execute timestamp %v",
 		o.txnId, o.request.Timestamp)
@@ -30,20 +26,31 @@ func (o *ReadOnly2PL) Execute(storage *Storage) {
 	available := storage.checkKeysAvailable(o)
 	waiting := storage.hasWaitingTxn(o)
 
+	if storage.server.config.UseNetworkTimestamp() {
+		if available && !waiting {
+			storage.setReadResult(o, PREPARED, true)
+			return
+		}
+
+		if o.IsPassTimestamp() {
+			storage.setReadResult(o, PASS_TIMESTAMP_ABORT, true)
+			return
+		}
+		storage.wait(o)
+		return
+	}
+
 	if available && !waiting {
 		storage.setReadResult(o, PREPARED, true)
-		//storage.prepare(o)
 	} else if available {
 		if storage.isOldest(o.ReadAndPrepare2PL) {
 			storage.setReadResult(o, PREPARED, true)
-			//storage.prepare(o)
 		} else {
 			storage.wait(o)
 		}
 	} else {
 		if storage.hasYoungerPrepare(o.ReadAndPrepare2PL) {
 			storage.setReadResult(o, WOUND_ABORT, true)
-			//storage.selfAbort(o, WOUND_ABORT)
 		} else {
 			storage.wait(o)
 		}

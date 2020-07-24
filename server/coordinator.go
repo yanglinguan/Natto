@@ -79,6 +79,10 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 }
 
 func (c *Coordinator) checkReadKeyVersion(info *TwoPCInfo) bool {
+	if len(info.commitRequestOp.request.ReadKeyVerList) == 0 {
+		return true
+	}
+
 	preparedKeyVersion := make(map[string]uint64)
 	for _, p := range info.partitionPrepareResult {
 		for _, kv := range p.prepareResult.ReadKeyVerList {
@@ -137,15 +141,15 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			// when the commit prepareResult is received and all partition results are prepared
 			// if client read from any replica we need to check the prepared version. if it reads from leader
 			// then we do not need to check the version
-			if info.commitRequestOp.request.IsReadAnyReplica {
-				log.Debugf("txn %v need to check version", info.txnId)
-				if !c.checkReadKeyVersion(info) {
-					log.Debugf("txn %v version check fail %v", info.txnId)
-					info.status = READ_VERSION_ABORT
-					c.sendToParticipantsAndClient(info)
-					return
-				}
+			//if info.commitRequestOp.request.IsReadAnyReplica {
+			log.Debugf("txn %v need to check version", info.txnId)
+			if !c.checkReadKeyVersion(info) {
+				log.Debugf("txn %v version check fail %v", info.txnId)
+				info.status = READ_VERSION_ABORT
+				c.sendToParticipantsAndClient(info)
+				return
 			}
+			//}
 
 			log.Debugf("txn %v can commit replicate data %v", info.txnId, info.status)
 			info.status = COMMIT
