@@ -60,17 +60,21 @@ func NewServer(serverId int, configFile string) *Server {
 
 	switch server.config.GetServerMode() {
 	case configuration.OCC:
+		log.Debugf("server mode occ")
 		server.operationCreator = NewOCCOperationCreator(server)
 		//server.storage = NewOccStorage(server)
 		break
 	case configuration.GTS:
+		log.Debugf("server mode Timestamp global timestamp")
 		server.operationCreator = NewGTSOperationCreator(server)
 		//server.scheduler = NewTimestampScheduler(server)
 		//server.storage = NewGTSStorage(server)
 		break
 	case configuration.TwoPL:
+		log.Debugf("server mode 2PL")
 		server.operationCreator = NewTwoPLOperationCreator(server)
 	case configuration.TO:
+		log.Debugf("server mode Timestamp ordering")
 		server.operationCreator = NewTOOperationCreator(server)
 	default:
 		log.Fatal("server mode should be either OCC or GTS")

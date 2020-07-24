@@ -324,6 +324,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.serverMode = TwoPL
 			} else if mode == "TO" {
 				f.serverMode = TO
+			} else {
+				log.Fatalf("server mode should be one of occ, gts, 2PL, TO")
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)
