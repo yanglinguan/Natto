@@ -17,6 +17,7 @@ const (
 	OCC ServerMode = iota
 	GTS
 	TwoPL
+	TO
 	//GtsDepGraph
 	//GTSReorder
 )
@@ -321,6 +322,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				//	f.serverMode = GTSReorder
 			} else if mode == "2PL" {
 				f.serverMode = TwoPL
+			} else if mode == "TO" {
+				f.serverMode = TO
 			}
 		} else if key == "totalKey" {
 			keyNum := v.(float64)

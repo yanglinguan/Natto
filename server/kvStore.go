@@ -21,6 +21,10 @@ type KeyInfo struct {
 	WaitingQueue     WaitingList
 	PreparedTxnRead  map[string]bool // true: high priority; false: low Priority
 	PreparedTxnWrite map[string]bool // true: high priority; false: low Priority
+
+	// for timestamp ordering
+	readTS  int64
+	writeTS int64
 }
 
 func newKeyInfoWithPriorityQueue(value string) *KeyInfo {
@@ -102,6 +106,11 @@ func (kv *KVStore) Put(key string, value string) {
 		kv.keys[key] = newKeyInfoWithQueue(value)
 		//kv.keys[key] = newKeyInfo(value, kv.server.config.IsOptimisticReorder())
 	}
+}
+
+func (kv *KVStore) UpdateTimestamp(key string, rTS int64, wTS int64) {
+	kv.keys[key].readTS = rTS
+	kv.keys[key].writeTS = wTS
 }
 
 // add keys to waiting list
@@ -217,6 +226,14 @@ func (kv *KVStore) IsHighTxnHoldWrite(key string) bool {
 	}
 
 	return false
+}
+
+func (kv *KVStore) GetReadTS(key string) int64 {
+	return kv.keys[key].readTS
+}
+
+func (kv *KVStore) GetWriteTS(key string) int64 {
+	return kv.keys[key].writeTS
 }
 
 // return true if any high priority txn hold read lock of key

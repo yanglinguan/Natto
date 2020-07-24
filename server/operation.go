@@ -98,7 +98,7 @@ func (o OCCOperationCreator) createReadAndPrepareOpWithReplicationMsg(msg *Repli
 }
 
 func (o OCCOperationCreator) createApplyPrepareResultReplicationOp(msg *ReplicationMsg) Operation {
-	return NewOCCApplyPrepareReplicationMsg(msg)
+	return NewApplyPrepareReplicationMsgOCC(msg)
 }
 
 func (o OCCOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
@@ -140,7 +140,7 @@ func (g GTSOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest
 }
 
 func (g GTSOperationCreator) createApplyPrepareResultReplicationOp(msg *ReplicationMsg) Operation {
-	return NewGTSApplyPrepareReplicationMsg(msg)
+	return NewApplyPrepareReplicationMsgGTS(msg)
 }
 
 func (g GTSOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
@@ -176,7 +176,7 @@ func (l TwoPLOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareReque
 }
 
 func (l TwoPLOperationCreator) createApplyPrepareResultReplicationOp(msg *ReplicationMsg) Operation {
-	return NewTwoPLApplyPrepareReplicationMsg(msg)
+	return NewApplyPrepareReplicationMsgTwoPL(msg)
 }
 
 func (l TwoPLOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
@@ -189,4 +189,40 @@ func (l TwoPLOperationCreator) createCommitOp(request *rpc.CommitRequest) Operat
 
 func (l TwoPLOperationCreator) createApplyCommitResultReplicationOp(msg *ReplicationMsg) Operation {
 	return NewApplyCommitResult2PL(msg)
+}
+
+type TOOperationCreator struct {
+	server *Server
+}
+
+func NewTOOperationCreator(server *Server) *TOOperationCreator {
+	return &TOOperationCreator{server: server}
+}
+
+func (t TOOperationCreator) createReadAndPrepareOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	return NewReadAndPrepareTO(request)
+}
+
+func (t TOOperationCreator) createReadAndPrepareOpWithReplicationMsg(msg *ReplicationMsg) ReadAndPrepareOp {
+	return NewReadAndPrepareTOWithReplicationMsg(msg)
+}
+
+func (t TOOperationCreator) createReadOnlyOp(request *rpc.ReadAndPrepareRequest) ReadAndPrepareOp {
+	return NewReadOnlyTO(request)
+}
+
+func (t TOOperationCreator) createApplyPrepareResultReplicationOp(msg *ReplicationMsg) Operation {
+	return NewApplyPrepareReplicationMsgTO(msg)
+}
+
+func (t TOOperationCreator) createAbortOp(abortRequest *rpc.AbortRequest) Operation {
+	return NewAbortTO(abortRequest)
+}
+
+func (t TOOperationCreator) createCommitOp(request *rpc.CommitRequest) Operation {
+	return NewCommitTO(request)
+}
+
+func (t TOOperationCreator) createApplyCommitResultReplicationOp(msg *ReplicationMsg) Operation {
+	return NewApplyCommitResultTO(msg)
 }

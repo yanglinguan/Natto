@@ -23,6 +23,8 @@ const (
 	WAITING_ABORT
 	COORDINATOR_ABORT
 	WOUND_ABORT
+	READTS_ABORT
+	WRITETS_ABORT
 	// mark by coordinator
 	CLIENT_ABORT
 	READ_VERSION_ABORT
@@ -82,6 +84,10 @@ func (t TxnStatus) String() string {
 		return "CONDITION_ABORT"
 	case WOUND_ABORT:
 		return "WOUND_ABORT"
+	case READTS_ABORT:
+		return "READTS_ABORT"
+	case WRITETS_ABORT:
+		return "WRITETS_ABORT"
 	default:
 		return fmt.Sprintf("%d", int(t))
 	}

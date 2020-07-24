@@ -25,4 +25,6 @@ type ReplicationMsg struct {
 	IsFromCoordinator       bool
 	TotalCommit             int
 	HighPriority            bool
+	ReadTS                  int64
+	WriteTS                 int64
 }

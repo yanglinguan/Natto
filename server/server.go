@@ -70,6 +70,8 @@ func NewServer(serverId int, configFile string) *Server {
 		break
 	case configuration.TwoPL:
 		server.operationCreator = NewTwoPLOperationCreator(server)
+	case configuration.TO:
+		server.operationCreator = NewTOOperationCreator(server)
 	default:
 		log.Fatal("server mode should be either OCC or GTS")
 		break

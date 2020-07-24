@@ -2,16 +2,16 @@ package server
 
 import log "github.com/sirupsen/logrus"
 
-type OCCApplyPrepareReplicationMsg struct {
+type ApplyPrepareReplicationMsgOCC struct {
 	msg *ReplicationMsg
 }
 
-func NewOCCApplyPrepareReplicationMsg(msg *ReplicationMsg) *OCCApplyPrepareReplicationMsg {
-	o := &OCCApplyPrepareReplicationMsg{msg: msg}
+func NewApplyPrepareReplicationMsgOCC(msg *ReplicationMsg) *ApplyPrepareReplicationMsgOCC {
+	o := &ApplyPrepareReplicationMsgOCC{msg: msg}
 	return o
 }
 
-func (o *OCCApplyPrepareReplicationMsg) Execute(storage *Storage) {
+func (o *ApplyPrepareReplicationMsgOCC) Execute(storage *Storage) {
 	log.Debugf("txn %v apply prepare result %v", o.msg.TxnId, o.msg.Status)
 	if storage.server.IsLeader() {
 		storage.sendPrepareResult(o.msg.TxnId, o.msg.Status)
@@ -27,7 +27,7 @@ func (o *OCCApplyPrepareReplicationMsg) Execute(storage *Storage) {
 	o.fastPathExecution(storage)
 }
 
-func (o *OCCApplyPrepareReplicationMsg) fastPathExecution(storage *Storage) {
+func (o *ApplyPrepareReplicationMsgOCC) fastPathExecution(storage *Storage) {
 	log.Debugf("txn %v apply prepared result", o.msg.TxnId)
 	if storage.txnStore[o.msg.TxnId].receiveFromCoordinator {
 		log.Debugf("txn %v already have finial decision %v", storage.txnStore[o.msg.TxnId].status.String())
@@ -39,13 +39,13 @@ func (o *OCCApplyPrepareReplicationMsg) fastPathExecution(storage *Storage) {
 	log.Debugf("txn %v fast path status %v, slow path status %v",
 		o.msg.TxnId, currentStatus.String(), o.msg.Status.String())
 	storage.txnStore[o.msg.TxnId].status = o.msg.Status
-	if currentStatus.IsPrepare() {
+	if currentStatus == PREPARED {
 		if o.msg.Status.IsAbort() {
 			log.Debugf("CONFLICT: txn %v fast path prepared but slow path abort", o.msg.TxnId)
 			storage.kvStore.ReleaseKeys(storage.txnStore[o.msg.TxnId].readAndPrepareRequestOp)
 		}
 	} else if currentStatus.IsAbort() {
-		if o.msg.Status.IsPrepare() {
+		if o.msg.Status == PREPARED {
 			log.Debugf("CONFLICT: txn %v fast path abort but slow path prepared", o.msg.TxnId)
 			storage.kvStore.RecordPrepared(storage.txnStore[o.msg.TxnId].readAndPrepareRequestOp)
 		}

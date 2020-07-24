@@ -266,6 +266,13 @@ func (s *Storage) initTxnIfNotExist(msg *ReplicationMsg) bool {
 	return true
 }
 
+func (s *Storage) writeToDBTO(kvs []*rpc.KeyValue, rTS int64, wTS int64) {
+	for _, kv := range kvs {
+		s.kvStore.Put(kv.Key, kv.Value)
+		s.kvStore.UpdateTimestamp(kv.Key, rTS, wTS)
+	}
+}
+
 func (s *Storage) writeToDB(kvs []*rpc.KeyValue) {
 	for _, kv := range kvs {
 		s.kvStore.Put(kv.Key, kv.Value)
@@ -296,6 +303,20 @@ func (s *Storage) checkAbort(op ReadAndPrepareOp) bool {
 		return true
 	}
 	return false
+}
+
+func (s *Storage) commitTO(txnId string, status TxnStatus, writeData []*rpc.KeyValue, rTS int64, wTS int64) {
+	s.txnStore[txnId].status = status
+	if status != COMMIT {
+		log.Debugf("txn %v is not commit %v", txnId, status)
+		return
+	}
+
+	s.txnStore[txnId].commitOrder = s.committed
+	s.committed++
+	s.txnStore[txnId].commitTime = time.Now()
+	s.writeToDBTO(writeData, rTS, wTS)
+	s.print()
 }
 
 func (s *Storage) commit(txnId string, status TxnStatus, writeData []*rpc.KeyValue) {
