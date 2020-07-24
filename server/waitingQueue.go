@@ -2,6 +2,7 @@ package server
 
 import (
 	"container/list"
+	"github.com/sirupsen/logrus"
 )
 
 type WaitingList interface {
@@ -91,7 +92,11 @@ func (q *PQueue) Push(op LockingOp) {
 }
 
 func (q *PQueue) Front() LockingOp {
-	return q.waitingOp.Peek()
+	op, ok := q.waitingOp.Peek().(LockingOp)
+	if !ok {
+		logrus.Fatalf("should be convert to locking op")
+	}
+	return op
 }
 
 func (q *PQueue) Remove(op LockingOp) bool {
