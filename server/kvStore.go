@@ -131,9 +131,9 @@ func (kv *KVStore) AddToWaitingList(op LockingOp) int {
 // remove txn from the waiting list
 func (kv *KVStore) RemoveFromWaitingList(op LockingOp) {
 	// only high priority will wait
-	if !op.GetPriority() {
-		return
-	}
+	//if !op.GetPriority() {
+	//	return
+	//}
 	for key := range op.GetKeyMap() {
 		//kv.checkExistHandleKeyNotExistError(key)
 

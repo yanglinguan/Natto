@@ -171,8 +171,10 @@ func (server *Server) IsLeader() bool {
 
 func (server *Server) StartOp(op ReadAndPrepareOp) {
 	if server.config.UseNetworkTimestamp() || server.config.GetServerMode() == configuration.PRIORITY {
+		log.Debugf("txn %v add to scheduler")
 		server.scheduler.AddOperation(op)
 	} else {
+		log.Debugf("txn %v add to storage")
 		server.storage.AddOperation(op)
 	}
 }
