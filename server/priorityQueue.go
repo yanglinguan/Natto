@@ -55,12 +55,10 @@ func (pq MinHeap) Len() int {
 }
 
 func (pq MinHeap) Less(i, j int) bool {
-	requestI := pq[i].GetReadRequest()
-	requestJ := pq[j].GetReadRequest()
-	if requestI.Timestamp == requestJ.Timestamp {
-		return requestI.Txn.TxnId < requestJ.Txn.TxnId
+	if pq[i].GetTimestamp() == pq[j].GetTimestamp() {
+		return pq[i].GetTxnId() < pq[j].GetTxnId()
 	}
-	return requestI.Timestamp < requestJ.Timestamp
+	return pq[i].GetTimestamp() < pq[j].GetTimestamp()
 }
 
 func (pq MinHeap) Swap(i, j int) {
