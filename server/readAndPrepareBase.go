@@ -127,6 +127,10 @@ func (o *ReadAndPrepareBase) GetTimestamp() int64 {
 	return o.request.Timestamp
 }
 
+func (o *ReadAndPrepareBase) SetTimestamp(t int64) {
+	o.request.Timestamp = t
+}
+
 func (o *ReadAndPrepareBase) GetKeyMap() map[string]bool {
 	return o.keyMap
 }

@@ -40,6 +40,7 @@ type ReadAndPrepareOp interface {
 	GetClientId() string
 	GetKeyMap() map[string]bool
 	GetTimestamp() int64
+	SetTimestamp(t int64)
 	SetReadReply(reply *rpc.ReadAndPrepareReply)
 	SetReadKeyAvailable(key string)
 	SetWriteKeyAvailable(key string)
