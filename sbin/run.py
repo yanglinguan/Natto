@@ -243,6 +243,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
+    start_time = str(int((time.time() + 60) * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -253,7 +254,7 @@ def start_clients():
         cmd += "ulimit -n 100000;"
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
         exe = "cd " + path + "/client;" + \
-              client_cmd + "-i $id" + " -c " + args.config + " > " + "client-$id.log " + "2>&1 &"
+              client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)

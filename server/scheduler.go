@@ -100,7 +100,8 @@ func (ts *Scheduler) resetTimer() {
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
 			op := ts.priorityQueue.Pop()
-			if ts.server.config.GetServerMode() == configuration.PRIORITY && ts.server.config.IsEarlyAbort() {
+			if ts.server.config.GetServerMode() == configuration.PRIORITY &&
+				ts.server.config.IsEarlyAbort() {
 				gtsOp, ok := op.(PriorityOp)
 				if !ok {
 					log.Fatalf("txn %v should be convert to gts op", gtsOp.GetTxnId())
@@ -131,7 +132,7 @@ func (ts *Scheduler) Schedule(op ReadAndPrepareOp) {
 		return
 	}
 	if op.GetTimestamp() < time.Now().UnixNano() {
-		log.Debugf("PASS Current time %v", op.GetTimestamp())
+		log.Debugf("txn %v PASS Current time %v", op.GetTxnId(), op.GetTimestamp())
 		op.SetPassTimestamp()
 	}
 

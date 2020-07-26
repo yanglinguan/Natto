@@ -7,11 +7,13 @@ import (
 	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
+	"time"
 )
 
 var isDebug = false
 var clientId = -1
 var configFile = ""
+var startTime int64
 
 func main() {
 	parseArgs()
@@ -57,6 +59,13 @@ func main() {
 		return
 	}
 
+	// all client start around the same time
+	d := time.Duration(startTime - time.Now().UnixNano())
+	if d > 0 {
+		logrus.Warnf("client wait %v to start", d)
+		time.Sleep(d)
+	}
+
 	exp.Execute()
 
 	c.PrintTxnStatisticData()
@@ -80,6 +89,12 @@ func parseArgs() {
 		"i",
 		-1,
 		"client id",
+	)
+	flag.Int64Var(
+		&startTime,
+		"t",
+		0,
+		"start Time",
 	)
 
 	flag.Parse()

@@ -79,6 +79,8 @@ func NewClient(clientId int, configFile string) *Client {
 	return c
 }
 
+// one goroutine processing the operation
+// one goroutine probing the network latency
 func (c *Client) Start() {
 	go c.processOperation()
 
@@ -113,6 +115,7 @@ func (c *Client) genTxnIdToServer(txnId string) string {
 
 func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string, priority bool) (map[string]string, bool) {
 	var op ReadOp
+	// append the client
 	tId := c.getTxnId(txnId)
 	if len(writeKeyList) > 0 {
 		op = NewReadAndPrepareOp(tId, priority, readKeyList, writeKeyList)
@@ -121,6 +124,7 @@ func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txn
 
 	}
 	c.operations <- op
+	// block the client until get the read result from the server
 	op.Block()
 	return op.GetReadResult(), op.IsAbort()
 }
