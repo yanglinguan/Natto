@@ -243,7 +243,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    start_time = str(int((time.time() + 60) * 1000 * 1000))
+    start_time = str(int((time.time() + 60) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
