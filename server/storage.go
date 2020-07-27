@@ -290,13 +290,13 @@ func (s *Storage) AddTxn(op ReadAndPrepareOp) {
 	txnId := op.GetTxnId()
 	log.Debugf("txn %v add to txn store", txnId)
 	t := NewTxnInfo()
-	t.readAndPrepareRequestOp = op
 	t.startTime = time.Now()
 	// if does not use network latency, server assign the timestamp
 	if !s.server.config.UseNetworkTimestamp() {
-		op.SetTimestamp(s.counter)
-		s.counter++
+		op.SetTimestamp(t.startTime.UnixNano())
+		//s.counter++
 	}
+	t.readAndPrepareRequestOp = op
 	s.txnStore[txnId] = t
 }
 
