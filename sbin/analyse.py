@@ -201,23 +201,29 @@ def analyse_throughput(txn_map):
     count = 0
     count_high = 0
     count_low = 0
+    total_count = 0
     for txn_id, value in txn_map.items():
         if value["start"] < min_time:
             min_time = value["start"]
 
         if value["start"] > max_time:
             max_time = value["start"]
+
+        total_count += value["exeCount"]
         if value["commit"]:
             count += 1
+            total_count += 1
             if value["priority"]:
                 count_high += 1
             else:
                 count_low += 1
 
     throughput = float(count * 1000000000) / (max_time - min_time)
+    all_thro = float(total_count * 1000000000) / (max_time - min_time)
 
     print("start time " + str(min_time) + "; end time" + str(max_time))
     print("commit throughput (txn/s): " + str(throughput))
+    print("throughput(txn/s): " + str(all_thro))
 
     if count_high == 0 or count_low == 0:
         return throughput, 0, 0
