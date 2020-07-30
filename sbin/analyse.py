@@ -131,7 +131,7 @@ def analyse_latency(txn_map):
 
     if len(latency) == 0:
         print("all transaction aborted")
-        return
+        return {}
 
     median = numpy.percentile(latency, 50)
     p90 = numpy.percentile(latency, 90)
