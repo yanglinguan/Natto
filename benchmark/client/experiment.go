@@ -4,6 +4,8 @@ import (
 	"Carousel-GTS/benchmark/workload"
 	"Carousel-GTS/client"
 	"github.com/sirupsen/logrus"
+	"math"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -27,15 +29,29 @@ func NewOpenLoopExperiment(client *client.Client, workload workload.Workload) *O
 	return e
 }
 
+func nextTxnWaitTime(client *client.Client) time.Duration {
+	// transaction sending rate (txn/s)
+	txnRate := client.Config.GetTxnRate()
+	interval := float64(time.Second) / float64(txnRate)
+	if client.Config.UsePoissonProcessBetweenArrivals() {
+		// poisson process between arrivals
+		u := rand.Float64()
+		w := -interval * math.Log(1-u)
+		return time.Duration(w)
+	} else {
+		return time.Duration(interval)
+	}
+}
+
 // Open loop experiment: client sends txn at the rate (txn/s) specified in the config file ("txnRate")
 // client keep sending txn within the experiment duration specified in config file ("duration")
 // or when the number of txn reaches the total txn specified in config file ("totalTxn")
 func (o *OpenLoopExperiment) Execute() {
 	o.client.Start()
 	// transaction sending rate (txn/s)
-	txnRate := o.client.Config.GetTxnRate()
+	//txnRate := o.client.Config.GetTxnRate()
 	// waiting time between sending two transactions
-	interval := time.Duration(int64(time.Second) / int64(txnRate))
+	//interval := time.Duration(int64(time.Second) / int64(txnRate))
 	// experiment duration (s)
 	expDuration := o.client.Config.GetExpDuration()
 	totalTxn := o.client.Config.GetTotalTxn()
@@ -49,7 +65,8 @@ func (o *OpenLoopExperiment) Execute() {
 		o.wg.Add(1)
 		go o.execTxn(txn)
 
-		time.Sleep(interval)
+		waitTime := nextTxnWaitTime(o.client)
+		time.Sleep(waitTime)
 		d = time.Since(s)
 		c++
 	}

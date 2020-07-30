@@ -129,6 +129,10 @@ def analyse_latency(txn_map):
             else:
                 latency_low.append(value["latency"])
 
+    if len(latency) == 0:
+        print("all transaction aborted")
+        return
+
     median = numpy.percentile(latency, 50)
     p90 = numpy.percentile(latency, 90)
     p95 = numpy.percentile(latency, 95)
@@ -258,18 +262,18 @@ def analyse_abort_rate(txn_map):
             else:
                 commit_low += 1
 
-    commit_rate = float(commit) / count
+    abort_rate = 1 - float(commit) / count
 
-    print("Commit rate: " + str(commit_rate))
+    print("Abort rate: " + str(abort_rate))
 
     if commit_high == 0 or commit_low == 0:
-        return commit_rate, 0, 0
+        return abort_rate, 0, 0
 
-    commit_high_rate = float(commit_high) / count_high
-    commit_low_rate = float(commit_low) / count_low
-    print("Commit rate high: " + str(commit_high_rate))
-    print("Commit rate low: " + str(commit_low_rate))
-    return commit_rate, commit_low_rate, commit_high_rate
+    abort_high_rate = 1 - float(commit_high) / count_high
+    abort_low_rate = 1 - float(commit_low) / count_low
+    print("Abort rate high: " + str(abort_high_rate))
+    print("Abort rate low: " + str(abort_low_rate))
+    return abort_rate, abort_low_rate, abort_high_rate
 
 
 def analyse_fast_prepare_rate(txn_map):
@@ -321,13 +325,13 @@ def analyse(dir_name):
     fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high = analyse_fast_prepare_rate(txn_map)
 
     result["throughput"] = throughput
-    result["commit_rate"] = commit_rate
+    result["abort_rate"] = commit_rate
     result["fast_prepare_rate"] = fast_prepare_rate
     if throughput_low != 0 and throughput_low != 0:
         result["throughput_low"] = throughput_low
         result["throughput_high"] = throughput_high
-        result["commit_rate_low"] = commit_rate_low
-        result["commit_rate_high"] = commit_rate_high
+        result["abort_rate_low"] = commit_rate_low
+        result["abort_rate_high"] = commit_rate_high
         result["fast_prepare_rate_low"] = fast_prepare_rate_low
         result["fast_prepare_rate_high"] = fast_prepare_rate_high
 

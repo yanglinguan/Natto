@@ -39,6 +39,7 @@
     "conditionalPrepare": false,
     "optimisticReorder": true,
     "networkTimestamp": false,
+    "poissonProcess": true,
     "dynamicLatency": {
       "mode": true,
       "probeWindowLen": "1s",

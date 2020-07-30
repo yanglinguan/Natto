@@ -55,6 +55,7 @@ type Configuration interface {
 	GetIsReadOnly() bool
 	GetCheckWaiting() bool
 	GetTimeWindow() time.Duration
+	UsePoissonProcessBetweenArrivals() bool
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -191,6 +192,7 @@ type FileConfiguration struct {
 
 	optimisticReorder bool
 	networkTimestamp  bool
+	poissonProcess    bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -437,6 +439,9 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.optimisticReorder = v.(bool)
 		} else if key == "networkTimestamp" {
 			f.networkTimestamp = v.(bool)
+		} else if key == "poissonProcess" {
+			// poisson process between arrivals
+			f.poissonProcess = v.(bool)
 		}
 	}
 }
@@ -782,4 +787,8 @@ func (f *FileConfiguration) IsOptimisticReorder() bool {
 
 func (f *FileConfiguration) UseNetworkTimestamp() bool {
 	return f.networkTimestamp
+}
+
+func (f *FileConfiguration) UsePoissonProcessBetweenArrivals() bool {
+	return f.poissonProcess
 }
