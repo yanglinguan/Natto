@@ -1,7 +1,6 @@
 package server
 
 import (
-	"Carousel-GTS/configuration"
 	"Carousel-GTS/utils"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -66,8 +65,9 @@ func NewKVStore(server *Server) *KVStore {
 
 // add key value pair
 func (kv *KVStore) AddKeyValue(key string, value string) {
-	if kv.server.config.IsOptimisticReorder() ||
-		(kv.server.config.GetServerMode() == configuration.TwoPL && !kv.server.config.UseNetworkTimestamp()) {
+	//if kv.server.config.IsOptimisticReorder() ||
+	//	(kv.server.config.GetServerMode() == configuration.TwoPL && !kv.server.config.UseNetworkTimestamp()) {
+	if kv.server.config.IsOptimisticReorder() {
 		kv.keys[key] = newKeyInfoWithPriorityQueue(value)
 	} else {
 		kv.keys[key] = newKeyInfoWithQueue(value)

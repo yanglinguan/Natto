@@ -60,9 +60,17 @@ func (o *ReadAndPrepare2PL) Execute(storage *Storage) {
 		if o.IsPassTimestamp() {
 			storage.setReadResult(o, -1, false)
 			storage.selfAbort(o, PASS_TIMESTAMP_ABORT)
-		} else {
-			storage.wait(o)
+			return
 		}
+
+		storage.wait(o)
+
+		return
+	}
+
+	if storage.hasYoungerPrepare(o) {
+		storage.setReadResult(o, -1, false)
+		storage.selfAbort(o, WOUND_ABORT)
 		return
 	}
 
@@ -70,25 +78,49 @@ func (o *ReadAndPrepare2PL) Execute(storage *Storage) {
 		storage.setReadResult(o, -1, false)
 		storage.prepare(o)
 		return
-	} else if available {
-		if storage.isOldest(o) {
-			storage.setReadResult(o, -1, false)
-			storage.prepare(o)
-			return
-		}
-	} else {
-		if storage.hasYoungerPrepare(o) {
-			storage.setReadResult(o, -1, false)
-			storage.selfAbort(o, WOUND_ABORT)
-			return
-		}
 	}
+	//else if available {
+	//	if storage.isOldest(o) {
+	//		storage.setReadResult(o, -1, false)
+	//		storage.prepare(o)
+	//		return
+	//	}
+	//} else {
+	//	if storage.hasYoungerPrepare(o) {
+	//		storage.setReadResult(o, -1, false)
+	//		storage.selfAbort(o, WOUND_ABORT)
+	//		return
+	//	}
+	//}
 
 	storage.wait(o)
 
 }
 
 func (o *ReadAndPrepare2PL) executeFromQueue(storage *Storage) bool {
+	if storage.server.config.UseNetworkTimestamp() {
+		return o.executeFromQueueWithNetworkTimestamp(storage)
+	}
+
+	if storage.hasYoungerPrepare(o) {
+		storage.setReadResult(o, -1, false)
+		storage.selfAbort(o, WOUND_ABORT)
+		return true
+	}
+
+	waiting := storage.hasWaitingTxn(o)
+	available := storage.checkKeysAvailable(o)
+	if available && !waiting {
+		storage.setReadResult(o, -1, false)
+		storage.removeFromQueue(o)
+		storage.prepare(o)
+		return true
+	}
+
+	return false
+}
+
+func (o *ReadAndPrepare2PL) executeFromQueueWithNetworkTimestamp(storage *Storage) bool {
 	waiting := storage.hasWaitingTxn(o)
 	if waiting {
 		logrus.Debugf("txn %v cannot prepare because should has older txn before it", o.txnId)
