@@ -71,7 +71,7 @@ func (o *ReadOnly2PL) executeFromQueue(storage *Storage) bool {
 	}
 	storage.setReadResult(o, PREPARED, false)
 	storage.removeFromQueue(o)
-	releaseOp := NewReleaseReadOnly(o.txnId)
+	releaseOp := NewRelease(o.txnId)
 	storage.AddOperation(releaseOp)
 	//storage.prepare(o)
 	return true

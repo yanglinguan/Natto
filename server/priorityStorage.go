@@ -308,7 +308,7 @@ func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
 	}
 }
 
-func (s *Storage) ReleaseReadOnly(op LockingOp) {
+func (s *Storage) Release(op LockingOp) {
 	for key := range op.GetKeyMap() {
 		s.checkPrepare(key)
 	}

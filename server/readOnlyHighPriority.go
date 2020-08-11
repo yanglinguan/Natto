@@ -53,7 +53,7 @@ func (r *ReadOnlyHighPriority) executeFromQueue(storage *Storage) bool {
 	storage.setReadResult(r, PREPARED, true)
 	storage.removeFromQueue(r)
 
-	releaseOp := NewReleaseReadOnly(r.txnId)
+	releaseOp := NewRelease(r.txnId)
 	storage.AddOperation(releaseOp)
 
 	return true

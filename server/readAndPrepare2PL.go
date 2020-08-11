@@ -105,6 +105,9 @@ func (o *ReadAndPrepare2PL) executeFromQueue(storage *Storage) bool {
 	if storage.hasYoungerPrepare(o) {
 		storage.setReadResult(o, -1, false)
 		storage.selfAbort(o, WOUND_ABORT)
+		storage.removeFromQueue(o)
+		releaseOp := NewRelease(o.txnId)
+		storage.AddOperation(releaseOp)
 		return true
 	}
 

@@ -2,18 +2,18 @@ package server
 
 import "github.com/sirupsen/logrus"
 
-type ReleaseReadOnly struct {
+type Release struct {
 	txnId string
 }
 
-func NewReleaseReadOnly(txnId string) *ReleaseReadOnly {
-	return &ReleaseReadOnly{txnId: txnId}
+func NewRelease(txnId string) *Release {
+	return &Release{txnId: txnId}
 }
 
-func (r *ReleaseReadOnly) Execute(storage *Storage) {
+func (r *Release) Execute(storage *Storage) {
 	op, ok := storage.txnStore[r.txnId].readAndPrepareRequestOp.(LockingOp)
 	if !ok {
 		logrus.Fatalf("txn %v should be read only gts")
 	}
-	storage.ReleaseReadOnly(op)
+	storage.Release(op)
 }

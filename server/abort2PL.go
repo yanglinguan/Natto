@@ -22,7 +22,7 @@ func (a Abort2PL) Execute(storage *Storage) {
 		txnInfo.receiveFromCoordinator = true
 		if txnInfo.status.IsAbort() {
 			logrus.Debugf("txn %v is already abort it self %v abort reason", txnId, txnInfo.status.String())
-			storage.releaseKeyAndCheckPrepare(txnId)
+			//storage.releaseKeyAndCheckPrepare(txnId)
 			return
 		}
 		switch txnInfo.status {
