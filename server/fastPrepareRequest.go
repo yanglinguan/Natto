@@ -27,11 +27,6 @@ func (p *FastPrepareRequestOp) Execute(coordinator *Coordinator) {
 	}
 
 	pId := int(p.request.PrepareResult.PartitionId)
-	if _, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
-		log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
-			txnId, pId, twoPCInfo.partitionPrepareResult[pId].status, twoPCInfo.partitionPrepareResult[pId].isFastPrepare)
-		return
-	}
 
 	if _, exist := twoPCInfo.fastPathPreparePartition[pId]; !exist {
 		twoPCInfo.fastPathPreparePartition[pId] = NewFastPrepareStatus(txnId, pId, coordinator.server.config.GetSuperMajority())
@@ -41,12 +36,23 @@ func (p *FastPrepareRequestOp) Execute(coordinator *Coordinator) {
 
 	ok, status := twoPCInfo.fastPathPreparePartition[pId].isFastPathSuccess()
 
+	if pResult, exist := twoPCInfo.partitionPrepareResult[pId]; exist {
+		log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
+			txnId, pId, twoPCInfo.partitionPrepareResult[pId].status,
+			twoPCInfo.partitionPrepareResult[pId].isFastPrepare)
+		if ok {
+			pResult.isFastPrepare = true
+		}
+		return
+	}
+
 	if !ok {
 		log.Debugf("txn %v pId %v fast path not success yet", txnId, pId)
 		return
 	}
 	log.Debugf("txn %v pId %v fast path success", txnId, pId)
 	leaderPrepareRequest := twoPCInfo.fastPathPreparePartition[pId].leaderResult.request.PrepareResult
+	twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(status, true, leaderPrepareRequest)
 	if status.IsAbort() {
 		twoPCInfo.status = status
 		coordinator.checkResult(twoPCInfo)

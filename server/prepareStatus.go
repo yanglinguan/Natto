@@ -3,9 +3,10 @@ package server
 import "Carousel-GTS/rpc"
 
 type PartitionStatus struct {
-	status        TxnStatus
-	isFastPrepare bool
-	prepareResult *rpc.PrepareResultRequest
+	status          TxnStatus
+	fastPrepareUsed bool
+	isFastPrepare   bool
+	prepareResult   *rpc.PrepareResultRequest
 
 	reorderAgreementReceived map[string]bool
 	counter                  int32
@@ -13,12 +14,13 @@ type PartitionStatus struct {
 
 func NewPartitionStatus(
 	status TxnStatus,
-	isFastPrepare bool,
+	fastPrepareUsed bool,
 	prepareResult *rpc.PrepareResultRequest) *PartitionStatus {
 
 	p := &PartitionStatus{
 		status:                   status,
-		isFastPrepare:            isFastPrepare,
+		isFastPrepare:            fastPrepareUsed,
+		fastPrepareUsed:          fastPrepareUsed,
 		prepareResult:            prepareResult,
 		reorderAgreementReceived: make(map[string]bool),
 	}

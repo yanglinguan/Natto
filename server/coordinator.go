@@ -153,10 +153,10 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 
 			log.Debugf("txn %v can commit replicate data %v", info.txnId, info.status)
 			info.status = COMMIT
-			info.fastPrepare = true
-			for _, p := range info.partitionPrepareResult {
-				info.fastPrepare = info.fastPrepare && p.isFastPrepare
-			}
+			//info.fastPrepare = true
+			//for _, p := range info.partitionPrepareResult {
+			//	info.fastPrepare = info.fastPrepare && p.isFastPrepare
+			//}
 			if info.writeDataReplicated {
 				c.sendToParticipantsAndClient(info)
 			}
@@ -345,14 +345,24 @@ func (c *Coordinator) print() {
 		log.Fatalf("cannot write to file %v error %v", fName, err)
 	}
 	for txnId, info := range c.txnStore {
-		line := fmt.Sprintf("%v %v %v %v %v %v %v\n",
+		pResult := make(map[int]bool)
+		fastPathUsed := make(map[int]bool)
+		for pId, r := range info.partitionPrepareResult {
+			pResult[pId] = r.isFastPrepare
+			fastPathUsed[pId] = r.fastPrepareUsed
+		}
+
+		line := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txnId,
 			info.status.String(),
 			info.reorderPrepare,
 			info.conditionPrepare,
 			info.reversedReorderPrepare,
 			info.reversedReorder,
-			info.rePrepare)
+			info.rePrepare,
+			pResult,
+			fastPathUsed,
+		)
 		_, err := file.WriteString(line)
 		if err != nil {
 			log.Fatalf("cannot write to file %v error %v", fName, err)

@@ -71,10 +71,10 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 			log.Debugf("txn %v counter is %v less than current counter is %v status %v",
 				txnId, p.request.Counter, info.counter, status.String())
 			return
-		} else if info.isFastPrepare {
+		} else if info.fastPrepareUsed {
 			log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
 				p.request.TxnId, pId, twoPCInfo.partitionPrepareResult[pId].status.String(),
-				twoPCInfo.partitionPrepareResult[pId].isFastPrepare)
+				twoPCInfo.partitionPrepareResult[pId].fastPrepareUsed)
 			return
 		}
 	} else {
