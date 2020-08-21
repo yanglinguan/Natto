@@ -38,6 +38,8 @@ def analyse_fastPath(dir_name):
             lines = open(os.path.join(path, f), "r").readlines()
             for line in lines:
                 items = line.split(",")
+                if len(items) < 2:
+                    continue
                 if items[1] != "COMMIT":
                     continue
                 fastResults = items[7][4:-1].split(" ")
