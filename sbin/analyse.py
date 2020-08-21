@@ -32,7 +32,7 @@ def analyse_fastPath(dir_name):
     path = dir_name
     lists = os.listdir(path)
     total = 0
-    success = 0
+    fail = 0
     for f in lists:
         if f.endswith("coordinator.log"):
             lines = open(os.path.join(path, f), "r").readlines()
@@ -43,11 +43,12 @@ def analyse_fastPath(dir_name):
                 if items[1] != "COMMIT":
                     continue
                 fastResults = items[7][4:-1].split(" ")
+                total += 1
                 for p in fastResults:
-                    total += 1
-                    if p.split(":")[1] == "true":
-                        success += 1
-    rate = float(success) / float(total)
+                    if p.split(":")[1] == "false":
+                        fail += 1
+                        break
+    rate = float(total - fail) / float(total)
     print("fast path success rate: " + str(rate))
     return rate
 
