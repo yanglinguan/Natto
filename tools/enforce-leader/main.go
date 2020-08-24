@@ -45,8 +45,9 @@ func main() {
 	}
 
 	wg.Wait()
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 10)
 	for _, expectedLeaderServerId := range carouselClient.Config.GetExpectPartitionLeaders() {
+		logrus.Debugf("start probe server %v", expectedLeaderServerId)
 		carouselClient.StartProbe(expectedLeaderServerId)
 	}
 }
