@@ -392,6 +392,7 @@ func NewProbeTimeSender(dstServerId int, server *Server) *ProbeTimeSender {
 }
 
 func (p *ProbeTimeSender) Send() int64 {
+	logrus.Debugf("send to server %v conn %v", p.dstServerId, p.server.connections[p.dstServerId])
 	conn := p.server.connections[p.dstServerId]
 	clientConn := conn.GetConn()
 	if conn.GetPoolSize() > 0 {
