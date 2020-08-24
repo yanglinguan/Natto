@@ -56,10 +56,6 @@ func NewServer(serverId int, configFile string) *Server {
 	server.partitionId = server.config.GetPartitionIdByServerId(server.serverId)
 
 	//server.executor = NewExecutor(server)
-	server.coordinator = NewCoordinator(server)
-	server.storage = NewStorage(server)
-	server.scheduler = NewScheduler(server)
-	server.commitScheduler = NewCommitScheduler(server)
 
 	switch server.config.GetServerMode() {
 	case configuration.OCC:
@@ -102,6 +98,11 @@ func NewServer(serverId int, configFile string) *Server {
 			server.connections[sId] = connection.NewPoolConnection(addr, poolSize)
 		}
 	}
+
+	server.coordinator = NewCoordinator(server)
+	server.storage = NewStorage(server)
+	server.scheduler = NewScheduler(server)
+	server.commitScheduler = NewCommitScheduler(server)
 
 	rpc.RegisterCarouselServer(server.gRPCServer, server)
 	reflection.Register(server.gRPCServer)
