@@ -45,12 +45,12 @@ func (ts *CommitScheduler) resetTimer() {
 		diff := nextTime - time.Now().UnixNano()
 		if diff <= 0 {
 			op := ts.priorityQueue.Pop()
-			abort, ok := op.(FastAbortOp)
+			abort, ok := op.(*FastAbortOp)
 			if ok {
 				abortOp := ts.server.operationCreator.createAbortOp(abort.request.AbortRequest)
 				ts.server.storage.AddOperation(abortOp)
 			}
-			commit, ok := op.(FastCommitOp)
+			commit, ok := op.(*FastCommitOp)
 			if ok {
 				commitOp := ts.server.operationCreator.createCommitOp(commit.request.CommitRequest)
 				ts.server.storage.AddOperation(commitOp)
