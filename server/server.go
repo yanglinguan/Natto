@@ -87,6 +87,7 @@ func NewServer(serverId int, configFile string) *Server {
 			if sId == serverId {
 				continue
 			}
+			log.Debugf("add connection server %v, addr %v", sId, addr)
 			server.connections[sId] = connection.NewSingleConnect(addr)
 		}
 	} else {
@@ -107,6 +108,7 @@ func NewServer(serverId int, configFile string) *Server {
 	rpc.RegisterCarouselServer(server.gRPCServer, server)
 	reflection.Register(server.gRPCServer)
 
+	log.Debugf("connection %v", server.connections)
 	return server
 }
 
