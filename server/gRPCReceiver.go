@@ -261,3 +261,13 @@ func (server *Server) ProbeTime(cts context.Context, request *rpc.ProbeReq) (*rp
 		ProcessTime: time.Now().UnixNano(),
 	}, nil
 }
+
+func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq) (*rpc.Empty, error) {
+	if !server.IsLeader() {
+		logrus.Debugf("startProbe request server %v is not leader", server.serverAddress)
+		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
+	}
+
+	server.coordinator.startProbe()
+	return &rpc.Empty{}, nil
+}

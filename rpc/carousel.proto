@@ -32,6 +32,9 @@ service Carousel {
     // fast commit
     rpc FastCommit(FastCommitRequest) returns (FastCommitReply) {}
     rpc FastAbort(FastAbortRequest) returns (FastAbortReply) {}
+
+    // once expected leader is selected start to probe the latency
+    rpc StartProbe(StartProbeReq) returns (Empty) {}
 }
 
 message Transaction {
@@ -192,4 +195,8 @@ message ProbeReply {
 
 message ProbeTimeReply {
     int64 processTime = 1; // in ns
+}
+
+message StartProbeReq {
+
 }

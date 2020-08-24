@@ -117,6 +117,7 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 
 		logrus.Infof("The current leader is server id = %v, expected leader id = %v", curLeaderId, expectedLeaderServerId)
 	}
+	carouselClient.StartProbe(expectedLeaderServerId)
 }
 
 // Stops a server that runs on the local machine

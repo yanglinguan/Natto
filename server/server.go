@@ -141,8 +141,6 @@ func (server *Server) Start() {
 		server.raft = NewRaft(server, <-raftSnapshotterChannel, raftInputChannel, raftOutputChannel, raftErrorChannel)
 	}
 
-	server.coordinator.start()
-
 	// Starts RPC service
 	rpcListener, err := net.Listen("tcp", ":"+server.port)
 	if err != nil {

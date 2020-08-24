@@ -54,16 +54,16 @@ func NewCoordinator(server *Server) *Coordinator {
 		operation: make(chan CoordinatorOperation, queueLen),
 	}
 
+	go c.executeOperations()
+
 	return c
 }
 
-func (c *Coordinator) start() {
-	queueLen := c.server.config.GetQueueLen()
-	go c.executeOperations()
-
+func (c *Coordinator) startProbe() {
 	if c.server.config.UseNetworkTimestamp() &&
 		c.server.config.GetFastPath() &&
 		c.server.config.IsFastCommit() {
+		queueLen := c.server.config.GetQueueLen()
 		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
 			c.server.config.GetServerAddress(),
 			c.server.config.GetProbeWindowLen(),
@@ -73,19 +73,13 @@ func (c *Coordinator) start() {
 		} else {
 			c.probeC = make(chan *LatInfo, queueLen)
 		}
-		go c.startProbe()
-	}
-}
-
-func (c *Coordinator) startProbe() {
-	// start probe
-	time.Sleep(time.Second * 10)
-	if c.server.config.IsProbeTime() {
-		go c.probingTime()
-		go c.processProbeTime()
-	} else {
-		go c.probing()
-		go c.processProbe()
+		if c.server.config.IsProbeTime() {
+			go c.probingTime()
+			go c.processProbeTime()
+		} else {
+			go c.probing()
+			go c.processProbe()
+		}
 	}
 }
 
