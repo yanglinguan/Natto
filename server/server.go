@@ -80,7 +80,6 @@ func NewServer(serverId int, configFile string) *Server {
 		break
 	}
 
-	server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
 	server.connections = make([]connection.Connection, len(server.config.GetServerAddress()))
 	poolSize := server.config.GetConnectionPoolSize()
 	if poolSize == 0 {
@@ -103,6 +102,7 @@ func NewServer(serverId int, configFile string) *Server {
 	server.storage = NewStorage(server)
 	server.scheduler = NewScheduler(server)
 	server.commitScheduler = NewCommitScheduler(server)
+	server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
 
 	rpc.RegisterCarouselServer(server.gRPCServer, server)
 	reflection.Register(server.gRPCServer)
