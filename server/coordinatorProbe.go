@@ -60,6 +60,9 @@ func (c *Coordinator) probingTime() {
 func (c *Coordinator) probe() {
 	var wg sync.WaitGroup
 	for sId := range c.server.connections {
+		if c.server.serverId == sId {
+			continue
+		}
 		wg.Add(1)
 		go func(sId int) {
 			sender := NewProbeSender(sId, c.server)
@@ -83,6 +86,9 @@ func (c *Coordinator) probe() {
 func (c *Coordinator) probeTime() {
 	var wg sync.WaitGroup
 	for sId := range c.server.connections {
+		if c.server.serverId == sId {
+			continue
+		}
 		wg.Add(1)
 		go func(sId int) {
 			sender := NewProbeTimeSender(sId, c.server)
