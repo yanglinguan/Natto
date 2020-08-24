@@ -1,11 +1,13 @@
 package server
 
 import (
+	"Carousel-GTS/latencyPredictor"
 	"Carousel-GTS/rpc"
 	"Carousel-GTS/utils"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"time"
 )
 
 type TwoPCInfo struct {
@@ -38,16 +40,43 @@ type Coordinator struct {
 	server   *Server
 
 	operation chan CoordinatorOperation
+
+	latencyPredictor *latencyPredictor.LatencyPredictor
+	probeC           chan *LatInfo
+	probeTimeC       chan *LatTimeInfo
 }
 
 func NewCoordinator(server *Server) *Coordinator {
+	queueLen := server.config.GetQueueLen()
 	c := &Coordinator{
 		txnStore:  make(map[string]*TwoPCInfo),
 		server:    server,
-		operation: make(chan CoordinatorOperation, server.config.GetQueueLen()),
+		operation: make(chan CoordinatorOperation, queueLen),
 	}
 
 	go c.executeOperations()
+
+	if c.server.config.UseNetworkTimestamp() &&
+		server.config.GetFastPath() &&
+		server.config.IsFastCommit() {
+		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
+			c.server.config.GetServerAddress(),
+			c.server.config.GetProbeWindowLen(),
+			c.server.config.GetProbeWindowMinSize())
+		if c.server.config.IsProbeTime() {
+			c.probeTimeC = make(chan *LatTimeInfo, queueLen)
+		} else {
+			c.probeC = make(chan *LatInfo, queueLen)
+		}
+		// start probe
+		if c.server.config.IsProbeTime() {
+			go c.probingTime()
+			go c.processProbeTime()
+		} else {
+			go c.probing()
+			go c.processProbe()
+		}
+	}
 
 	return c
 }
@@ -181,9 +210,28 @@ func (c *Coordinator) sendAbort(info *TwoPCInfo) {
 	}
 
 	for _, pId := range info.readRequest.Txn.ParticipatedPartitionIds {
-		serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
-		sender := NewAbortRequestSender(request, serverId, c.server)
-		go sender.Send()
+		if c.server.config.GetFastPath() &&
+			c.server.config.UseNetworkTimestamp() &&
+			c.server.config.IsFastCommit() {
+
+			serverIdList := c.server.config.GetServerIdListByPartitionId(int(pId))
+			maxDelay := c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
+			maxDelay += c.server.config.GetDelay().Nanoseconds()
+			maxDelay += time.Now().UnixNano()
+
+			fastRequest := &rpc.FastAbortRequest{
+				AbortRequest: request,
+				Timestamp:    maxDelay,
+			}
+			for _, serverId := range serverIdList {
+				sender := NewFastAbortRequestSender(fastRequest, serverId, c.server)
+				go sender.Send()
+			}
+		} else {
+			serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
+			sender := NewAbortRequestSender(request, serverId, c.server)
+			go sender.Send()
+		}
 	}
 }
 
@@ -232,9 +280,28 @@ func (c *Coordinator) sendCommit(info *TwoPCInfo) {
 		}
 
 		log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
-		serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
-		sender := NewCommitRequestSender(request, serverId, c.server)
-		go sender.Send()
+
+		if c.server.config.GetFastPath() && c.server.config.UseNetworkTimestamp() &&
+			c.server.config.IsFastCommit() {
+			// fast commit
+			serverIdList := c.server.config.GetServerIdListByPartitionId(int(pId))
+			maxDelay := c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
+			maxDelay += c.server.config.GetDelay().Nanoseconds()
+			maxDelay += time.Now().UnixNano()
+
+			fastRequest := &rpc.FastCommitRequest{
+				CommitRequest: request,
+				Timestamp:     maxDelay,
+			}
+			for _, serverId := range serverIdList {
+				sender := NewFastCommitRequestSender(fastRequest, serverId, c.server)
+				go sender.Send()
+			}
+		} else {
+			serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
+			sender := NewCommitRequestSender(request, serverId, c.server)
+			go sender.Send()
+		}
 
 	}
 }

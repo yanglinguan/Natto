@@ -22,6 +22,8 @@ type Server struct {
 	// schedule the txn by timestamp order
 	scheduler *Scheduler
 
+	commitScheduler *CommitScheduler
+
 	// executor execute the txn when it is committed or abort
 	//executor        *Executor
 
@@ -57,6 +59,7 @@ func NewServer(serverId int, configFile string) *Server {
 	server.coordinator = NewCoordinator(server)
 	server.storage = NewStorage(server)
 	server.scheduler = NewScheduler(server)
+	server.commitScheduler = NewCommitScheduler(server)
 
 	switch server.config.GetServerMode() {
 	case configuration.OCC:

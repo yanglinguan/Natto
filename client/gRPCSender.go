@@ -244,7 +244,9 @@ func (p *ProbeSender) Send() int64 {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	reply, err := client.Probe(context.Background(), &rpc.ProbeReq{})
+	reply, err := client.Probe(context.Background(), &rpc.ProbeReq{
+		FromCoordinator: false,
+	})
 	if err != nil {
 		logrus.Fatalf("cannot sent probe request to server %v: %v", conn.GetDstAddr(), err)
 		return -1
@@ -273,7 +275,9 @@ func (p *ProbeTimeSender) Send() int64 {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	reply, err := client.ProbeTime(context.Background(), &rpc.ProbeReq{})
+	reply, err := client.ProbeTime(context.Background(), &rpc.ProbeReq{
+		FromCoordinator: false,
+	})
 	if err != nil {
 		logrus.Fatalf("cannot sent probeTime request to server %v: %v", conn.GetDstAddr(), err)
 		return -1

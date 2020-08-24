@@ -28,6 +28,13 @@ type PriorityOp interface {
 	IsSelfAbort() bool
 }
 
+type FastCommitOpI interface {
+	GetTimestamp() int64
+	SetIndex(int)
+	GetTxnId() string
+	GetIndex() int
+}
+
 type ReadAndPrepareOp interface {
 	Operation
 	GetReadKeys() map[string]bool

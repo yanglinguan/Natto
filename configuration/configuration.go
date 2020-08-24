@@ -56,6 +56,7 @@ type Configuration interface {
 	GetCheckWaiting() bool
 	GetTimeWindow() time.Duration
 	UsePoissonProcessBetweenArrivals() bool
+	IsFastCommit() bool
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -193,6 +194,8 @@ type FileConfiguration struct {
 	optimisticReorder bool
 	networkTimestamp  bool
 	poissonProcess    bool
+
+	fastCommit bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -442,6 +445,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "poissonProcess" {
 			// poisson process between arrivals
 			f.poissonProcess = v.(bool)
+		} else if key == "fastCommit" {
+			f.fastCommit = v.(bool)
 		}
 	}
 }
@@ -791,4 +796,8 @@ func (f *FileConfiguration) UseNetworkTimestamp() bool {
 
 func (f *FileConfiguration) UsePoissonProcessBetweenArrivals() bool {
 	return f.poissonProcess
+}
+
+func (f *FileConfiguration) IsFastCommit() bool {
+	return f.fastCommit
 }
