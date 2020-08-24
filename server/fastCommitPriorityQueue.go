@@ -5,12 +5,12 @@ import (
 )
 
 type FCPriorityQueue struct {
-	minHeap MinHeap
+	minHeap FCMinHeap
 }
 
 func NewFCPriorityQueue() *FCPriorityQueue {
 	pq := &FCPriorityQueue{
-		make(MinHeap, 0),
+		make(FCMinHeap, 0),
 	}
 	heap.Init(&pq.minHeap)
 	return pq
