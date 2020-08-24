@@ -73,14 +73,19 @@ func (c *Coordinator) start() {
 		} else {
 			c.probeC = make(chan *LatInfo, queueLen)
 		}
-		// start probe
-		if c.server.config.IsProbeTime() {
-			go c.probingTime()
-			go c.processProbeTime()
-		} else {
-			go c.probing()
-			go c.processProbe()
-		}
+		go c.startProbe()
+	}
+}
+
+func (c *Coordinator) startProbe() {
+	// start probe
+	time.Sleep(time.Second * 10)
+	if c.server.config.IsProbeTime() {
+		go c.probingTime()
+		go c.processProbeTime()
+	} else {
+		go c.probing()
+		go c.processProbe()
 	}
 }
 
