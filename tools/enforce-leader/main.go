@@ -45,7 +45,7 @@ func main() {
 	}
 
 	wg.Wait()
-
+	time.Sleep(time.Second * 5)
 	for _, expectedLeaderServerId := range carouselClient.Config.GetExpectPartitionLeaders() {
 		carouselClient.StartProbe(expectedLeaderServerId)
 	}
