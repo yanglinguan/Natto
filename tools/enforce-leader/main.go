@@ -45,6 +45,10 @@ func main() {
 	}
 
 	wg.Wait()
+
+	for _, expectedLeaderServerId := range carouselClient.Config.GetExpectPartitionLeaders() {
+		carouselClient.StartProbe(expectedLeaderServerId)
+	}
 }
 
 func ParseArgs() {
@@ -117,7 +121,6 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 
 		logrus.Infof("The current leader is server id = %v, expected leader id = %v", curLeaderId, expectedLeaderServerId)
 	}
-	carouselClient.StartProbe(expectedLeaderServerId)
 }
 
 // Stops a server that runs on the local machine
