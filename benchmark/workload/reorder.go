@@ -76,6 +76,7 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 			ReadKeys:  txnList[i],
 			WriteKeys: txnList[i],
 			WriteData: make(map[string]string),
+			Priority:  true,
 		}
 		rw.txnQueue <- txn
 	}
