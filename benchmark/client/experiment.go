@@ -109,7 +109,7 @@ func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duratio
 	txn.GenWriteData(readResult)
 
 	for k, v := range txn.WriteData {
-		logrus.Debugf("write key %v: %v", k, v)
+		logrus.Debugf("txn %v write key %v: %v", txn.TxnId, k, v)
 	}
 
 	return client.Commit(txn.WriteData, txn.TxnId)

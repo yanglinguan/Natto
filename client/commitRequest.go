@@ -113,7 +113,7 @@ func (op *Commit) versionCheck(client *Client) bool {
 	case configuration.OCC:
 		return true
 	case configuration.PRIORITY:
-		return client.txnStore[op.txnId].priority
+		return !client.txnStore[op.txnId].priority
 	default:
 		logrus.Fatalf("unknow server mode %v", client.Config.GetServerMode())
 		return false
