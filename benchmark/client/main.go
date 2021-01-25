@@ -30,10 +30,12 @@ func main() {
 	var exp Experiment
 	switch c.Config.GetWorkLoad() {
 	case configuration.YCSBT:
-		expWorkload = workload.NewYCSBTWorkload(baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+		expWorkload = workload.NewYCSBTWorkload(
+			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
 		break
 	case configuration.ONETXN:
-		expWorkload = workload.NewOneTxnWorkload(baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+		expWorkload = workload.NewOneTxnWorkload(
+			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
 		break
 	case configuration.RETWIS:
 		expWorkload = workload.NewRetwisWorkload(
@@ -43,8 +45,16 @@ func main() {
 			c.Config.GetPostTweetRatio(),
 			c.Config.GetLoadTimelineRatio())
 		break
+	case configuration.REORDER:
+		clientDCId := c.Config.GetDataCenterIdByClientId(clientId)
+		leaderIdList := c.Config.GetLeaderIdListByDataCenterId(clientDCId)
+		// assume there is only one leader in a DC
+		localPartition := c.Config.GetPartitionIdByServerId(leaderIdList[0])
+		expWorkload = workload.NewReorderWorkload(
+			baseWorkload, c.Config.GetTotalPartition(), localPartition)
+		break
 	default:
-		logrus.Fatalf("workload should be: ycsbt, oneTxn or retwis")
+		logrus.Fatalf("workload should be: ycsbt, oneTxn, retwis or reorder")
 		return
 	}
 

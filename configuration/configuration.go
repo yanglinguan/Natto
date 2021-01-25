@@ -28,6 +28,7 @@ const (
 	YCSBT WorkLoad = iota
 	ONETXN
 	RETWIS
+	REORDER
 )
 
 type RetryMode int
@@ -373,6 +374,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.followUnfollowRatio = int(retwis["followUnfollowRatio"].(float64))
 				f.postTweetRatio = int(retwis["postTweetRatio"].(float64))
 				f.loadTimelineRatio = int(retwis["loadTimelineRatio"].(float64))
+			} else if workloadType == "reorder" {
+				f.workload = REORDER
 			}
 			f.highPriorityRate = int(workload["highPriority"].(float64))
 		} else if key == "seed" {
