@@ -60,6 +60,9 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 		txnList[i] = make([]string, 1)
 		txnList[i][0] = utils.ConvertToString(rw.keySize, keyList[keyIdx])
 		keyIdx++
+		if keyIdx == rw.partitionNum*2 {
+			keyIdx = rw.partitionNum
+		}
 	}
 
 	for i := 0; i < len(txnList); i++ {
