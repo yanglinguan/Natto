@@ -29,7 +29,7 @@ func (r RePrepareRequest) Execute(storage *Storage) {
 	}
 
 	// add back to the queue
-	op, ok := storage.txnStore[r.request.TxnId].readAndPrepareRequestOp.(*ReadAndPreparePriority)
+	op, ok := storage.txnStore[r.request.TxnId].readAndPrepareRequestOp.(*ReadAndPrepareHighPriority)
 	if !ok {
 		logrus.Fatalf("txn %v should convert to gts read and prepare", r.request.TxnId)
 	}
