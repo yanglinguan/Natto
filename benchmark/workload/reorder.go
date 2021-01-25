@@ -2,6 +2,7 @@ package workload
 
 import (
 	"Carousel-GTS/utils"
+	log "github.com/sirupsen/logrus"
 	"strconv"
 )
 
@@ -28,6 +29,9 @@ func NewReorderWorkload(
 		localPartition:   localPartition,
 	}
 
+	log.Debugf("create reorder workload: localPartition: %v, number of partition %v",
+		localPartition, partitionNum)
+
 	return rw
 }
 
@@ -51,10 +55,12 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 	for i := 0; i < rw.partitionNum; i++ {
 		txnList[0][i] = utils.ConvertToString(rw.keySize, keyList[i])
 	}
+	log.Debugf("txn 0 keys: %v", txnList[0])
 	txnList[1] = make([]string, rw.partitionNum*2)
 	for i := 0; i < rw.partitionNum*2; i++ {
 		txnList[1][i] = utils.ConvertToString(rw.keySize, keyList[i])
 	}
+	log.Debugf("txn 1 keys: %v", txnList[1])
 	keyIdx := rw.partitionNum
 	for i := 2; i < rw.partitionNum*2; i++ {
 		txnList[i] = make([]string, 1)
@@ -63,12 +69,14 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 		if keyIdx == rw.partitionNum*2 {
 			keyIdx = rw.partitionNum
 		}
+		log.Debugf("txn %v keys: %v", i, txnList[i])
 	}
 
 	for i := 0; i < len(txnList); i++ {
 		if i%rw.partitionNum != rw.localPartition {
 			continue
 		}
+		log.Debugf("txn for local: %v", txnList[i])
 		rw.txnCount++
 		txnId := strconv.FormatInt(rw.txnCount, 10)
 		txn := &Txn{
