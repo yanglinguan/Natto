@@ -184,7 +184,7 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 	//	log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
 	//	return
 	//}
-
+	s.txnStore[txnId].prepareCounter++
 	prepareResultRequest := &rpc.PrepareResultRequest{
 		TxnId:           txnId,
 		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
@@ -194,8 +194,6 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 		Conditions:      make([]int32, 0),
 		Counter:         s.txnStore[txnId].prepareCounter,
 	}
-
-	s.txnStore[txnId].prepareCounter++
 
 	if !s.txnStore[txnId].status.IsAbort() {
 		s.txnStore[txnId].preparedTime = time.Now()

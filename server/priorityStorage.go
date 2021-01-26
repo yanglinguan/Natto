@@ -38,7 +38,8 @@ func (s *Storage) reverseReorderPrepare(op *ReadAndPrepareHighPriority, reorderT
 	s.replicatePreparedResult(op.txnId)
 }
 
-func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority, reorderTxn map[string]bool) {
+func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority,
+	reorderTxn map[string]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)

@@ -132,6 +132,7 @@ func NewTxnInfo() *TxnInfo {
 		preparedTime:            time.Now(),
 		commitTime:              time.Now(),
 		canReorder:              0,
+		prepareCounter:          0,
 	}
 
 	return t
