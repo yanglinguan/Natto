@@ -1,5 +1,7 @@
 package client
 
+import "time"
+
 type ReadOnly struct {
 	*ReadAndPrepare
 }
@@ -30,7 +32,7 @@ func (op *ReadOnly) Execute(client *Client) {
 	txn := client.getTxn(op.txnId)
 
 	//_, execution := c.getTxnAndExecution(op.txnId)
-	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds)
+	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range txn.partitionSet {

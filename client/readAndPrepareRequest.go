@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"strconv"
+	"time"
 )
 
 type ReadAndPrepare struct {
@@ -46,9 +47,9 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 
 	client.getCurrentExecution(op.txnId).setCoordinatorPartitionId(coordinatorPartitionId)
 
-	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds)
+	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
 
-	logrus.Debugf("txn %v maxDelay")
+	logrus.Debugf("txn %v maxDelay %v", maxDelay)
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range txn.partitionSet {

@@ -154,18 +154,18 @@ func (c *Client) getTxn(txnId string) *Transaction {
 func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64 {
 	var maxDelay int64 = 0
 	if !c.Config.UseNetworkTimestamp() {
-		maxDelay = time.Now().UnixNano()
+		//maxDelay = time.Now().UnixNano()
 		return maxDelay
 	}
 
 	if c.Config.IsDynamicLatency() {
 		maxDelay = c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
 		maxDelay += c.Config.GetDelay().Nanoseconds()
-		maxDelay += time.Now().UnixNano()
+		//maxDelay += time.Now().UnixNano()
 	} else {
 		maxDelay = c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
 		maxDelay += c.Config.GetDelay().Nanoseconds()
-		maxDelay += time.Now().UnixNano()
+		//maxDelay += time.Now().UnixNano()
 	}
 
 	return maxDelay

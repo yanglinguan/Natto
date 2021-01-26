@@ -30,10 +30,6 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 	if available && !waiting {
 		storage.setReadResult(o, -1, false)
 		storage.prepare(o)
-	} else if available {
-		storage.reorderPrepare(o)
-	} else if !waiting {
-		storage.conditionalPrepare(o)
 	} else {
 		if o.IsPassTimestamp() {
 			storage.setReadResult(o, -1, false)
@@ -41,7 +37,13 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 			return
 		}
 
-		storage.wait(o)
+		if available {
+			storage.reorderPrepare(o)
+		} else if !waiting {
+			storage.conditionalPrepare(o)
+		} else {
+			storage.wait(o)
+		}
 	}
 }
 
