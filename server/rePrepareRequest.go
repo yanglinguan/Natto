@@ -33,7 +33,7 @@ func (r RePrepareRequest) Execute(storage *Storage) {
 	if !ok {
 		logrus.Fatalf("txn %v should convert to gts read and prepare", r.request.TxnId)
 	}
-
+	logrus.Debugf("EXECUTE re-prepare: txn %v add back to waiting queue", r.request.TxnId)
 	storage.kvStore.AddToWaitingList(op)
 
 	storage.releaseKeyAndCheckPrepare(op.txnId)

@@ -108,6 +108,7 @@ func (kv *KVStore) UpdateTimestamp(key string, rTS int64, wTS int64) {
 // add keys to waiting list
 func (kv *KVStore) AddToWaitingList(op LockingOp) int {
 	maxQueueLen := 0
+	log.Debugf("txn %v add to waiting queue", op.GetTxnId())
 	for key := range op.GetKeyMap() {
 		kv.checkExistHandleKeyNotExistError(key)
 		qLen := kv.keys[key].WaitingQueue.Len()
