@@ -309,6 +309,19 @@ func (s *Storage) releaseKeyAndCheckPrepare(txnId string) {
 	}
 }
 
+func (s *Storage) releaseKeyAndCheckPrepareByRePrepare(txnId string) {
+	op, ok := s.txnStore[txnId].readAndPrepareRequestOp.(LockingOp)
+	if !ok {
+		log.Fatalf("txn %v should be readAndPrepareGTS", txnId)
+	}
+	s.kvStore.ReleaseKeys(op)
+	for key := range op.GetKeyMap() {
+		//s.kvStore.removeFromQueue(op, key)
+		log.Debugf("txn %v release key %v check if txn can be prepared", txnId, key)
+		s.checkPrepare(key)
+	}
+}
+
 func (s *Storage) Release(op LockingOp) {
 	for key := range op.GetKeyMap() {
 		s.checkPrepare(key)

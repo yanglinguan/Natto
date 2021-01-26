@@ -36,6 +36,6 @@ func (r RePrepareRequest) Execute(storage *Storage) {
 	logrus.Debugf("EXECUTE re-prepare: txn %v add back to waiting queue", r.request.TxnId)
 	storage.kvStore.AddToWaitingList(op)
 
-	storage.releaseKeyAndCheckPrepare(op.txnId)
+	storage.releaseKeyAndCheckPrepareByRePrepare(op.txnId)
 
 }
