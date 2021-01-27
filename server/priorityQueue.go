@@ -56,24 +56,22 @@ func (pq MinHeap) Len() int {
 }
 
 func (pq MinHeap) Less(i, j int) bool {
-	itemsI := strings.Split(pq[i].GetTxnId(), "-")
-	cIdI := itemsI[0]
-	tIdI := itemsI[1]
-
-	itemsJ := strings.Split(pq[j].GetTxnId(), "-")
-	cIdJ := itemsJ[0]
-	tIdJ := itemsJ[1]
-	if tIdI == tIdJ {
-		return cIdI < cIdJ
-	}
-	return tIdI < tIdJ
-
-	//if pq[i].GetTimestamp() == pq[j].GetTimestamp() {
-	//	return pq[i].GetTxnId() < pq[j].GetTxnId()
+	//itemsI := strings.Split(pq[i].GetTxnId(), "-")
+	//cIdI := itemsI[0]
+	//tIdI := itemsI[1]
+	//
+	//itemsJ := strings.Split(pq[j].GetTxnId(), "-")
+	//cIdJ := itemsJ[0]
+	//tIdJ := itemsJ[1]
+	//if tIdI == tIdJ {
+	//	return cIdI < cIdJ
 	//}
-	//return pq[i].GetTimestamp() < pq[j].GetTimestamp()
+	//return tIdI < tIdJ
 
-	//items := strings.Split(pq[i].GetTxnId(), "-")
+	if pq[i].GetTimestamp() == pq[j].GetTimestamp() {
+		return pq[i].GetTxnId() < pq[j].GetTxnId()
+	}
+	return pq[i].GetTimestamp() < pq[j].GetTimestamp()
 }
 
 func (pq MinHeap) Swap(i, j int) {

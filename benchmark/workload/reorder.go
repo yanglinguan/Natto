@@ -69,11 +69,11 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 		txnList[2][i-rw.partitionNum] = utils.ConvertToString(rw.keySize, keyList[i])
 	}
 	log.Debugf("reorder workload: txn 2 keys: %v", txnList[2])
-	keyIdx := rw.partitionNum
+	keyIdx := rw.partitionNum*3 - 1
 	for i := 3; i < rw.partitionNum*3; i++ {
 		txnList[i] = make([]string, 1)
 		txnList[i][0] = utils.ConvertToString(rw.keySize, keyList[keyIdx])
-		keyIdx++
+		keyIdx--
 		log.Debugf("reorder workload: txn %v keys: %v", i, txnList[i])
 	}
 
