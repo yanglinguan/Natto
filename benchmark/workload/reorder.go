@@ -45,7 +45,7 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 	}
 
 	keyList := make([]int64, rw.partitionNum*3)
-	for i := 0; i < rw.partitionNum*2; i++ {
+	for i := 0; i < rw.partitionNum*3; i++ {
 		keyList[i] = rw.curIdx
 		rw.curIdx++
 	}
