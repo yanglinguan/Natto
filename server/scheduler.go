@@ -176,8 +176,8 @@ func (ts *Scheduler) Schedule(op ReadAndPrepareOp) {
 		prob.Execute(nil)
 		return
 	}
-	ts.priorityQueue.Push(op)
 	log.Debugf("txn %v push to pq", op.GetTxnId())
+	ts.priorityQueue.Push(op)
 	ts.resetTimer()
 	//if op.GetTimestamp() < time.Now().UnixNano() {
 	//	log.Debugf("txn %v PASS Current time %v", op.GetTxnId(), op.GetTimestamp())
