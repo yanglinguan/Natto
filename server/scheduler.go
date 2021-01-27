@@ -1,9 +1,10 @@
 package server
 
 import (
-	"Carousel-GTS/configuration"
 	"Carousel-GTS/utils"
 	log "github.com/sirupsen/logrus"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,8 @@ type Scheduler struct {
 	pendingOp      chan ReadAndPrepareOp
 	timer          *time.Timer
 	highPrioritySL *utils.SkipList
+
+	curTxn string
 }
 
 func NewScheduler(server *Server) *Scheduler {
@@ -22,6 +25,7 @@ func NewScheduler(server *Server) *Scheduler {
 		pendingOp:      make(chan ReadAndPrepareOp, server.config.GetQueueLen()),
 		timer:          time.NewTimer(0),
 		highPrioritySL: utils.NewSkipList(),
+		curTxn:         "0-1-0",
 	}
 
 	go ts.run()
@@ -34,8 +38,9 @@ func (ts *Scheduler) run() {
 		case op := <-ts.pendingOp:
 			ts.Schedule(op)
 			//op.Schedule(ts)
-		case <-ts.timer.C:
-			ts.resetTimer()
+			//case <-ts.timer.C:
+			//default:
+			//	ts.resetTimer()
 		}
 	}
 }
@@ -96,30 +101,67 @@ func (ts *Scheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
 func (ts *Scheduler) resetTimer() {
 	nextOp := ts.priorityQueue.Peek()
 	for nextOp != nil {
-		nextTime := nextOp.GetReadRequest().Timestamp
-		diff := nextTime - time.Now().UnixNano()
-		if diff <= 0 {
-			op := ts.priorityQueue.Pop()
-			if ts.server.config.GetServerMode() == configuration.PRIORITY &&
-				ts.server.config.IsEarlyAbort() {
-				gtsOp, ok := op.(PriorityOp)
-				if !ok {
-					log.Fatalf("txn %v should be convert to gts op", gtsOp.GetTxnId())
-				}
-				if op.GetPriority() {
-					ts.highPrioritySL.Delete(gtsOp, gtsOp.GetTimestamp())
-				} else {
-					ts.checkConflictWithHighPriorityTxn(gtsOp)
-				}
-			}
-			ts.server.storage.AddOperation(op)
-		} else {
-			ts.timer.Reset(time.Duration(diff))
+		if nextOp.GetTxnId() != ts.curTxn {
 			break
 		}
+		op := ts.priorityQueue.Pop()
+		ts.server.storage.AddOperation(op)
 		nextOp = ts.priorityQueue.Peek()
+		ts.getNextTxn()
 	}
 }
+
+func (ts *Scheduler) getNextTxn() {
+	items := strings.Split(ts.curTxn, "-")
+	cId, _ := strconv.Atoi(items[0])
+	tId, _ := strconv.Atoi(items[1])
+	totalPartition := ts.server.config.GetTotalPartition()
+	tIdStr := strconv.Itoa(tId + 1)
+	if (tId-1)%totalPartition == 0 {
+		if cId == totalPartition-1 {
+			ts.curTxn = "0-" + tIdStr + "-0"
+		} else {
+			ts.curTxn = strconv.Itoa(cId+1) +
+				"-" + strconv.Itoa(tId) + "-0"
+		}
+	} else {
+		if (tId+1)%totalPartition == 0 {
+			ts.curTxn = "0-" + tIdStr + "-0"
+		} else {
+			ts.curTxn = strconv.Itoa(ts.server.partitionId) +
+				"-" + tIdStr + "-0"
+		}
+	}
+	log.Debugf("gen next txn: %v", ts.curTxn)
+}
+
+//func (ts *Scheduler) resetTimer() {
+//	nextOp := ts.priorityQueue.Peek()
+//	for nextOp != nil {
+//		nextTime := nextOp.GetReadRequest().Timestamp
+//		diff := nextTime - time.Now().UnixNano()
+//		if diff <= 0 {
+//			op := ts.priorityQueue.Pop()
+//			if ts.server.config.GetServerMode() == configuration.PRIORITY &&
+//				ts.server.config.IsEarlyAbort() {
+//				gtsOp, ok := op.(PriorityOp)
+//				if !ok {
+//					log.Fatalf("txn %v should be convert to gts op", gtsOp.GetTxnId())
+//				}
+//				if op.GetPriority() {
+//					ts.highPrioritySL.Delete(gtsOp, gtsOp.GetTimestamp())
+//				} else {
+//					ts.checkConflictWithHighPriorityTxn(gtsOp)
+//				}
+//			}
+//			ts.server.storage.AddOperation(op)
+//		} else {
+//			ts.timer.Reset(time.Duration(diff))
+//			break
+//		}
+//		nextOp = ts.priorityQueue.Peek()
+//	}
+//}
 
 func (ts *Scheduler) AddOperation(op ReadAndPrepareOp) {
 	ts.pendingOp <- op
@@ -131,21 +173,23 @@ func (ts *Scheduler) Schedule(op ReadAndPrepareOp) {
 		prob.Execute(nil)
 		return
 	}
-	if op.GetTimestamp() < time.Now().UnixNano() {
-		log.Debugf("txn %v PASS Current time %v", op.GetTxnId(), op.GetTimestamp())
-		op.SetPassTimestamp()
-	}
-
 	ts.priorityQueue.Push(op)
-	if ts.server.config.GetServerMode() == configuration.PRIORITY &&
-		op.GetPriority() &&
-		ts.server.config.IsEarlyAbort() {
-		ts.highPrioritySL.Insert(op, op.GetTimestamp())
-	}
-	if op.GetIndex() == 0 {
-		if !ts.timer.Stop() && len(ts.timer.C) > 0 {
-			<-ts.timer.C
-		}
-		ts.resetTimer()
-	}
+	ts.resetTimer()
+	//if op.GetTimestamp() < time.Now().UnixNano() {
+	//	log.Debugf("txn %v PASS Current time %v", op.GetTxnId(), op.GetTimestamp())
+	//	op.SetPassTimestamp()
+	//}
+	//
+	//ts.priorityQueue.Push(op)
+	//if ts.server.config.GetServerMode() == configuration.PRIORITY &&
+	//	op.GetPriority() &&
+	//	ts.server.config.IsEarlyAbort() {
+	//	ts.highPrioritySL.Insert(op, op.GetTimestamp())
+	//}
+	//if op.GetIndex() == 0 {
+	//	if !ts.timer.Stop() && len(ts.timer.C) > 0 {
+	//		<-ts.timer.C
+	//	}
+	//	ts.resetTimer()
+	//}
 }
