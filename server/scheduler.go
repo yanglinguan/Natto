@@ -101,6 +101,9 @@ func (ts *Scheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
 func (ts *Scheduler) resetTimer() {
 	nextOp := ts.priorityQueue.Peek()
 	for nextOp != nil {
+		log.Debugf("top of the pq %v curTxn %v",
+			nextOp.GetTxnId(), ts.curTxn)
+
 		if nextOp.GetTxnId() != ts.curTxn {
 			break
 		}
@@ -174,6 +177,7 @@ func (ts *Scheduler) Schedule(op ReadAndPrepareOp) {
 		return
 	}
 	ts.priorityQueue.Push(op)
+	log.Debugf("txn %v push to pq", op.GetTxnId())
 	ts.resetTimer()
 	//if op.GetTimestamp() < time.Now().UnixNano() {
 	//	log.Debugf("txn %v PASS Current time %v", op.GetTxnId(), op.GetTimestamp())
