@@ -271,7 +271,7 @@ func (s *Storage) checkPrepare(key string) {
 		txnId := op.GetTxnId()
 		// skip the aborted txn
 		if txnInfo, exist := s.txnStore[txnId]; exist {
-			if txnInfo.status.IsAbort() ||
+			if txnInfo.status.IsAbort() || txnInfo.status == COMMIT ||
 				(txnInfo.isConditionalPrepare && txnInfo.status == COMMIT) {
 				log.Debugf("txn %v status: %v condition prepare: %v key: %v",
 					txnId, txnInfo.status, txnInfo.isConditionalPrepare, key)
