@@ -285,6 +285,7 @@ func (s *Storage) checkPrepare(key string) {
 		if !prepare {
 			break
 		}
+		log.Debugf("txn %v prepared from queue", txnId)
 		op = s.kvStore.GetNextWaitingTxn(key)
 	}
 }

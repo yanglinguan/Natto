@@ -64,6 +64,8 @@ func (o *ReadAndPrepareHighPriority) executeFromQueue(storage *Storage) bool {
 		storage.setReadResult(o, -1, false)
 		storage.reverseReorderPrepare(o, reorderTxn)
 	} else {
+		logrus.Debugf("txn %v cannot prepare from queue; available %v, reorderTxn %v",
+			o.txnId, available, reorderTxn)
 		return false
 	}
 
