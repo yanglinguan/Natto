@@ -34,6 +34,7 @@ func (s *Storage) outTimeWindow(low ReadAndPrepareOp, high ReadAndPrepareOp) boo
 func (s *Storage) reverseReorderPrepare(op *ReadAndPrepareHighPriority, reorderTxn map[string]bool) {
 	log.Debugf("txn %v reverser reorder", op.txnId)
 	s.txnStore[op.txnId].status = REVERSE_REORDER_PREPARED
+	s.kvStore.RecordPrepared(op)
 	s.setReverseReorderPrepareResult(op, reorderTxn)
 	s.replicatePreparedResult(op.txnId)
 }
