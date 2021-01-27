@@ -73,6 +73,7 @@ func (o *OpenLoopExperiment) Execute() {
 
 	logrus.Debugf("waiting for all txn commit total %v", c)
 	o.wg.Wait()
+	logrus.Debugf("all txn commit %v", c)
 }
 
 func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {

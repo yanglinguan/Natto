@@ -50,7 +50,7 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 		rw.curIdx++
 	}
 
-	txnList := make([][]string, rw.partitionNum*2)
+	txnList := make([][]string, rw.partitionNum*2-1)
 	txnList[0] = make([]string, rw.partitionNum)
 	for i := 0; i < rw.partitionNum; i++ {
 		txnList[0][i] = utils.ConvertToString(rw.keySize, keyList[i])
@@ -62,13 +62,10 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 	}
 	log.Debugf("txn 1 keys: %v", txnList[1])
 	keyIdx := rw.partitionNum
-	for i := 2; i < rw.partitionNum*2; i++ {
+	for i := 2; i < rw.partitionNum*2-1; i++ {
 		txnList[i] = make([]string, 1)
 		txnList[i][0] = utils.ConvertToString(rw.keySize, keyList[keyIdx])
 		keyIdx++
-		if keyIdx == rw.partitionNum*2 {
-			keyIdx = rw.partitionNum
-		}
 		log.Debugf("txn %v keys: %v", i, txnList[i])
 	}
 
