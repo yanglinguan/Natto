@@ -129,7 +129,7 @@ func (ts *Scheduler) getNextTxn() {
 				"-" + strconv.Itoa(tId) + "-0"
 		}
 	} else {
-		if (tId+1)%totalPartition == 0 {
+		if tId%totalPartition == 0 {
 			ts.curTxn = "0-" + tIdStr + "-0"
 		} else {
 			ts.curTxn = strconv.Itoa(ts.server.partitionId) +
