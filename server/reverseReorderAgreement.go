@@ -14,7 +14,7 @@ func NewReverseReorderAgreement(request *rpc.ReverseAgreementRequest) *ReverseRe
 }
 
 func (r ReverseReorderAgreement) Execute(coordinator *Coordinator) {
-	logrus.Debugf("txn %v receive reverse agreement from txn %v canReverse %v partitionId %v %v",
+	logrus.Debugf("txn %v receive reverse agreement from txn %v canReverse %v partitionId %v",
 		r.request.TxnId, r.request.ReorderedTxnId, r.request.AgreeReorder, r.request.PartitionId)
 
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(r.request.TxnId)

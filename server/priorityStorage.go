@@ -49,7 +49,6 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority,
 		log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
 		return
 	}
-	s.txnStore[txnId].prepareCounter++
 	prepareResultRequest := &rpc.PrepareResultRequest{
 		TxnId:           txnId,
 		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
@@ -59,7 +58,7 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority,
 		Reorder:         make([]string, len(reorderTxn)),
 		Counter:         s.txnStore[txnId].prepareCounter,
 	}
-
+	s.txnStore[txnId].prepareCounter++
 	s.txnStore[txnId].preparedTime = time.Now()
 
 	for rk := range op.GetReadKeys() {
@@ -101,7 +100,6 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition 
 	//	log.Debugf("txn %v prepare prepareResultRequest is already exist", txnId)
 	//	return
 	//}
-
 	prepareResultRequest := &rpc.PrepareResultRequest{
 		TxnId:           txnId,
 		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
@@ -113,7 +111,6 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition 
 	}
 
 	s.txnStore[txnId].prepareCounter++
-
 	s.txnStore[txnId].preparedTime = time.Now()
 
 	for rk := range op.GetReadKeys() {
