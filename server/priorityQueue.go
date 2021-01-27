@@ -2,6 +2,7 @@ package server
 
 import (
 	"container/heap"
+	"strconv"
 	"strings"
 )
 
@@ -57,12 +58,12 @@ func (pq MinHeap) Len() int {
 
 func (pq MinHeap) Less(i, j int) bool {
 	itemsI := strings.Split(pq[i].GetTxnId(), "-")
-	cIdI := itemsI[0]
-	tIdI := itemsI[1]
+	cIdI, _ := strconv.Atoi(itemsI[0])
+	tIdI, _ := strconv.Atoi(itemsI[1])
 
 	itemsJ := strings.Split(pq[j].GetTxnId(), "-")
-	cIdJ := itemsJ[0]
-	tIdJ := itemsJ[1]
+	cIdJ, _ := strconv.Atoi(itemsJ[0])
+	tIdJ, _ := strconv.Atoi(itemsJ[1])
 	if tIdI == tIdJ {
 		return cIdI < cIdJ
 	}
