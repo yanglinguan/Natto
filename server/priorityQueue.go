@@ -2,7 +2,6 @@ package server
 
 import (
 	"container/heap"
-	"strings"
 )
 
 type PriorityQueue struct {
