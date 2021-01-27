@@ -70,7 +70,13 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 		} else if info.counter > p.request.Counter {
 			log.Debugf("txn %v counter is %v less than current counter is %v status %v",
 				txnId, p.request.Counter, info.counter, status.String())
-			return
+			if twoPCInfo.partitionPrepareResult[pId].prepareResult == nil {
+				twoPCInfo.partitionPrepareResult[pId].prepareResult = p.request
+				log.Debugf("txn %v does not receive prepare result from partition %v assign the request",
+					p.request.TxnId, pId)
+			} else {
+				return
+			}
 		} else if info.fastPrepareUsed {
 			log.Debugf("txn %v partition %v has prepared result %v, isFastPrepare %v",
 				p.request.TxnId, pId, twoPCInfo.partitionPrepareResult[pId].status.String(),
