@@ -238,6 +238,7 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 	reorderTxn := make(map[string]bool)
 	for rk := range op.GetReadKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
+			log.Debugf("read key %v hold by %v", rk, txnId)
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
 			}
@@ -247,6 +248,7 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 
 	for wk := range op.GetWriteKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
+			log.Debugf("write key %v write hold by %v", wk, txnId)
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
 			}
@@ -254,6 +256,7 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 		}
 
 		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
+			log.Debugf("write key %v read hold by %v", wk, txnId)
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
 			}
