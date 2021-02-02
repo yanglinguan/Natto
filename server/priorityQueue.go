@@ -2,8 +2,6 @@ package server
 
 import (
 	"container/heap"
-	"strconv"
-	"strings"
 )
 
 type PriorityQueue struct {
@@ -57,22 +55,10 @@ func (pq MinHeap) Len() int {
 }
 
 func (pq MinHeap) Less(i, j int) bool {
-	itemsI := strings.Split(pq[i].GetTxnId(), "-")
-	cIdI, _ := strconv.Atoi(itemsI[0])
-	tIdI, _ := strconv.Atoi(itemsI[1])
-
-	itemsJ := strings.Split(pq[j].GetTxnId(), "-")
-	cIdJ, _ := strconv.Atoi(itemsJ[0])
-	tIdJ, _ := strconv.Atoi(itemsJ[1])
-	if tIdI == tIdJ {
-		return cIdI < cIdJ
+	if pq[i].GetTimestamp() == pq[j].GetTimestamp() {
+		return pq[i].GetTxnId() < pq[j].GetTxnId()
 	}
-	return tIdI < tIdJ
-
-	//if pq[i].GetTimestamp() == pq[j].GetTimestamp() {
-	//	return pq[i].GetTxnId() < pq[j].GetTxnId()
-	//}
-	//return pq[i].GetTimestamp() < pq[j].GetTimestamp()
+	return pq[i].GetTimestamp() < pq[j].GetTimestamp()
 }
 
 func (pq MinHeap) Swap(i, j int) {
