@@ -130,14 +130,13 @@ func (ts *Scheduler) Schedule(op ReadAndPrepareOp) {
 		prob.Execute(nil)
 		return
 	}
-	log.Debugf("txn %v push to pq", op.GetTxnId())
-	ts.priorityQueue.Push(op)
 
 	if op.GetTimestamp() < time.Now().UnixNano() {
 		log.Debugf("txn %v PASS Current time %v", op.GetTxnId(), op.GetTimestamp())
 		op.SetPassTimestamp()
 	}
 
+	log.Debugf("txn %v push to pq", op.GetTxnId())
 	ts.priorityQueue.Push(op)
 	if ts.server.config.GetServerMode() == configuration.PRIORITY &&
 		op.GetPriority() &&
