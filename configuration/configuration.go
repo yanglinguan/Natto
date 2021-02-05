@@ -430,7 +430,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				log.Fatalf("timeWindow %v is invalid, error %v", v, err)
 			}
 			if f.timeWindow < 0 {
-				f.timeWindow = math.MaxInt64 * time.Millisecond
+				f.timeWindow = time.Duration(math.MaxInt64)
 			}
 		} else if key == "dynamicLatency" {
 			items := v.(map[string]interface{})
