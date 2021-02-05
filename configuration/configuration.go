@@ -111,6 +111,8 @@ type Configuration interface {
 
 	IsOptimisticReorder() bool
 	UseNetworkTimestamp() bool
+
+	HighTxnOnly() bool
 }
 
 type FileConfiguration struct {
@@ -197,6 +199,8 @@ type FileConfiguration struct {
 	poissonProcess    bool
 
 	fastCommit bool
+
+	highTxnOnly bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -425,6 +429,9 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			if err != nil {
 				log.Fatalf("timeWindow %v is invalid, error %v", v, err)
 			}
+			if f.timeWindow < 0 {
+				f.timeWindow = math.MaxInt64 * time.Millisecond
+			}
 		} else if key == "dynamicLatency" {
 			items := v.(map[string]interface{})
 			f.dynamicLatency = items["mode"].(bool)
@@ -450,6 +457,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.poissonProcess = v.(bool)
 		} else if key == "fastCommit" {
 			f.fastCommit = v.(bool)
+		} else if key == "highTxnOnly" {
+			f.highTxnOnly = v.(bool)
 		}
 	}
 }
@@ -782,7 +791,7 @@ func (f *FileConfiguration) IsProbeTime() bool {
 }
 
 func (f *FileConfiguration) IsEarlyAbort() bool {
-	return f.timeWindow > 0
+	return f.timeWindow != 0
 }
 
 func (f *FileConfiguration) IsConditionalPrepare() bool {
@@ -803,4 +812,8 @@ func (f *FileConfiguration) UsePoissonProcessBetweenArrivals() bool {
 
 func (f *FileConfiguration) IsFastCommit() bool {
 	return f.fastCommit
+}
+
+func (f *FileConfiguration) HighTxnOnly() bool {
+	return f.highTxnOnly
 }

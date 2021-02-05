@@ -59,7 +59,7 @@ func main() {
 	}
 
 	if c.Config.GetOpenLoop() {
-		exp = NewOpenLoopExperiment(c, expWorkload)
+		exp = NewOpenLoopExperiment(c, expWorkload, c.Config.HighTxnOnly())
 	} else {
 		exp = NewCloseLoopExperiment(c, expWorkload)
 	}

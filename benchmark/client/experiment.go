@@ -15,16 +15,18 @@ type Experiment interface {
 }
 
 type OpenLoopExperiment struct {
-	client   *client.Client
-	workload workload.Workload
-	wg       sync.WaitGroup
+	client      *client.Client
+	workload    workload.Workload
+	wg          sync.WaitGroup
+	highTxnOnly bool
 }
 
-func NewOpenLoopExperiment(client *client.Client, workload workload.Workload) *OpenLoopExperiment {
+func NewOpenLoopExperiment(client *client.Client, workload workload.Workload, highTxnOnly bool) *OpenLoopExperiment {
 	e := &OpenLoopExperiment{
-		client:   client,
-		workload: workload,
-		wg:       sync.WaitGroup{},
+		client:      client,
+		workload:    workload,
+		wg:          sync.WaitGroup{},
+		highTxnOnly: highTxnOnly,
 	}
 	return e
 }
@@ -61,9 +63,10 @@ func (o *OpenLoopExperiment) Execute() {
 	// sending txn
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
 		txn := o.workload.GenTxn()
-
-		o.wg.Add(1)
-		go o.execTxn(txn)
+		if !o.highTxnOnly || txn.Priority {
+			o.wg.Add(1)
+			go o.execTxn(txn)
+		}
 
 		waitTime := nextTxnWaitTime(o.client)
 		time.Sleep(waitTime)
