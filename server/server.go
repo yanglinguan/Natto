@@ -104,7 +104,8 @@ func NewServer(serverId int, configFile string) *Server {
 	if server.config.UseNetworkTimestamp() {
 		server.scheduler = NewTimestampScheduler(server)
 	} else if server.config.GetServerMode() == configuration.PRIORITY {
-		server.scheduler = NewPriorityScheduler(server)
+		server.scheduler = NewNoScheduler(server)
+		//server.scheduler = NewPriorityScheduler(server)
 	} else {
 		server.scheduler = NewNoScheduler(server)
 	}
