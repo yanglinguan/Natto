@@ -38,12 +38,12 @@ func (o *ReadAndPrepareLowPriority) Execute(storage *Storage) {
 		storage.selfAbort(o, CONFLICT_ABORT)
 		return
 	}
-	//wait := storage.hasWaitingTxn(o)
-	//if wait {
-	//	logrus.Debugf("txn %v there is waiting txn, abort", o.txnId)
-	//	storage.selfAbort(o, WAITING_ABORT)
-	//	return
-	//}
+	wait := storage.hasWaitingTxn(o)
+	if wait {
+		logrus.Debugf("txn %v there is waiting txn, abort", o.txnId)
+		storage.selfAbort(o, WAITING_ABORT)
+		return
+	}
 
 	logrus.Debugf("txn %v prepared", o.txnId)
 	storage.prepare(o)
