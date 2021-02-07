@@ -31,7 +31,3 @@ func (r *ReadOnlyOCC) Execute(storage *Storage) {
 	}
 	storage.setReadResult(r, status, true)
 }
-
-func (r *ReadOnlyOCC) Schedule(scheduler *Scheduler) {
-	scheduler.server.storage.AddOperation(r)
-}

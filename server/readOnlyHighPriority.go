@@ -25,15 +25,33 @@ func (r *ReadOnlyHighPriority) Execute(storage *Storage) {
 
 	available := storage.checkKeysAvailable(r)
 	waiting := storage.hasWaitingTxn(r)
+	if storage.server.config.UseNetworkTimestamp() {
+		if available && !waiting {
+			storage.setReadResult(r, PREPARED, true)
+		} else {
+			if r.IsPassTimestamp() {
+				storage.setReadResult(r, PASS_TIMESTAMP_ABORT, true)
+				return
+			}
+			storage.wait(r)
+		}
+		return
+	}
 
 	if available && !waiting {
 		storage.setReadResult(r, PREPARED, true)
-	} else {
-		if r.IsPassTimestamp() {
-			storage.setReadResult(r, PASS_TIMESTAMP_ABORT, true)
-			return
+	} else if available {
+		if storage.isOldest(r.ReadAndPrepare2PL) {
+			storage.setReadResult(r, PREPARED, true)
+		} else {
+			storage.wait(r)
 		}
-		storage.wait(r)
+	} else {
+		if storage.hasYoungerPrepare(r.ReadAndPrepare2PL) {
+			storage.setReadResult(r, WOUND_ABORT, true)
+		} else {
+			storage.wait(r)
+		}
 	}
 }
 
