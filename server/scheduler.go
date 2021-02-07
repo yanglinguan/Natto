@@ -7,7 +7,87 @@ import (
 	"time"
 )
 
-type Scheduler struct {
+type Scheduler interface {
+	AddOperation(op ReadAndPrepareOp)
+	Schedule(op ReadAndPrepareOp)
+}
+
+type NoScheduler struct {
+	server    *Server
+	pendingOp chan ReadAndPrepareOp
+}
+
+func NewNoScheduler(server *Server) *NoScheduler {
+	ns := &NoScheduler{
+		server: server,
+		pendingOp: make(chan ReadAndPrepareOp,
+			server.config.GetQueueLen()),
+	}
+	go ns.run()
+	return ns
+}
+
+func (ns *NoScheduler) run() {
+	for {
+		op := <-ns.pendingOp
+		ns.Schedule(op)
+	}
+}
+
+func (ns *NoScheduler) AddOperation(op ReadAndPrepareOp) {
+	ns.pendingOp <- op
+}
+
+func (ns *NoScheduler) Schedule(op ReadAndPrepareOp) {
+	ns.server.storage.AddOperation(op)
+}
+
+type PriorityScheduler struct {
+	lowTxn  chan ReadAndPrepareOp
+	highTxn chan ReadAndPrepareOp
+	pending chan bool
+	server  *Server
+}
+
+func NewPriorityScheduler(server *Server) *PriorityScheduler {
+	queueLen := server.config.GetQueueLen()
+	ps := &PriorityScheduler{
+		lowTxn:  make(chan ReadAndPrepareOp, queueLen),
+		highTxn: make(chan ReadAndPrepareOp, queueLen),
+		pending: make(chan bool, queueLen),
+		server:  server,
+	}
+	go ps.run()
+	return ps
+}
+
+func (ps *PriorityScheduler) AddOperation(op ReadAndPrepareOp) {
+	if op.GetPriority() {
+		ps.highTxn <- op
+	} else {
+		ps.lowTxn <- op
+	}
+	ps.pending <- true
+}
+
+func (ps *PriorityScheduler) run() {
+	for {
+		<-ps.pending
+		var op ReadAndPrepareOp
+		if len(ps.highTxn) > 0 {
+			op = <-ps.highTxn
+		} else {
+			op = <-ps.lowTxn
+		}
+		ps.Schedule(op)
+	}
+}
+
+func (ps *PriorityScheduler) Schedule(op ReadAndPrepareOp) {
+	ps.server.storage.AddOperation(op)
+}
+
+type TimestampScheduler struct {
 	server         *Server
 	priorityQueue  *PriorityQueue
 	pendingOp      chan ReadAndPrepareOp
@@ -15,8 +95,8 @@ type Scheduler struct {
 	highPrioritySL *utils.SkipList
 }
 
-func NewScheduler(server *Server) *Scheduler {
-	ts := &Scheduler{
+func NewTimestampScheduler(server *Server) *TimestampScheduler {
+	ts := &TimestampScheduler{
 		server:         server,
 		priorityQueue:  NewPriorityQueue(),
 		pendingOp:      make(chan ReadAndPrepareOp, server.config.GetQueueLen()),
@@ -28,7 +108,7 @@ func NewScheduler(server *Server) *Scheduler {
 	return ts
 }
 
-func (ts *Scheduler) run() {
+func (ts *TimestampScheduler) run() {
 	for {
 		select {
 		case op := <-ts.pendingOp:
@@ -60,7 +140,7 @@ func conflict(low PriorityOp, high PriorityOp) bool {
 	return false
 }
 
-func (ts *Scheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
+func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
 	// get high priority txn >= low priority txn timestamp
 	cur := ts.highPrioritySL.Search(op, op.GetTimestamp())
 
@@ -92,7 +172,7 @@ func (ts *Scheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
 	}
 }
 
-func (ts *Scheduler) resetTimer() {
+func (ts *TimestampScheduler) resetTimer() {
 	nextOp := ts.priorityQueue.Peek()
 	for nextOp != nil {
 		nextTime := nextOp.GetReadRequest().Timestamp
@@ -120,11 +200,11 @@ func (ts *Scheduler) resetTimer() {
 	}
 }
 
-func (ts *Scheduler) AddOperation(op ReadAndPrepareOp) {
+func (ts *TimestampScheduler) AddOperation(op ReadAndPrepareOp) {
 	ts.pendingOp <- op
 }
 
-func (ts *Scheduler) Schedule(op ReadAndPrepareOp) {
+func (ts *TimestampScheduler) Schedule(op ReadAndPrepareOp) {
 	prob, ok := op.(*ProbeOp)
 	if ok {
 		prob.Execute(nil)

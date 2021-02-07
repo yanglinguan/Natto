@@ -20,7 +20,7 @@ type Server struct {
 	storage *Storage // interface of different store, occ or gts (global timestamp)
 
 	// schedule the txn by timestamp order
-	scheduler *Scheduler
+	scheduler Scheduler
 
 	commitScheduler *CommitScheduler
 
@@ -101,7 +101,14 @@ func NewServer(serverId int, configFile string) *Server {
 
 	server.coordinator = NewCoordinator(server)
 	server.storage = NewStorage(server)
-	server.scheduler = NewScheduler(server)
+	if server.config.UseNetworkTimestamp() {
+		server.scheduler = NewTimestampScheduler(server)
+	} else if server.config.GetServerMode() == configuration.PRIORITY {
+		server.scheduler = NewPriorityScheduler(server)
+	} else {
+		server.scheduler = NewNoScheduler(server)
+	}
+	//server.scheduler = NewScheduler(server)
 	server.commitScheduler = NewCommitScheduler(server)
 	server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
 
@@ -175,12 +182,12 @@ func (server *Server) IsLeader() bool {
 	return leaderId == server.serverId
 }
 
-func (server *Server) StartOp(op ReadAndPrepareOp) {
-	if server.config.UseNetworkTimestamp() || server.config.GetServerMode() == configuration.PRIORITY {
-		log.Debugf("txn %v add to scheduler", op.GetTxnId())
-		server.scheduler.AddOperation(op)
-	} else {
-		log.Debugf("txn %v add to storage", op.GetTxnId())
-		server.storage.AddOperation(op)
-	}
-}
+//func (server *Server) StartOp(op ReadAndPrepareOp) {
+//	if server.config.UseNetworkTimestamp() || server.config.GetServerMode() == configuration.PRIORITY {
+//		log.Debugf("txn %v add to scheduler", op.GetTxnId())
+//		server.scheduler.AddOperation(op)
+//	} else {
+//		log.Debugf("txn %v add to storage", op.GetTxnId())
+//		server.storage.AddOperation(op)
+//	}
+//}
