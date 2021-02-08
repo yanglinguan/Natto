@@ -65,6 +65,8 @@ func (r *Raft) handleReplicatedOp(data *string) {
 			operation = r.server.operationCreator.createApplyPrepareResultReplicationOp(&replicationMsg)
 		case CommitResultMsg:
 			operation = r.server.operationCreator.createApplyCommitResultReplicationOp(&replicationMsg)
+		default:
+			logrus.Fatalf("txn %v unknow type", replicationMsg.TxnId)
 		}
 		logrus.Debugf("txn %v add raft result to storage msg type %v",
 			replicationMsg.TxnId, replicationMsg.MsgType)

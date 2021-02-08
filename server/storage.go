@@ -30,6 +30,7 @@ func (s *Storage) executeOperations() {
 }
 
 func (s *Storage) AddOperation(op Operation) {
+	log.Debugf("op queue len %v", len(s.operations))
 	s.operations <- op
 }
 
