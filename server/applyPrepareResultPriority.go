@@ -11,6 +11,7 @@ type ApplyPrepareReplicationMsgGTS struct {
 }
 
 func NewApplyPrepareReplicationMsgGTS(msg *ReplicationMsg) *ApplyPrepareReplicationMsgGTS {
+	log.Debugf("create apply gts replicated msg txn %v ", msg.TxnId)
 	r := &ApplyPrepareReplicationMsgGTS{msg}
 	return r
 }

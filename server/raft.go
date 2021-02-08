@@ -66,7 +66,10 @@ func (r *Raft) handleReplicatedOp(data *string) {
 		case CommitResultMsg:
 			operation = r.server.operationCreator.createApplyCommitResultReplicationOp(&replicationMsg)
 		}
-
+		logrus.Debugf("txn %v add raft result to storage msg type %v",
+			replicationMsg.TxnId, replicationMsg.MsgType)
 		r.server.storage.AddOperation(operation)
+		logrus.Debugf("txn %v added raft result to storage msg type %v",
+			replicationMsg.TxnId, replicationMsg.MsgType)
 	}
 }
