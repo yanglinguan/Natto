@@ -36,14 +36,14 @@ func (s *Storage) executeOperations() {
 		op := <-s.operations
 		log.Debugf("executeOp** %v", getType(op))
 		op.Execute(s)
-		log.Debugf("executedOp++ %v", getType(op))
+		log.Debugf("executeOp++ %v", getType(op))
 	}
 }
 
 func (s *Storage) AddOperation(op Operation) {
 	log.Debugf("addOp** %v queue len %v", len(s.operations), getType(op))
 	s.operations <- op
-	log.Debugf("addedOp++ %v", getType(op))
+	log.Debugf("addOp++ %v", getType(op))
 }
 
 func NewStorage(server *Server) *Storage {
