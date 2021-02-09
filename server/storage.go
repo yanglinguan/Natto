@@ -3,6 +3,7 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	log "github.com/sirupsen/logrus"
+	"reflect"
 	"time"
 )
 
@@ -21,17 +22,28 @@ type Storage struct {
 	counter int64
 }
 
+func getType(myvar interface{}) string {
+	if t := reflect.TypeOf(myvar); t.Kind() == reflect.Ptr {
+		return "*" + t.Elem().Name()
+	} else {
+		return t.Name()
+	}
+}
+
 // only this thread can modify the kv store and txn store
 func (s *Storage) executeOperations() {
 	for {
 		op := <-s.operations
+		log.Debugf("executeOp** %v", getType(op))
 		op.Execute(s)
+		log.Debugf("executedOp++ %v", getType(op))
 	}
 }
 
 func (s *Storage) AddOperation(op Operation) {
-	log.Debugf("op queue len %v", len(s.operations))
+	log.Debugf("addOp** %v queue len %v", len(s.operations), getType(op))
 	s.operations <- op
+	log.Debugf("addedOp++ %v", getType(op))
 }
 
 func NewStorage(server *Server) *Storage {

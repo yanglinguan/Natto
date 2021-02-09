@@ -19,6 +19,7 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 	if storage.checkAbort(o) {
 		logrus.Debugf("txn %v high prioirty txn already abort", o.txnId)
 		storage.setReadResult(o, -1, false)
+		logrus.Debugf("txn %v finish execute high priority", o.txnId)
 		return
 	}
 
@@ -35,6 +36,7 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 			if o.IsPassTimestamp() {
 				storage.setReadResult(o, -1, false)
 				storage.selfAbort(o, PASS_TIMESTAMP_ABORT)
+				logrus.Debugf("txn %v finish execute high priority", o.txnId)
 				return
 			}
 
@@ -46,22 +48,26 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 				storage.wait(o)
 			}
 		}
+		logrus.Debugf("txn %v finish execute high priority", o.txnId)
 		return
 	}
 
 	if storage.hasYoungerPrepare(o.ReadAndPrepare2PL) {
 		storage.setReadResult(o, -1, false)
 		storage.selfAbort(o, WOUND_ABORT)
+		logrus.Debugf("txn %v finish execute high priority", o.txnId)
 		return
 	}
 
 	if available && !waiting {
 		storage.setReadResult(o, -1, false)
 		storage.prepare(o)
+		logrus.Debugf("txn %v finish execute high priority", o.txnId)
 		return
 	}
 
 	storage.wait(o)
+	logrus.Debugf("txn %v finish execute high priority", o.txnId)
 }
 
 func (o *ReadAndPrepareHighPriority) executeFromQueue(storage *Storage) bool {
