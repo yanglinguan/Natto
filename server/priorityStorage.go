@@ -44,7 +44,7 @@ func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
 			}
 		}
 	}
-
+	log.Warnf("txn %v maxPos %v", txnId, maxPos)
 	return maxPos >= s.server.config.QueuePos()
 }
 
