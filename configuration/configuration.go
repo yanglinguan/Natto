@@ -463,7 +463,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 		} else if key == "highTxnOnly" {
 			f.highTxnOnly = v.(bool)
 		} else if key == "queuePos" {
-			f.queuePos = v.(int)
+			f.queuePos = int(v.(float64))
 		}
 	}
 }
