@@ -63,6 +63,10 @@ func NewKVStore(server *Server) *KVStore {
 	return kvStore
 }
 
+func (kv *KVStore) Position(key string, txnId string) int {
+	return kv.keys[key].WaitingQueue.Position(txnId)
+}
+
 // add key value pair
 func (kv *KVStore) AddKeyValue(key string, value string) {
 	//if kv.server.config.IsOptimisticReorder() ||

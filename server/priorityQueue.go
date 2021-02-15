@@ -48,6 +48,17 @@ func (q *PriorityQueue) Remove(op ReadAndPrepareOp) {
 	heap.Init(&q.minHeap)
 }
 
+func (q *PriorityQueue) Position(txnId string) int {
+	pos := 0
+	for i := 0; i < len(q.minHeap); i++ {
+		if q.minHeap[i].GetTxnId() == txnId {
+			return pos
+		}
+		pos++
+	}
+	return pos
+}
+
 type MinHeap []ReadAndPrepareOp
 
 func (pq MinHeap) Len() int {

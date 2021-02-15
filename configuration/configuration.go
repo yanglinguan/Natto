@@ -113,6 +113,7 @@ type Configuration interface {
 	UseNetworkTimestamp() bool
 
 	HighTxnOnly() bool
+	QueuePos() int
 }
 
 type FileConfiguration struct {
@@ -201,6 +202,8 @@ type FileConfiguration struct {
 	fastCommit bool
 
 	highTxnOnly bool
+
+	queuePos int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -459,6 +462,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.fastCommit = v.(bool)
 		} else if key == "highTxnOnly" {
 			f.highTxnOnly = v.(bool)
+		} else if key == "queuePos" {
+			f.queuePos = v.(int)
 		}
 	}
 }
@@ -816,4 +821,8 @@ func (f *FileConfiguration) IsFastCommit() bool {
 
 func (f *FileConfiguration) HighTxnOnly() bool {
 	return f.highTxnOnly
+}
+
+func (f *FileConfiguration) QueuePos() int {
+	return f.queuePos
 }

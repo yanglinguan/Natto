@@ -10,9 +10,52 @@ func (s *Storage) hasWaitingTxn(op LockingOp) bool {
 	return s.kvStore.HasWaitingTxn(op)
 }
 
+func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
+	conflictTxn := make(map[string]*ReadAndPrepareHighPriority)
+	txnId := op.GetTxnId()
+	for rk := range op.GetReadKeys() {
+		top := s.kvStore.GetNextWaitingTxn(rk)
+		if top != nil {
+			conflictTxn[top.GetTxnId()] = top.(*ReadAndPrepareHighPriority)
+		}
+
+	}
+
+	for wk := range op.GetWriteKeys() {
+		top := s.kvStore.GetNextWaitingTxn(wk)
+		if top != nil {
+			conflictTxn[top.GetTxnId()] = top.(*ReadAndPrepareHighPriority)
+		}
+
+	}
+
+	maxPos := 0
+	for _, txn := range conflictTxn {
+		for rk := range txn.GetReadKeys() {
+			p := s.kvStore.Position(rk, txnId)
+			if p > maxPos {
+				maxPos = p
+			}
+		}
+		for wk := range txn.GetWriteKeys() {
+			p := s.kvStore.Position(wk, txnId)
+			if p > maxPos {
+				maxPos = p
+			}
+		}
+	}
+
+	return maxPos >= s.server.config.QueuePos()
+}
+
 func (s *Storage) reorderPrepare(op *ReadAndPrepareHighPriority) {
 	if !s.server.config.IsOptimisticReorder() {
 		log.Debugf("txn %v does not turn on the optimistic reorder wait", op.txnId)
+		s.wait(op)
+		return
+	}
+	if !s.checkReorderCondition(op) {
+		log.Debugf("txn %v dose not reorder condition fail", op.txnId)
 		s.wait(op)
 		return
 	}
