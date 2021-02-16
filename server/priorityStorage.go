@@ -26,7 +26,6 @@ func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
 		if top != nil {
 			conflictTxn[top.GetTxnId()] = top.(*ReadAndPrepareHighPriority)
 		}
-
 	}
 
 	maxPos := 0
@@ -283,6 +282,9 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 	for rk := range op.GetReadKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
 			log.Debugf("read key %v hold by %v", rk, txnId)
+			if s.txnStore[txnId].prepareResultRequest == nil {
+				continue
+			}
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
 			}
@@ -293,6 +295,9 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 	for wk := range op.GetWriteKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
 			log.Debugf("write key %v write hold by %v", wk, txnId)
+			if s.txnStore[txnId].prepareResultRequest == nil {
+				continue
+			}
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
 			}
@@ -301,6 +306,9 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 
 		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
 			log.Debugf("write key %v read hold by %v", wk, txnId)
+			if s.txnStore[txnId].prepareResultRequest == nil {
+				continue
+			}
 			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
 				return false, nil
 			}
