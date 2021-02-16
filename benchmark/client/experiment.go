@@ -90,7 +90,7 @@ func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
 func (o *OpenLoopExperiment) retry(txn *workload.Txn) {
 	commit, retry, waitTime, _ := execTxn(o.client, txn)
 	// txn finishes when it commits or does not require retry
-	if commit || !txn.Priority || !retry {
+	if commit || !retry {
 		logrus.Debugf("txn %v commit result %v retry %v", txn.TxnId, commit, retry)
 		return
 	}
