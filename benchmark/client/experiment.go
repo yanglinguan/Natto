@@ -22,12 +22,13 @@ type OpenLoopExperiment struct {
 	highTxnOnly bool
 }
 
-func NewOpenLoopExperiment(client *client.Client, workload workload.Workload, highTxnOnly bool) *OpenLoopExperiment {
+func NewOpenLoopExperiment(client *client.Client, wl workload.Workload, highTxnOnly bool) *OpenLoopExperiment {
 	e := &OpenLoopExperiment{
 		client:      client,
-		workload:    workload,
+		workload:    wl,
 		wg:          sync.WaitGroup{},
 		highTxnOnly: highTxnOnly,
+		txnChan:     make(chan *workload.Txn, 10240),
 	}
 	return e
 }
