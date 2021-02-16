@@ -64,12 +64,13 @@ func (o *OpenLoopExperiment) Execute() {
 	c := 0
 	// sending txn
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
-		var txn *workload.Txn
-		if len(o.txnChan) > 0 {
-			txn = <-o.txnChan
-		} else {
-			txn = o.workload.GenTxn()
-		}
+		//var txn *workload.Txn
+		//if len(o.txnChan) > 0 {
+		//	txn = <-o.txnChan
+		//} else {
+		//	txn = o.workload.GenTxn()
+		//}
+		txn := o.workload.GenTxn()
 		if !o.highTxnOnly || txn.Priority {
 			o.wg.Add(1)
 			go o.execTxn(txn)
@@ -101,11 +102,11 @@ func (o *OpenLoopExperiment) retry(txn *workload.Txn) {
 		logrus.Debugf("txn %v commit result %v retry %v", txn.TxnId, commit, retry)
 		return
 	}
-	o.txnChan <- txn
+	//o.txnChan <- txn
 	//// when retry the transaction, wait time depends on the retry policy (exponential back-off or constant time)
 	logrus.Debugf("RETRY txn %v wait time %v", txn.TxnId, waitTime)
-	//time.Sleep(waitTime)
-	//o.retry(txn)
+	time.Sleep(waitTime)
+	o.retry(txn)
 }
 
 func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration, time.Duration) {
