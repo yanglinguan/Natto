@@ -114,6 +114,7 @@ type Configuration interface {
 
 	HighTxnOnly() bool
 	QueuePos() int
+	UsePriorityScheduler() bool
 }
 
 type FileConfiguration struct {
@@ -203,7 +204,8 @@ type FileConfiguration struct {
 
 	highTxnOnly bool
 
-	queuePos int
+	queuePos          int
+	priorityScheduler bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -464,6 +466,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.highTxnOnly = v.(bool)
 		} else if key == "queuePos" {
 			f.queuePos = int(v.(float64))
+		} else if key == "priorityScheduler" {
+			f.priorityScheduler = v.(bool)
 		}
 	}
 }
@@ -825,4 +829,8 @@ func (f *FileConfiguration) HighTxnOnly() bool {
 
 func (f *FileConfiguration) QueuePos() int {
 	return f.queuePos
+}
+
+func (f *FileConfiguration) UsePriorityScheduler() bool {
+	return f.priorityScheduler
 }

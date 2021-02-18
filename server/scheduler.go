@@ -39,6 +39,10 @@ func (ns *NoScheduler) AddOperation(op ReadAndPrepareOp) {
 }
 
 func (ns *NoScheduler) Schedule(op ReadAndPrepareOp) {
+	if prob, ok := op.(*ProbeOp); ok {
+		prob.Execute(nil)
+		return
+	}
 	ns.server.storage.AddOperation(op)
 }
 
@@ -84,6 +88,10 @@ func (ps *PriorityScheduler) run() {
 }
 
 func (ps *PriorityScheduler) Schedule(op ReadAndPrepareOp) {
+	if prob, ok := op.(*ProbeOp); ok {
+		prob.Execute(nil)
+		return
+	}
 	ps.server.storage.AddOperation(op)
 }
 
@@ -205,8 +213,7 @@ func (ts *TimestampScheduler) AddOperation(op ReadAndPrepareOp) {
 }
 
 func (ts *TimestampScheduler) Schedule(op ReadAndPrepareOp) {
-	prob, ok := op.(*ProbeOp)
-	if ok {
+	if prob, ok := op.(*ProbeOp); ok {
 		prob.Execute(nil)
 		return
 	}

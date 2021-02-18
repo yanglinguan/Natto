@@ -24,9 +24,6 @@ type Server struct {
 
 	commitScheduler *CommitScheduler
 
-	// executor execute the txn when it is committed or abort
-	//executor        *Executor
-
 	coordinator *Coordinator
 
 	operationCreator OperationCreator
@@ -61,20 +58,19 @@ func NewServer(serverId int, configFile string) *Server {
 	case configuration.OCC:
 		log.Debugf("server mode occ")
 		server.operationCreator = NewOCCOperationCreator(server)
-		//server.storage = NewOccStorage(server)
 		break
 	case configuration.PRIORITY:
 		log.Debugf("server mode Timestamp global timestamp")
 		server.operationCreator = NewPriorityOperationCreator(server)
-		//server.scheduler = NewTimestampScheduler(server)
-		//server.storage = NewGTSStorage(server)
 		break
 	case configuration.TwoPL:
 		log.Debugf("server mode 2PL")
 		server.operationCreator = NewTwoPLOperationCreator(server)
+		break
 	case configuration.TO:
 		log.Debugf("server mode Timestamp ordering")
 		server.operationCreator = NewTOOperationCreator(server)
+		break
 	default:
 		log.Fatal("server mode should be either OCC or GTS")
 		break
@@ -104,12 +100,15 @@ func NewServer(serverId int, configFile string) *Server {
 	if server.config.UseNetworkTimestamp() {
 		server.scheduler = NewTimestampScheduler(server)
 	} else if server.config.GetServerMode() == configuration.PRIORITY {
-		//server.scheduler = NewNoScheduler(server)
-		server.scheduler = NewPriorityScheduler(server)
+		if server.config.UsePriorityScheduler() {
+			server.scheduler = NewPriorityScheduler(server)
+		} else {
+			server.scheduler = NewNoScheduler(server)
+		}
 	} else {
 		server.scheduler = NewNoScheduler(server)
 	}
-	//server.scheduler = NewScheduler(server)
+
 	server.commitScheduler = NewCommitScheduler(server)
 	server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
 
@@ -182,13 +181,3 @@ func (server *Server) IsLeader() bool {
 	leaderId := server.GetLeaderServerId()
 	return leaderId == server.serverId
 }
-
-//func (server *Server) StartOp(op ReadAndPrepareOp) {
-//	if server.config.UseNetworkTimestamp() || server.config.GetServerMode() == configuration.PRIORITY {
-//		log.Debugf("txn %v add to scheduler", op.GetTxnId())
-//		server.scheduler.AddOperation(op)
-//	} else {
-//		log.Debugf("txn %v add to storage", op.GetTxnId())
-//		server.storage.AddOperation(op)
-//	}
-//}
