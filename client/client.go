@@ -161,11 +161,9 @@ func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64
 	if c.Config.IsDynamicLatency() {
 		maxDelay = c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
 		maxDelay += c.Config.GetDelay().Nanoseconds()
-		//maxDelay += time.Now().UnixNano()
 	} else {
 		maxDelay = c.Config.GetMaxDelay(c.clientDataCenterId, serverDcIds).Nanoseconds()
 		maxDelay += c.Config.GetDelay().Nanoseconds()
-		//maxDelay += time.Now().UnixNano()
 	}
 
 	return maxDelay
@@ -174,9 +172,7 @@ func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64
 func (c *Client) addTxnIfNotExist(op ReadOp) {
 
 	txnId := op.GetTxnId()
-	//rpcTxnId := c.genTxnIdToServer(txnId)
 
-	//var rpcTxnId string
 	if _, exist := c.txnStore[txnId]; exist {
 		// if exist increment the execution number
 		c.txnStore[txnId].execCount++

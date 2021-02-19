@@ -13,8 +13,13 @@ func NewApplyCommitResult2PL(msg *ReplicationMsg) *ApplyCommitResult2PL {
 }
 
 func (a ApplyCommitResult2PL) Execute(storage *Storage) {
+	txnId := a.msg.TxnId
 	log.Debugf("txn %v apply commit result %v", a.msg.TxnId, a.msg.Status)
 	if storage.server.IsLeader() {
+		if !storage.server.config.ReadBeforeCommitReplicate() {
+			storage.commit(txnId, COMMIT, a.msg.WriteData)
+			storage.releaseKeyAndCheckPrepare(txnId)
+		}
 		return
 	}
 	storage.initTxnIfNotExist(a.msg)

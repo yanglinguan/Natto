@@ -16,9 +16,13 @@ func NewCommitTO(request *rpc.CommitRequest) *CommitTO {
 func (c *CommitTO) Execute(storage *Storage) {
 	txnId := c.request.TxnId
 	log.Infof("COMMIT %v", txnId)
-	storage.commitTO(txnId, COMMIT, c.request.WriteKeyValList,
-		storage.txnStore[txnId].readAndPrepareRequestOp.GetTimestamp(),
-		storage.txnStore[txnId].readAndPrepareRequestOp.GetTimestamp())
+
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
-	storage.kvStore.ReleaseKeys(storage.txnStore[txnId].readAndPrepareRequestOp)
+
+	if storage.server.config.ReadBeforeCommitReplicate() {
+		storage.commitTO(txnId, COMMIT, c.request.WriteKeyValList,
+			storage.txnStore[txnId].readAndPrepareRequestOp.GetTimestamp(),
+			storage.txnStore[txnId].readAndPrepareRequestOp.GetTimestamp())
+		storage.kvStore.ReleaseKeys(storage.txnStore[txnId].readAndPrepareRequestOp)
+	}
 }

@@ -13,14 +13,19 @@ func NewApplyCommitResultOCC(msg *ReplicationMsg) *ApplyCommitResultOCC {
 }
 
 func (a ApplyCommitResultOCC) Execute(storage *Storage) {
-	log.Debugf("txn %v apply commit result %v", a.msg.TxnId, a.msg.Status.String())
+	txnId := a.msg.TxnId
+	log.Debugf("txn %v apply commit result %v", txnId, a.msg.Status.String())
 	if storage.server.IsLeader() {
+		if !storage.server.config.ReadBeforeCommitReplicate() {
+			storage.commit(txnId, COMMIT, a.msg.WriteData)
+			storage.kvStore.ReleaseKeys(storage.txnStore[txnId].readAndPrepareRequestOp)
+		}
 		return
 	}
 	storage.initTxnIfNotExist(a.msg)
 	if !storage.server.config.GetFastPath() {
-		log.Debugf("txn %v apply commit result disable fast path", a.msg.TxnId)
-		storage.commit(a.msg.TxnId, a.msg.Status, a.msg.WriteData)
+		log.Debugf("txn %v apply commit result disable fast path", txnId)
+		storage.commit(txnId, a.msg.Status, a.msg.WriteData)
 		return
 	}
 

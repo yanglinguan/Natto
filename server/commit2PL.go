@@ -20,7 +20,9 @@ func (c *Commit2PL) Execute(storage *Storage) {
 		log.Fatalf("txn %v status %v should be prepared before commit", txnId, txnInfo.status.String())
 	}
 
-	storage.commit(txnId, COMMIT, c.request.WriteKeyValList)
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
-	storage.releaseKeyAndCheckPrepare(txnId)
+	if storage.server.config.ReadBeforeCommitReplicate() {
+		storage.commit(txnId, COMMIT, c.request.WriteKeyValList)
+		storage.releaseKeyAndCheckPrepare(txnId)
+	}
 }

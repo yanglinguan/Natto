@@ -115,6 +115,8 @@ type Configuration interface {
 	HighTxnOnly() bool
 	QueuePos() int
 	UsePriorityScheduler() bool
+	ReadBeforeCommitReplicate() bool
+	ForwardReadToCoord() bool
 }
 
 type FileConfiguration struct {
@@ -204,8 +206,10 @@ type FileConfiguration struct {
 
 	highTxnOnly bool
 
-	queuePos          int
-	priorityScheduler bool
+	queuePos                  int
+	priorityScheduler         bool
+	readBeforeCommitReplicate bool
+	forwardReadToCoord        bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -468,6 +472,10 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.queuePos = int(v.(float64))
 		} else if key == "priorityScheduler" {
 			f.priorityScheduler = v.(bool)
+		} else if key == "readBeforeCommitReplicate" {
+			f.readBeforeCommitReplicate = v.(bool)
+		} else if key == "forwardReadToCoord" {
+			f.forwardReadToCoord = v.(bool)
 		}
 	}
 }
@@ -833,4 +841,12 @@ func (f *FileConfiguration) QueuePos() int {
 
 func (f *FileConfiguration) UsePriorityScheduler() bool {
 	return f.priorityScheduler
+}
+
+func (f *FileConfiguration) ReadBeforeCommitReplicate() bool {
+	return f.readBeforeCommitReplicate
+}
+
+func (f *FileConfiguration) ForwardReadToCoord() bool {
+	return f.forwardReadToCoord
 }
