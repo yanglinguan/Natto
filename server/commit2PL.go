@@ -19,7 +19,7 @@ func (c *Commit2PL) Execute(storage *Storage) {
 	if txnInfo, exist := storage.txnStore[txnId]; !exist {
 		log.Fatalf("txn %v status %v should be prepared before commit", txnId, txnInfo.status.String())
 	}
-
+	storage.txnStore[txnId].status = COMMIT
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
 	if storage.server.config.ReadBeforeCommitReplicate() {
 		storage.commit(txnId, COMMIT, c.request.WriteKeyValList)

@@ -17,8 +17,13 @@ func (a ApplyCommitResult2PL) Execute(storage *Storage) {
 	log.Debugf("txn %v apply commit result %v", a.msg.TxnId, a.msg.Status)
 	if storage.server.IsLeader() {
 		if !storage.server.config.ReadBeforeCommitReplicate() {
-			storage.commit(txnId, COMMIT, a.msg.WriteData)
-			storage.releaseKeyAndCheckPrepare(txnId)
+			if a.msg.Status == COMMIT {
+				storage.commit(txnId, COMMIT, a.msg.WriteData)
+				storage.releaseKeyAndCheckPrepare(txnId)
+			} else {
+				a.abortProcessedTxn(storage)
+			}
+
 		}
 		return
 	}
@@ -49,4 +54,21 @@ func (a ApplyCommitResult2PL) fastPathExecute(storage *Storage) {
 	}
 
 	storage.commit(a.msg.TxnId, a.msg.Status, a.msg.WriteData)
+}
+
+func (a ApplyCommitResult2PL) abortProcessedTxn(storage *Storage) {
+	txnId := a.msg.TxnId
+	if storage.txnStore[txnId].status.IsPrepare() {
+		log.Debugf("ABORT: %v (coordinator) PREPARED", txnId)
+		storage.releaseKeyAndCheckPrepare(txnId)
+		return
+	}
+
+	switch storage.txnStore[txnId].status {
+	case WAITING:
+		log.Debugf("ABORT: %v (coordinator) INIT", txnId)
+		storage.setReadResult(storage.txnStore[txnId].readAndPrepareRequestOp, -1, false)
+		storage.releaseKeyAndCheckPrepare(txnId)
+		break
+	}
 }

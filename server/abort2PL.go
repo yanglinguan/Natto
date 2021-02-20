@@ -31,7 +31,12 @@ func (a Abort2PL) Execute(storage *Storage) {
 			break
 		default:
 			logrus.Debugf("call abort processed txn %v", txnId)
-			a.abortProcessedTxn(storage)
+			if storage.server.config.ReadBeforeCommitReplicate() {
+				a.abortProcessedTxn(storage)
+			} else {
+				storage.txnStore[txnId].status = COORDINATOR_ABORT
+				storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+			}
 			break
 		}
 	} else {

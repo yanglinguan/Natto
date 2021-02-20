@@ -17,6 +17,7 @@ func (c *CommitTO) Execute(storage *Storage) {
 	txnId := c.request.TxnId
 	log.Infof("COMMIT %v", txnId)
 
+	storage.txnStore[txnId].status = COMMIT
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
 
 	if storage.server.config.ReadBeforeCommitReplicate() {
