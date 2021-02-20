@@ -34,8 +34,8 @@ func (a Abort2PL) Execute(storage *Storage) {
 			if storage.server.config.ReadBeforeCommitReplicate() {
 				a.abortProcessedTxn(storage)
 			} else {
-				storage.txnStore[txnId].status = COORDINATOR_ABORT
-				storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+				storage.replicateCommitResult(txnId,
+					make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 			}
 			break
 		}
@@ -45,7 +45,7 @@ func (a Abort2PL) Execute(storage *Storage) {
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.txnStore[txnId].receiveFromCoordinator = true
 
-		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 	}
 }
 
@@ -54,7 +54,7 @@ func (a Abort2PL) abortProcessedTxn(storage *Storage) {
 	if storage.txnStore[txnId].status.IsPrepare() {
 		logrus.Debugf("ABORT: %v (coordinator) PREPARED", txnId)
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
-		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 		storage.releaseKeyAndCheckPrepare(txnId)
 		return
 	}
@@ -64,7 +64,7 @@ func (a Abort2PL) abortProcessedTxn(storage *Storage) {
 		logrus.Debugf("ABORT: %v (coordinator) INIT", txnId)
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.setReadResult(storage.txnStore[txnId].readAndPrepareRequestOp, -1, false)
-		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 		storage.releaseKeyAndCheckPrepare(txnId)
 		break
 	default:

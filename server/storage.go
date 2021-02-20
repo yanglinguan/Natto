@@ -246,13 +246,14 @@ func (s *Storage) replicatePreparedResult(txnId string) {
 	}
 }
 
-func (s *Storage) replicateCommitResult(txnId string, writeData []*rpc.KeyValue) {
+func (s *Storage) replicateCommitResult(txnId string,
+	writeData []*rpc.KeyValue, txnStatus TxnStatus) {
 	if s.server.config.GetFastPath() &&
 		s.server.config.UseNetworkTimestamp() &&
 		s.server.config.IsFastCommit() {
 		return
 	}
-	op := NewCommitResultReplication(txnId, writeData)
+	op := NewCommitResultReplication(txnId, writeData, txnStatus)
 	op.Execute(s)
 }
 

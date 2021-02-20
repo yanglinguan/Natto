@@ -10,12 +10,15 @@ import (
 type CommitResultReplication struct {
 	txnId     string
 	writeData []*rpc.KeyValue
+	status    TxnStatus
 }
 
-func NewCommitResultReplication(txnId string, writeData []*rpc.KeyValue) *CommitResultReplication {
+func NewCommitResultReplication(txnId string,
+	writeData []*rpc.KeyValue, status TxnStatus) *CommitResultReplication {
 	c := &CommitResultReplication{
 		txnId:     txnId,
 		writeData: make([]*rpc.KeyValue, len(writeData)),
+		status:    status,
 	}
 
 	for i, kv := range writeData {
@@ -34,7 +37,7 @@ func (c CommitResultReplication) Execute(storage *Storage) {
 
 	replicationMsg := ReplicationMsg{
 		TxnId:             c.txnId,
-		Status:            storage.txnStore[c.txnId].status,
+		Status:            c.status,
 		MsgType:           CommitResultMsg,
 		IsFromCoordinator: false,
 		WriteData:         c.writeData,

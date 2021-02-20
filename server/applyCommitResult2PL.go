@@ -60,6 +60,7 @@ func (a ApplyCommitResult2PL) abortProcessedTxn(storage *Storage) {
 	txnId := a.msg.TxnId
 	if storage.txnStore[txnId].status.IsPrepare() {
 		log.Debugf("ABORT: %v (coordinator) PREPARED", txnId)
+		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.releaseKeyAndCheckPrepare(txnId)
 		return
 	}
@@ -68,6 +69,7 @@ func (a ApplyCommitResult2PL) abortProcessedTxn(storage *Storage) {
 	case WAITING:
 		log.Debugf("ABORT: %v (coordinator) INIT", txnId)
 		storage.setReadResult(storage.txnStore[txnId].readAndPrepareRequestOp, -1, false)
+		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.releaseKeyAndCheckPrepare(txnId)
 		break
 	}

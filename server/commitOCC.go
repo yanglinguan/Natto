@@ -17,8 +17,7 @@ func (c *CommitOCC) Execute(storage *Storage) {
 	txnId := c.request.TxnId
 	log.Infof("COMMIT %v", txnId)
 
-	storage.txnStore[txnId].status = COMMIT
-	storage.replicateCommitResult(txnId, c.request.WriteKeyValList)
+	storage.replicateCommitResult(txnId, c.request.WriteKeyValList, COMMIT)
 
 	if storage.server.config.ReadBeforeCommitReplicate() {
 		storage.commit(txnId, COMMIT, c.request.WriteKeyValList)

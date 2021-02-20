@@ -33,8 +33,7 @@ func (a AbortOCC) Execute(storage *Storage) {
 			if storage.server.config.ReadBeforeCommitReplicate() {
 				a.abortProcessedTxn(storage)
 			} else {
-				storage.txnStore[txnId].status = COORDINATOR_ABORT
-				storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+				storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 			}
 			break
 		}
@@ -44,7 +43,7 @@ func (a AbortOCC) Execute(storage *Storage) {
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.txnStore[txnId].receiveFromCoordinator = true
 
-		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 	}
 }
 
@@ -55,7 +54,7 @@ func (a AbortOCC) abortProcessedTxn(storage *Storage) {
 	case PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
-		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0))
+		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 		storage.kvStore.ReleaseKeys(storage.txnStore[txnId].readAndPrepareRequestOp)
 		break
 	default:

@@ -52,6 +52,7 @@ func (a ApplyCommitResultOCC) abortProcessedTxn(storage *Storage) {
 	switch storage.txnStore[txnId].status {
 	case PREPARED:
 		log.Infof("ABORT %v (coordinator) PREPARED", txnId)
+		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.kvStore.ReleaseKeys(storage.txnStore[txnId].readAndPrepareRequestOp)
 		break
 	}
