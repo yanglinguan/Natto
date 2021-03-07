@@ -297,7 +297,7 @@ func (c *Client) AddOperation(op Operation) {
 func (c *Client) Commit(writeKeyValue map[string]string, txnId string) (bool, bool, time.Duration, time.Duration) {
 	tId := c.getTxnId(txnId)
 	commitOp := NewCommitOp(tId, writeKeyValue)
-
+	logrus.Debugf("create commit op txn %v", tId)
 	c.AddOperation(commitOp)
 
 	commitOp.Block()
