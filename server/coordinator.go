@@ -64,9 +64,10 @@ type Coordinator struct {
 func NewCoordinator(server *Server) *Coordinator {
 	queueLen := server.config.GetQueueLen()
 	c := &Coordinator{
-		txnStore:  make(map[string]*TwoPCInfo),
-		server:    server,
-		operation: make(chan CoordinatorOperation, queueLen),
+		txnStore:                       make(map[string]*TwoPCInfo),
+		server:                         server,
+		operation:                      make(chan CoordinatorOperation, queueLen),
+		clientReadRequestToCoordinator: make(map[string]rpc.Carousel_ReadResultFromCoordinatorServer),
 	}
 
 	go c.executeOperations()

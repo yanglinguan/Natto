@@ -70,15 +70,6 @@ func NewClient(clientId int, configFile string) *Client {
 		}
 	}
 
-	// create stream to coordinators
-	// receiving result from coordinators
-	if c.Config.ForwardReadToCoord() {
-		c.createReadResultFromCoordinatorStream()
-		for i := range c.readResultFromCoordinatorStream {
-			go c.receiveReadResultFromCoordinatorStream(i)
-		}
-	}
-
 	if c.Config.IsDynamicLatency() {
 		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
 			c.Config.GetServerAddress(),
@@ -172,6 +163,15 @@ func (c *Client) receiveReadResultFromCoordinatorStream(i int) {
 // one goroutine processing the operation
 // one goroutine probing the network latency
 func (c *Client) Start() {
+	// create stream to coordinators
+	// receiving result from coordinators
+	if c.Config.ForwardReadToCoord() {
+		c.createReadResultFromCoordinatorStream()
+		for i := range c.readResultFromCoordinatorStream {
+			go c.receiveReadResultFromCoordinatorStream(i)
+		}
+	}
+
 	go c.processOperation()
 
 	if c.Config.UseNetworkTimestamp() && c.Config.IsDynamicLatency() {
