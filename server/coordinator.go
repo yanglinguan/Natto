@@ -47,6 +47,38 @@ type TwoPCInfo struct {
 	notifyTxns map[string]int
 	// the txns that waiting the result of this txn
 	waitingTxns map[string]bool
+	// the txns that waiting the write data of this txn
+	// keyList
+	waitingWriteDataTxn map[string]*forwardReadWaiting
+}
+
+type forwardReadWaiting struct {
+	keyList  []string
+	clientId string
+}
+
+func (c *Coordinator) sendReadResultToClient(info *TwoPCInfo, txnId string, clientId string, keys []string) {
+	log.Debugf("txn %v 's coord %v send txn %v read keys %v to client %v",
+		info.txnId, c.server.serverId, txnId, keys, clientId)
+	stream := c.clientReadRequestToCoordinator[clientId]
+	readResult := &rpc.ReadReplyFromCoordinator{
+		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
+		TxnId:         txnId,
+	}
+	for _, key := range keys {
+		value := info.writeDataMap[key].Value
+		r := &rpc.KeyValueVersion{
+			Key:     key,
+			Value:   value,
+			Version: uint64(utils.ConvertToInt(value)),
+		}
+		readResult.KeyValVerList = append(readResult.KeyValVerList, r)
+	}
+
+	err := stream.Send(readResult)
+	if err != nil {
+		log.Fatalf("stream send read result error %v txn %v ", err, txnId)
+	}
 }
 
 type Coordinator struct {
@@ -122,6 +154,10 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 			writeDataMap:             make(map[string]*rpc.KeyValue),
 			writeDataFromLeader:      make(map[string]bool),
 			conditionGraph:           utils.NewDepGraph(c.server.config.GetTotalPartition()),
+			dependTxns:               make(map[string]bool),
+			waitingTxns:              make(map[string]bool),
+			waitingWriteDataTxn:      make(map[string]*forwardReadWaiting),
+			notifyTxns:               make(map[string]int),
 		}
 	}
 	return c.txnStore[txnId]

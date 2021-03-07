@@ -38,6 +38,10 @@ func (c *CommitCoordinator) Execute(coordinator *Coordinator) {
 		twoPCInfo.writeDataFromLeader[kv.Key] = c.request.ResultFromLeader[i]
 	}
 
+	for tId, clientInfo := range twoPCInfo.waitingWriteDataTxn {
+		coordinator.sendReadResultToClient(twoPCInfo, tId, clientInfo.clientId, clientInfo.keyList)
+	}
+
 	if twoPCInfo.status.IsAbort() || twoPCInfo.status == COMMIT {
 		log.Debugf("TXN %v already aborted status %v", txnId, twoPCInfo.status.String())
 		c.result = twoPCInfo.status == COMMIT

@@ -163,6 +163,7 @@ func (s *Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus
 	s.txnStore[txnId].sendToClient = true
 
 	reply := &rpc.ReadAndPrepareReply{
+		TxnId:         txnId,
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 		Status:        -1,
 		IsLeader:      s.server.IsLeader(),
