@@ -159,18 +159,33 @@ func TestGraph_AddNodeWithKeys(t *testing.T) {
 
 	graph.AddNode("b", map[string]bool{"2": true, "4": true})
 
-	graph.AddNode("c", map[string]bool{"4": true, "3": true})
+	graph.AddNode("c", map[string]bool{"1": true, "3": true})
 
-	path := graph.GetConflictTxn("c")
+	graph.AddNode("d", map[string]bool{"2": true, "3": true})
 
-	expectPath := []string{"a", "b", "c"}
+	path := graph.GetConflictTxn("d")
+	parent := graph.GetParent("d")
+
+	expectPath := []string{"a", "c", "b", "d"}
+
+	expectParent := map[string]bool{"b": true, "c": true}
+	if len(expectParent) != len(parent) {
+		t.Errorf("error expect: %v, result: %v", expectParent, parent)
+	} else {
+		for p := range parent {
+			if _, exist := expectParent[p]; !exist {
+				t.Errorf("txn %v not match", p)
+			}
+		}
+	}
 
 	if len(path) != len(expectPath) {
-		t.Errorf("error")
+		t.Errorf("error %v", path)
 	} else {
 		for i, txnId := range expectPath {
 			if path[i] != txnId {
-				t.Errorf("txn %v not in order", txnId)
+				t.Errorf("txn %v not in order, expect %v, result %v",
+					txnId, expectPath, path)
 			}
 		}
 	}

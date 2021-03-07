@@ -29,7 +29,7 @@ type KeyInfo struct {
 func newKeyInfoWithPriorityQueue(value string) *KeyInfo {
 	k := &KeyInfo{
 		Value:            value,
-		Version:          0,
+		Version:          uint64(utils.ConvertToInt(value)),
 		WaitingQueue:     NewPQueue(),
 		PreparedTxnRead:  make(map[string]bool),
 		PreparedTxnWrite: make(map[string]bool),
@@ -41,7 +41,7 @@ func newKeyInfoWithPriorityQueue(value string) *KeyInfo {
 func newKeyInfoWithQueue(value string) *KeyInfo {
 	k := &KeyInfo{
 		Value:            value,
-		Version:          0,
+		Version:          uint64(utils.ConvertToInt(value)),
 		WaitingQueue:     NewQueue(),
 		PreparedTxnRead:  make(map[string]bool),
 		PreparedTxnWrite: make(map[string]bool),
@@ -97,7 +97,7 @@ func (kv *KVStore) Get(key string) (string, uint64) {
 func (kv *KVStore) Put(key string, value string) {
 	if _, exist := kv.keys[key]; exist {
 		kv.keys[key].Value = value
-		kv.keys[key].Version++
+		kv.keys[key].Version = uint64(utils.ConvertToInt(value))
 	} else {
 		kv.keys[key] = newKeyInfoWithQueue(value)
 		//kv.keys[key] = newKeyInfo(value, kv.server.config.IsOptimisticReorder())

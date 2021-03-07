@@ -28,20 +28,22 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 
 	execution := client.getExecution(op.txnId, op.executionCount)
 
-	if execution.receiveAllReadResult() {
-		logrus.Debugf("txn %v already receive all read result ignore", op.txnId)
-		return
-	}
-
 	for _, kv := range op.reply.KeyValVerList {
+		// if one of the keys exist meaning the client
+		// is already receive the data from this partition
+		// if existed version is newer than we do nothing
 		if value, exist := execution.tmpReadResult[kv.Key]; exist && value.Version >= kv.Version {
-			if op.reply.IsLeader {
-				execution.readFromLeader[kv.Key] = op.reply.IsLeader
-			}
-			continue
+			//if op.reply.IsLeader {
+			//	execution.readFromLeader[kv.Key] = op.reply.IsLeader
+			//}
+			logrus.Debugf("txn %v already receive key %v and same version",
+				op.txnId, kv.Key)
+			execution.readFromLeader[kv.Key] = true
+			return
 		}
 		execution.tmpReadResult[kv.Key] = kv
-		execution.readFromLeader[kv.Key] = op.reply.IsLeader
+		//execution.readFromLeader[kv.Key] = op.reply.IsLeader
+		execution.readFromLeader[kv.Key] = true
 	}
 
 	if !execution.receiveAllReadResult() {
@@ -54,5 +56,10 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 		execution.readKeyValueVersion = append(execution.readKeyValueVersion, kv)
 	}
 
-	execution.readAndPrepareOp.Unblock()
+	if execution.readAndPrepareOp.IsUnBlocked() {
+		logrus.Debugf("txn %v resend write data %v", op.reply.TxnId, op.reply.KeyValVerList)
+		client.reSendWriteData(op.reply.TxnId, op.reply.KeyValVerList)
+	} else {
+		execution.readAndPrepareOp.Unblock()
+	}
 }

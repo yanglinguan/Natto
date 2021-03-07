@@ -2,6 +2,7 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"Carousel-GTS/utils"
 	log "github.com/sirupsen/logrus"
 	"reflect"
 	"time"
@@ -20,6 +21,8 @@ type Storage struct {
 	// logic timestamp assign to txn when txn start to execute
 	// deadlock prevention (wound wait) will use this timestamp
 	counter int64
+
+	dependGraph *utils.Graph
 }
 
 func getType(myvar interface{}) string {
@@ -55,6 +58,7 @@ func NewStorage(server *Server) *Storage {
 		waitPrintStatusRequest: nil,
 		totalCommit:            0,
 		operations:             make(chan Operation, server.config.GetQueueLen()),
+		dependGraph:            utils.NewDependencyGraph(),
 	}
 	go s.executeOperations()
 	return s

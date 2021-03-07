@@ -31,6 +31,9 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 	if storage.server.config.UseNetworkTimestamp() {
 		if available && !waiting {
 			storage.setReadResult(o, -1, false)
+			if storage.server.config.ForwardReadToCoord() {
+				storage.dependGraph.AddNode(o.txnId, o.keyMap)
+			}
 			storage.prepare(o)
 		} else {
 			if o.IsPassTimestamp() {
@@ -44,7 +47,10 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 				logrus.Warnf("txn %v can be reorder", o.txnId)
 				storage.reorderPrepare(o)
 			} else if !waiting {
-				storage.conditionalPrepare(o)
+				cond := storage.conditionalPrepare(o)
+				if !cond {
+					storage.forwardPrepare(o)
+				}
 			} else {
 				storage.wait(o)
 			}

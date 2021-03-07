@@ -21,6 +21,8 @@ type ReadOp interface {
 
 	Block()
 	Unblock()
+
+	IsUnBlocked() bool
 }
 
 //type CommitOp interface {

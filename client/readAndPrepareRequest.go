@@ -17,6 +17,7 @@ type ReadAndPrepare struct {
 	isAbort      bool
 	wait         chan bool
 	priority     bool
+	unblocked    bool
 }
 
 func NewReadAndPrepareOp(txnId string, priority bool, readKeyList []string, writeKeyList []string) *ReadAndPrepare {
@@ -66,12 +67,12 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 			// only send to the leader of non-participant partition
 			sId := client.Config.GetLeaderIdByPartitionId(pId)
 			sender := NewReadAndPrepareSender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
-			go sender.Send()
+			sender.Send()
 		} else {
 			sIdList := client.Config.GetServerIdListByPartitionId(pId)
 			for _, sId := range sIdList {
 				sender := NewReadAndPrepareSender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
-				go sender.Send()
+				sender.Send()
 			}
 		}
 	}
@@ -134,6 +135,7 @@ func (op *ReadAndPrepare) Block() {
 }
 
 func (op *ReadAndPrepare) Unblock() {
+	op.unblocked = true
 	op.wait <- true
 }
 
@@ -175,4 +177,8 @@ func (op *ReadAndPrepare) SetKeyValue(key, value string) {
 
 func (op *ReadAndPrepare) SetAbort(abort bool) {
 	op.isAbort = abort
+}
+
+func (op *ReadAndPrepare) IsUnBlocked() bool {
+	return op.unblocked
 }

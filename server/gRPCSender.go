@@ -505,3 +505,95 @@ func (a *FastAbortRequestSender) Send() {
 			a.request.AbortRequest.TxnId, conn.GetDstAddr())
 	}
 }
+
+type ForwardReadRequestToCoordinatorSender struct {
+	request     *rpc.ForwardReadToCoordinator
+	timeout     time.Duration
+	dstServerId int
+	server      *Server
+}
+
+func NewForwardReadRequestToCoordinatorSender(request *rpc.ForwardReadToCoordinator, dstServerId int, server *Server) *ForwardReadRequestToCoordinatorSender {
+	s := &ForwardReadRequestToCoordinatorSender{
+		request:     request,
+		timeout:     0,
+		dstServerId: dstServerId,
+		server:      server,
+	}
+
+	return s
+}
+
+func (p *ForwardReadRequestToCoordinatorSender) Send() {
+	if p.dstServerId == p.server.serverId {
+		op := NewForwardReadRequestToCoordinator(p.request)
+		p.server.coordinator.AddOperation(op)
+		return
+	}
+
+	conn := p.server.connections[p.dstServerId]
+	logrus.Debugf("SEND ForwardReadRequestToCoordinator txn %v from server %v to %v",
+		p.request.TxnId, p.server.serverAddress, conn.GetDstAddr())
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
+	}
+
+	client := rpc.NewCarouselClient(clientConn)
+	_, err := client.ForwardReadRequestToCoordinator(context.Background(), p.request)
+
+	if err != nil {
+		if dstServerId, handled := utils.HandleError(err); handled {
+			p.dstServerId = dstServerId
+			p.Send()
+		} else {
+			logrus.Fatalf("fail to send prepare result txn %v to server %v: %v", p.request.TxnId, conn.GetDstAddr(), err)
+		}
+	}
+}
+
+type CommitResultToCoordinatorSender struct {
+	request     *rpc.CommitResult
+	timeout     time.Duration
+	dstServerId int
+	server      *Server
+}
+
+func NewCommitResultToCoordinatorSender(request *rpc.CommitResult, dstServerId int, server *Server) *CommitResultToCoordinatorSender {
+	s := &CommitResultToCoordinatorSender{
+		request:     request,
+		timeout:     0,
+		dstServerId: dstServerId,
+		server:      server,
+	}
+
+	return s
+}
+
+func (p *CommitResultToCoordinatorSender) Send() {
+	if p.dstServerId == p.server.serverId {
+		op := NewCommitResultToCoordinator(p.request)
+		p.server.coordinator.AddOperation(op)
+		return
+	}
+
+	conn := p.server.connections[p.dstServerId]
+	logrus.Debugf("SEND CommitResultToCoordinatorSender txn %v from server %v to %v",
+		p.request.TxnId, p.server.serverAddress, conn.GetDstAddr())
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
+	}
+
+	client := rpc.NewCarouselClient(clientConn)
+	_, err := client.CommitResultToCoordinator(context.Background(), p.request)
+
+	if err != nil {
+		if dstServerId, handled := utils.HandleError(err); handled {
+			p.dstServerId = dstServerId
+			p.Send()
+		} else {
+			logrus.Fatalf("fail to send prepare result txn %v to server %v: %v", p.request.TxnId, conn.GetDstAddr(), err)
+		}
+	}
+}

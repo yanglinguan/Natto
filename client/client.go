@@ -8,10 +8,14 @@ import (
 	"Carousel-GTS/utils"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
+	"io"
+	"log"
 	"math"
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,7 +25,8 @@ type Client struct {
 	Config             configuration.Configuration
 	clientDataCenterId int
 
-	connections []connection.Connection
+	connections                     []connection.Connection
+	readResultFromCoordinatorStream []rpc.Carousel_ReadResultFromCoordinatorClient
 
 	operations chan Operation
 
@@ -44,10 +49,11 @@ func NewClient(clientId int, configFile string) *Client {
 		Config:             config,
 		clientDataCenterId: config.GetDataCenterIdByClientId(clientId),
 		connections:        make([]connection.Connection, len(config.GetServerAddress())),
-		txnStore:           make(map[string]*Transaction),
-		operations:         make(chan Operation, queueLen),
-		count:              0,
-		timeLeg:            time.Duration(0),
+		//readAndPrepareRequestStream: make([]rpc.Carousel_ReadAndPrepareClient, len(config.GetServerAddress())),
+		txnStore:   make(map[string]*Transaction),
+		operations: make(chan Operation, queueLen),
+		count:      0,
+		timeLeg:    time.Duration(0),
 	}
 
 	if c.Config.GetTargetRate() > 0 {
@@ -64,6 +70,15 @@ func NewClient(clientId int, configFile string) *Client {
 		}
 	}
 
+	// create stream to coordinators
+	// receiving result from coordinators
+	if c.Config.ForwardReadToCoord() {
+		c.createReadResultFromCoordinatorStream()
+		for i := range c.readResultFromCoordinatorStream {
+			go c.receiveReadResultFromCoordinatorStream(i)
+		}
+	}
+
 	if c.Config.IsDynamicLatency() {
 		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
 			c.Config.GetServerAddress(),
@@ -77,6 +92,81 @@ func NewClient(clientId int, configFile string) *Client {
 	}
 
 	return c
+}
+
+func (c *Client) createReadResultFromCoordinatorStream() {
+	// create stream
+	c.readResultFromCoordinatorStream = make(
+		[]rpc.Carousel_ReadResultFromCoordinatorClient,
+		c.Config.GetTotalPartition())
+	for i, sId := range c.Config.GetExpectPartitionLeaders() {
+		addr := c.Config.GetServerAddressByServerId(sId)
+		conn := connection.NewSingleConnect(addr)
+		client := rpc.NewCarouselClient(conn.GetConn())
+		in := &rpc.ReadRequestToCoordinator{
+			ClientId: strconv.Itoa(c.clientId),
+		}
+		stream, err := client.ReadResultFromCoordinator(context.Background(), in)
+		if err != nil {
+			log.Fatalf("open stream error %v", err)
+		}
+		c.readResultFromCoordinatorStream[i] = stream
+	}
+}
+
+//func (c *Client) createReadAndPrepareRequestStream() {
+//	for sId, addr := range c.Config.GetServerAddress() {
+//		conn := connection.NewSingleConnect(addr)
+//		client := rpc.NewCarouselClient(conn.GetConn())
+//		stream, err := client.ReadAndPrepare(context.Background())
+//		if err != nil {
+//			log.Fatalf("open stream error %v", err)
+//		}
+//		c.readAndPrepareRequestStream[sId] = stream
+//	}
+//}
+//
+//func (c *Client) receiveReadAndPrepareStream(i int) {
+//	for {
+//		resp, err := c.readAndPrepareRequestStream[i].Recv()
+//		if err == io.EOF {
+//			return
+//		}
+//
+//		if err != nil {
+//			logrus.Fatalf("cannot receive %v", err)
+//		}
+//		execCount := c.getExecutionCountByTxnId(resp.TxnId)
+//		txnId := c.getTxnIdByServerTxnId(resp.TxnId)
+//		op := NewReadAndPrepareReplyOp(txnId, execCount, resp)
+//		c.AddOperation(op)
+//	}
+//}
+
+func (c *Client) getTxnIdByServerTxnId(txnId string) string {
+	items := strings.Split(txnId, "-")
+	id := ""
+	for i := 0; i < len(items)-1; i++ {
+		id += items[i] + "-"
+	}
+	return id[:len(id)-1]
+}
+
+func (c *Client) receiveReadResultFromCoordinatorStream(i int) {
+	for {
+		resp, err := c.readResultFromCoordinatorStream[i].Recv()
+		if err == io.EOF {
+			//done <- true //means stream is finished
+			return
+		}
+		if err != nil {
+			logrus.Fatalf("cannot receive %v", err)
+		}
+
+		logrus.Debugf("Resp received: %s from partition %v leader", resp.TxnId, i)
+		op := NewReadReplyFromCoordinatorOp(resp)
+		c.AddOperation(op)
+	}
 }
 
 // one goroutine processing the operation
@@ -145,6 +235,13 @@ func (c *Client) getCurrentExecution(txnId string) *ExecutionRecord {
 
 func (c *Client) getExecution(txnId string, count int64) *ExecutionRecord {
 	return c.txnStore[txnId].executions[count]
+}
+
+func (c *Client) getExecutionCountByTxnId(txnId string) int64 {
+	list := strings.Split(txnId, "-")
+	exeCountStr := list[len(list)-1]
+	count, _ := strconv.Atoi(exeCountStr)
+	return int64(count)
 }
 
 func (c *Client) getTxn(txnId string) *Transaction {
@@ -430,4 +527,24 @@ func (c *Client) getParticipantPartition(participants map[int]bool) ([]int32, ma
 	}
 
 	return participatedPartitions, serverDcIds, serverIdList
+}
+
+func (c *Client) reSendWriteData(serverTxnId string, data []*rpc.KeyValueVersion) {
+	clientTxnId := c.getTxnIdByServerTxnId(serverTxnId)
+	execution := c.getCurrentExecution(clientTxnId)
+	kvList := make([]*rpc.KeyValue, 0)
+	for _, kv := range data {
+		tmp := &rpc.KeyValue{
+			Key:   kv.Key,
+			Value: kv.Value,
+		}
+		kvList = append(kvList, tmp)
+	}
+	request := &rpc.WriteDataRequest{
+		TxnId:           serverTxnId,
+		WriteKeyValList: kvList,
+	}
+	coordinatorId := c.Config.GetLeaderIdByPartitionId(execution.coordinatorPartitionId)
+	sender := NewWriteDataSender(request, coordinatorId, c)
+	go sender.Send()
 }

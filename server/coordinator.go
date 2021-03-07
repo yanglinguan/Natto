@@ -11,13 +11,16 @@ import (
 )
 
 type TwoPCInfo struct {
-	txnId               string
-	status              TxnStatus
-	readRequest         *rpc.ReadAndPrepareRequest
-	commitRequestOp     *CommitCoordinator
-	abortRequest        *rpc.AbortRequest
-	resultSent          bool
-	writeData           []*rpc.KeyValue
+	txnId           string
+	status          TxnStatus
+	readRequest     *rpc.ReadAndPrepareRequest
+	commitRequestOp *CommitCoordinator
+	abortRequest    *rpc.AbortRequest
+	resultSent      bool
+	//writeData           []*rpc.KeyValue
+	writeDataMap        map[string]*rpc.KeyValue
+	writeDataFromLeader map[string]bool
+	writeDataReceived   bool
 	writeDataReplicated bool
 
 	fastPathPreparePartition map[int]*FastPrepareStatus
@@ -26,6 +29,9 @@ type TwoPCInfo struct {
 	conditionGraph *utils.DepGraph
 	fastPrepare    bool
 	hasCondition   bool
+	hasForward     bool
+
+	forwardReadOp *ForwardReadRequestToCoordinator
 	//abortReason    AbortReason
 
 	reorderPrepare         bool
@@ -33,6 +39,14 @@ type TwoPCInfo struct {
 	reversedReorderPrepare bool
 	reversedReorder        bool
 	rePrepare              bool
+
+	forwardPrepare bool
+	// this txn commit if and only if dependTxns commit
+	dependTxns map[string]bool
+	// when this txn commit or abort, it should notify the txns' coordinator
+	notifyTxns map[string]int
+	// the txns that waiting the result of this txn
+	waitingTxns map[string]bool
 }
 
 type Coordinator struct {
@@ -41,9 +55,10 @@ type Coordinator struct {
 
 	operation chan CoordinatorOperation
 
-	latencyPredictor *latencyPredictor.LatencyPredictor
-	probeC           chan *LatInfo
-	probeTimeC       chan *LatTimeInfo
+	clientReadRequestToCoordinator map[string]rpc.Carousel_ReadResultFromCoordinatorServer
+	latencyPredictor               *latencyPredictor.LatencyPredictor
+	probeC                         chan *LatInfo
+	probeTimeC                     chan *LatTimeInfo
 }
 
 func NewCoordinator(server *Server) *Coordinator {
@@ -103,6 +118,8 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 			writeDataReplicated:      false,
 			fastPathPreparePartition: make(map[int]*FastPrepareStatus),
 			partitionPrepareResult:   make(map[int]*PartitionStatus),
+			writeDataMap:             make(map[string]*rpc.KeyValue),
+			writeDataFromLeader:      make(map[string]bool),
 			conditionGraph:           utils.NewDepGraph(c.server.config.GetTotalPartition()),
 		}
 	}
@@ -148,13 +165,53 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			}
 			if info.readRequest.Txn.HighPriority && c.server.config.IsConditionalPrepare() {
 				if info.conditionGraph.IsCyclic() {
-					log.Debugf("txn %v condition has cycle, condition abort", info.txnId)
+					log.Warnf("txn %v condition has cycle, condition abort", info.txnId)
 					//info.status = CONDITION_ABORT
 					//info.abortReason = CYCLE
 					//c.sendToParticipantsAndClient(info)
 					return
 				}
 				log.Debugf("txn %v no cycle detected", info.txnId)
+			}
+			if info.readRequest.Txn.HighPriority && c.server.config.ForwardReadToCoord() {
+				satisfyRequest := true
+				for depTxn := range info.dependTxns {
+					twoPCInfo := c.initTwoPCInfoIfNotExist(depTxn)
+					if twoPCInfo.status == INIT {
+						log.Debugf("txn %v depTxn %v status is INIT wait the result", info.txnId, depTxn)
+						satisfyRequest = false
+						twoPCInfo.waitingTxns[info.txnId] = true
+					} else if twoPCInfo.status.IsAbort() {
+						keys := make(map[string]bool)
+						log.Debugf("txn %v depTxn %v is abort not handle for now", info.txnId, depTxn)
+						// check keys
+						for i, txnId := range info.forwardReadOp.request.ParentTxns {
+							if txnId != depTxn {
+								continue
+							}
+							num := int(info.forwardReadOp.request.Idx[i])
+							for j := 0; j < num; j++ {
+								idx := i + j
+								k := info.forwardReadOp.request.KeyList[idx]
+								keys[k] = true
+							}
+							break
+						}
+						for k := range keys {
+							fromLeader, exist := info.writeDataFromLeader[k]
+							if exist && fromLeader {
+								continue
+							}
+							log.Debugf("txn %v depend txn %v is abort key %v exist %v",
+								info.txnId, depTxn, k, exist)
+							satisfyRequest = false
+							break
+						}
+					}
+				}
+				if !satisfyRequest {
+					return
+				}
 			}
 			if info.readRequest.Txn.ReadOnly && c.server.config.GetIsReadOnly() {
 				// if this is read only txn, it is prepared we do not need to check version
@@ -235,6 +292,20 @@ func (c *Coordinator) sendAbort(info *TwoPCInfo) {
 			go sender.Send()
 		}
 	}
+
+	c.sendResultToCoordinator(info)
+}
+
+func (c *Coordinator) sendResultToCoordinator(info *TwoPCInfo) {
+	for txn, dstId := range info.notifyTxns {
+		request := &rpc.CommitResult{
+			TxnId:  info.txnId,
+			Result: info.status == COMMIT,
+		}
+		log.Debugf("txn %v send commit result %v to server %v for txn %v ", info.txnId, request.Result, txn)
+		sender := NewCommitResultToCoordinatorSender(request, dstId, c.server)
+		go sender.Send()
+	}
 }
 
 func (c *Coordinator) sendCommit(info *TwoPCInfo) {
@@ -304,8 +375,9 @@ func (c *Coordinator) sendCommit(info *TwoPCInfo) {
 			sender := NewCommitRequestSender(request, serverId, c.server)
 			go sender.Send()
 		}
-
 	}
+
+	c.sendResultToCoordinator(info)
 }
 
 func (c *Coordinator) sendToParticipantsAndClient(info *TwoPCInfo) {
@@ -341,6 +413,18 @@ func (c *Coordinator) reverserReorderPrepare(request *rpc.PrepareResultRequest) 
 	log.Debugf("txn %v all conditions %v satisfy",
 		txnId, twoPCInfo.partitionPrepareResult[pId].prepareResult.Reorder)
 	twoPCInfo.partitionPrepareResult[pId].status = PREPARED
+	c.checkResult(twoPCInfo)
+}
+
+func (c *Coordinator) forwardPrepare(request *rpc.PrepareResultRequest) {
+	txnId := request.TxnId
+	twoPCInfo := c.txnStore[txnId]
+
+	twoPCInfo.hasForward = true
+	for _, txn := range request.Forward {
+		twoPCInfo.dependTxns[txn] = true
+	}
+
 	c.checkResult(twoPCInfo)
 }
 

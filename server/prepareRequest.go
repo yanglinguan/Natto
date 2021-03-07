@@ -99,5 +99,8 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	case REORDER_PREPARED:
 		twoPCInfo.reorderPrepare = true
 		coordinator.reorderPrepare(p.request)
+	case FORWARD_PREPARED:
+		twoPCInfo.forwardPrepare = true
+		coordinator.forwardPrepare(p.request)
 	}
 }

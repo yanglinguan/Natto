@@ -133,6 +133,33 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority,
 	s.txnStore[txnId].prepareResultRequest = prepareResultRequest
 }
 
+func (s *Storage) setForwardPrepare(op *ReadAndPrepareHighPriority, condition map[string]bool) {
+	txnId := op.txnId
+	if _, exist := s.txnStore[txnId]; !exist {
+		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
+	}
+
+	prepareResultRequest := &rpc.PrepareResultRequest{
+		TxnId:           txnId,
+		ReadKeyVerList:  make([]*rpc.KeyVersion, 0),
+		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
+		PartitionId:     int32(s.server.partitionId),
+		PrepareStatus:   int32(s.txnStore[txnId].status),
+		Forward:         make([]string, len(condition)),
+		Counter:         s.txnStore[txnId].prepareCounter,
+	}
+
+	s.txnStore[txnId].prepareCounter++
+	s.txnStore[txnId].preparedTime = time.Now()
+
+	i := 0
+	for c := range condition {
+		prepareResultRequest.Forward[i] = c
+		i++
+	}
+	s.txnStore[txnId].forwardPrepareResultRequest = prepareResultRequest
+}
+
 func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition map[int]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
@@ -228,17 +255,113 @@ func (s *Storage) checkConditionTxn(op *ReadAndPrepareHighPriority) (bool, map[s
 	return true, lowTxnList
 }
 
-func (s *Storage) conditionalPrepare(op *ReadAndPrepareHighPriority) {
+func (s *Storage) highHold(op *ReadAndPrepareHighPriority) bool {
+	if !s.server.config.ForwardReadToCoord() {
+		return false
+	}
+
+	for rk := range op.GetReadKeys() {
+		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
+			if !s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
+				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
+				return false
+			}
+		}
+	}
+
+	for wk := range op.GetWriteKeys() {
+		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
+			if !s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
+				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for read", op.txnId, txnId)
+				return false
+			}
+		}
+
+		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
+			if !s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
+				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (s *Storage) forwardPrepare(op *ReadAndPrepareHighPriority) {
+	if !s.highHold(op) {
+		return
+	}
+
+	s.forwardToCoordinator(op)
+
+	s.dependGraph.AddNode(op.txnId, op.keyMap)
+	parent := s.dependGraph.GetParent(op.txnId)
+
+	s.txnStore[op.txnId].status = FORWARD_PREPARED
+	s.txnStore[op.txnId].isForwardPrepare = true
+	s.kvStore.RecordPrepared(op)
+	s.setForwardPrepare(op, parent)
+	s.replicatePreparedResult(op.txnId)
+}
+
+func (s *Storage) forwardToCoordinator(op *ReadAndPrepareHighPriority) {
+	parent := s.dependGraph.GetParent(op.txnId)
+
+	// coorId -> [[txnId], [keys]]
+	coorServerId := make(map[int][][]string)
+	idx := make(map[int][]int32)
+	// dependent txn may have the same coordinator
+	// merge to one request
+	for txnId := range parent {
+		coorPId := s.txnStore[txnId].readAndPrepareRequestOp.GetCoordinatorPartitionId()
+		serverId := s.server.config.GetLeaderIdByPartitionId(coorPId)
+		if _, exist := coorServerId[serverId]; !exist {
+			coorServerId[serverId] = make([][]string, 2)
+			coorServerId[serverId][0] = make([]string, 0)
+			coorServerId[serverId][1] = make([]string, 0)
+		}
+		coorServerId[serverId][0] = append(coorServerId[serverId][0], txnId)
+		keyNum := 0
+		for key := range s.txnStore[txnId].readAndPrepareRequestOp.GetKeyMap() {
+			if _, exist := op.keyMap[key]; exist {
+				coorServerId[serverId][1] = append(coorServerId[serverId][1], key)
+				keyNum++
+			}
+		}
+
+		if _, exist := idx[serverId]; !exist {
+			idx[serverId] = make([]int32, 0)
+		}
+		idx[serverId] = append(idx[serverId], int32(keyNum))
+	}
+	thisCoorPId := s.txnStore[op.txnId].readAndPrepareRequestOp.GetCoordinatorPartitionId()
+	thisCoor := s.server.config.GetLeaderIdByPartitionId(thisCoorPId)
+
+	for coorId, parentList := range coorServerId {
+		request := &rpc.ForwardReadToCoordinator{
+			ClientId:   op.GetClientId(),
+			CoorId:     int32(thisCoor),
+			ParentTxns: parentList[0],
+			KeyList:    parentList[1],
+			Idx:        idx[coorId],
+		}
+		sender := NewForwardReadRequestToCoordinatorSender(request, coorId, s.server)
+		go sender.Send()
+	}
+
+}
+
+func (s *Storage) conditionalPrepare(op *ReadAndPrepareHighPriority) bool {
 	if !s.server.config.IsConditionalPrepare() {
 		log.Debugf("txn %v does not turn on conditional Prepare wait", op.txnId)
 		s.wait(op)
-		return
+		return false
 	}
 
 	prepare, lowTxnList := s.checkConditionTxn(op)
 	if !prepare {
 		s.wait(op)
-		return
+		return false
 	}
 
 	overlapPartition := s.findOverlapPartitionsWithLowPriorityTxn(op.txnId, lowTxnList)
@@ -248,7 +371,7 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareHighPriority) {
 			log.Debugf("txn %v condition is it self wait, condition %v",
 				op.txnId, overlapPartition)
 			s.wait(op)
-			return
+			return false
 		}
 	}
 
@@ -260,6 +383,7 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareHighPriority) {
 	s.replicatePreparedResult(op.txnId)
 	// add to the queue if condition fail it can prepare as usual
 	s.wait(op)
+	return true
 }
 
 func (s *Storage) wait(op LockingOp) {
@@ -327,7 +451,8 @@ func (s *Storage) checkPrepare(key string) {
 		// skip the aborted txn
 		if txnInfo, exist := s.txnStore[txnId]; exist {
 			if txnInfo.status.IsAbort() || txnInfo.status == COMMIT ||
-				(txnInfo.isConditionalPrepare && txnInfo.status == COMMIT) {
+				(txnInfo.isConditionalPrepare && txnInfo.status == COMMIT) ||
+				(txnInfo.isFastPrepare && txnInfo.status == COMMIT) {
 				log.Debugf("txn %v status: %v condition prepare: %v key: %v",
 					txnId, txnInfo.status, txnInfo.isConditionalPrepare, key)
 				s.kvStore.RemoveFromWaitingList(op)

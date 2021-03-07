@@ -18,9 +18,11 @@ type ReplicationMsg struct {
 	Status                  TxnStatus
 	MsgType                 ReplicationMsgType
 	WriteData               []*rpc.KeyValue
+	WriteDataFromLeader     []bool
 	PreparedReadKeyVersion  []*rpc.KeyVersion
 	PreparedWriteKeyVersion []*rpc.KeyVersion
 	Conditions              []int32
+	Forward                 []string
 	IsFastPathSuccess       bool
 	IsFromCoordinator       bool
 	TotalCommit             int

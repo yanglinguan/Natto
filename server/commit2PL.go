@@ -21,6 +21,10 @@ func (c *Commit2PL) Execute(storage *Storage) {
 	}
 
 	storage.replicateCommitResult(txnId, c.request.WriteKeyValList, COMMIT)
+	if storage.server.config.ForwardReadToCoord() {
+		keys := storage.txnStore[txnId].readAndPrepareRequestOp.GetKeyMap()
+		storage.dependGraph.RemoveNode(txnId, keys)
+	}
 	if storage.server.config.ReadBeforeCommitReplicate() {
 		storage.commit(txnId, COMMIT, c.request.WriteKeyValList)
 		storage.releaseKeyAndCheckPrepare(txnId)

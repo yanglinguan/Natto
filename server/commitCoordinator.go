@@ -31,7 +31,12 @@ func (c *CommitCoordinator) Execute(coordinator *Coordinator) {
 	log.Debugf("receive commit from client %v", txnId)
 
 	twoPCInfo := coordinator.initTwoPCInfoIfNotExist(txnId)
+	twoPCInfo.writeDataReceived = true
 	twoPCInfo.commitRequestOp = c
+	for i, kv := range c.request.WriteKeyValList {
+		twoPCInfo.writeDataMap[kv.Key] = kv
+		twoPCInfo.writeDataFromLeader[kv.Key] = c.request.ResultFromLeader[i]
+	}
 
 	if twoPCInfo.status.IsAbort() || twoPCInfo.status == COMMIT {
 		log.Debugf("TXN %v already aborted status %v", txnId, twoPCInfo.status.String())

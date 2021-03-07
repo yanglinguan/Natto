@@ -1,0 +1,23 @@
+package server
+
+import "Carousel-GTS/rpc"
+
+// op created when client send the stream rpc to coordinator
+// to receive the read result
+// this op will be only created once
+type ReadRequestFromCoordinator struct {
+	request *rpc.ReadRequestToCoordinator
+	stream  rpc.Carousel_ReadResultFromCoordinatorServer
+}
+
+func NewReadRequestFromCoordinator(request *rpc.ReadRequestToCoordinator, stream rpc.Carousel_ReadResultFromCoordinatorServer) *ReadRequestFromCoordinator {
+	r := &ReadRequestFromCoordinator{
+		request: request,
+		stream:  stream,
+	}
+	return r
+}
+
+func (r *ReadRequestFromCoordinator) Execute(c *Coordinator) {
+	c.clientReadRequestToCoordinator[r.request.ClientId] = r.stream
+}

@@ -35,6 +35,20 @@ service Carousel {
 
     // once expected leader is selected start to probe the latency
     rpc StartProbe(StartProbeReq) returns (Empty) {}
+
+    // stream rpc sending the read result from coordinator to client
+    // client sends to coordinator
+    rpc ReadResultFromCoordinator(ReadRequestToCoordinator) returns (stream ReadReplyFromCoordinator) {}
+    // client sends write data to coordinator
+    rpc WriteData(WriteDataRequest) returns (Empty) {}
+    // data server sends to coordinator
+    rpc ForwardReadRequestToCoordinator(ForwardReadToCoordinator) returns (Empty) {}
+    rpc CommitResultToCoordinator(CommitResult) returns (Empty) {}
+}
+
+message CommitResult {
+    string txnId = 1;
+    bool result = 2;
 }
 
 message Transaction {
@@ -76,6 +90,25 @@ message ReadAndPrepareReply {
     int32 leaderId = 2; // partition leader's Id
     bool isLeader = 3;
     int32 status = 4;
+    string txnId = 5;
+}
+
+message ReadReplyFromCoordinator {
+    repeated KeyValueVersion keyValVerList = 1;
+    string txnId = 2;
+}
+
+message ForwardReadToCoordinator {
+    string clientId = 1;
+    string txnId = 2;
+    int32 coorId = 3;
+    repeated string parentTxns = 4;
+    repeated int32 idx = 5;
+    repeated string keyList = 6;
+}
+
+message ReadRequestToCoordinator {
+    string clientId = 1;
 }
 
 message PrepareResultRequest {
@@ -86,7 +119,8 @@ message PrepareResultRequest {
     int32 prepareStatus = 5;
     repeated int32 conditions = 6;
     repeated string reorder = 7;
-    int32 counter = 8;
+    repeated string forward = 8;
+    int32 counter = 9;
 }
 
 message PrepareResultReply {
@@ -140,10 +174,11 @@ message ReverseAgreementReply {
 message CommitRequest {
     string txnId = 1;
     repeated KeyValue writeKeyValList = 2;
-    bool fromCoordinator = 3;
-    repeated KeyVersion readKeyVerList = 4;
-    bool isReadAnyReplica = 5;
-    bool isFastPathSuccess = 6;
+    repeated bool resultFromLeader = 3;
+    bool fromCoordinator = 4;
+    repeated KeyVersion readKeyVerList = 5;
+    bool isReadAnyReplica = 6;
+    bool isFastPathSuccess = 7;
 }
 
 message CommitReply {
@@ -199,4 +234,9 @@ message ProbeTimeReply {
 
 message StartProbeReq {
 
+}
+
+message WriteDataRequest {
+    string txnId = 1;
+    repeated KeyValue writeKeyValList = 2;
 }

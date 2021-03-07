@@ -22,11 +22,12 @@ func (w WriteDataReplication) Execute(coordinator *Coordinator) {
 	}
 
 	replicationMsg := ReplicationMsg{
-		TxnId:             w.txnId,
-		Status:            coordinator.txnStore[w.txnId].status,
-		MsgType:           WriteDataMsg,
-		WriteData:         coordinator.txnStore[w.txnId].commitRequestOp.request.WriteKeyValList,
-		IsFromCoordinator: true,
+		TxnId:               w.txnId,
+		Status:              coordinator.txnStore[w.txnId].status,
+		MsgType:             WriteDataMsg,
+		WriteData:           coordinator.txnStore[w.txnId].commitRequestOp.request.WriteKeyValList,
+		WriteDataFromLeader: coordinator.txnStore[w.txnId].commitRequestOp.request.ResultFromLeader,
+		IsFromCoordinator:   true,
 	}
 
 	var buf bytes.Buffer

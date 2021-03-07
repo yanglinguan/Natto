@@ -51,12 +51,14 @@ func (op *Commit) Execute(client *Client) {
 	}
 
 	writeKeyValueList := make([]*rpc.KeyValue, len(op.writeKeyValue))
+	readFromLeader := make([]bool, len(op.writeKeyValue))
 	i := 0
 	for k, v := range op.writeKeyValue {
 		writeKeyValueList[i] = &rpc.KeyValue{
 			Key:   k,
 			Value: v,
 		}
+		readFromLeader[i] = execution.readFromLeader[k]
 		i++
 	}
 	readKeyVerList := make([]*rpc.KeyVersion, 0)
@@ -76,6 +78,7 @@ func (op *Commit) Execute(client *Client) {
 	request := &rpc.CommitRequest{
 		TxnId:            execution.rpcTxnId,
 		WriteKeyValList:  writeKeyValueList,
+		ResultFromLeader: readFromLeader,
 		FromCoordinator:  false,
 		ReadKeyVerList:   readKeyVerList,
 		IsReadAnyReplica: execution.readFromReplica,

@@ -14,6 +14,7 @@ const (
 	CONDITIONAL_PREPARED
 	REORDER_PREPARED
 	REVERSE_REORDER_PREPARED
+	FORWARD_PREPARED
 	PREPARED
 	COMMIT
 	// mark by partition server
@@ -29,12 +30,13 @@ const (
 	CLIENT_ABORT
 	READ_VERSION_ABORT
 	CONDITION_ABORT
+	FORWARD_ABORT
 )
 
 func (t TxnStatus) IsAbort() bool {
 	switch t {
 	case PASS_TIMESTAMP_ABORT, EARLY_ABORT, CONFLICT_ABORT, WAITING_ABORT,
-		READ_VERSION_ABORT, CONDITION_ABORT, CLIENT_ABORT, WOUND_ABORT:
+		READ_VERSION_ABORT, CONDITION_ABORT, CLIENT_ABORT, WOUND_ABORT, FORWARD_ABORT:
 		return true
 	default:
 		return false
@@ -43,7 +45,7 @@ func (t TxnStatus) IsAbort() bool {
 
 func (t TxnStatus) IsPrepare() bool {
 	switch t {
-	case PREPARED, REVERSE_REORDER_PREPARED, REORDER_PREPARED, CONDITIONAL_PREPARED:
+	case PREPARED, REVERSE_REORDER_PREPARED, REORDER_PREPARED, CONDITIONAL_PREPARED, FORWARD_PREPARED:
 		return true
 	default:
 		return false
@@ -97,6 +99,7 @@ type TxnInfo struct {
 	readAndPrepareRequestOp          ReadAndPrepareOp
 	prepareResultRequest             *rpc.PrepareResultRequest
 	conditionalPrepareResultRequest  *rpc.PrepareResultRequest
+	forwardPrepareResultRequest      *rpc.PrepareResultRequest
 	status                           TxnStatus
 	receiveFromCoordinator           bool
 	sendToClient                     bool
@@ -114,6 +117,7 @@ type TxnInfo struct {
 	selfAbort                        bool
 	prepareCounter                   int32
 	isConditionalPrepare             bool
+	isForwardPrepare                 bool
 	maxQueueLen                      int
 }
 

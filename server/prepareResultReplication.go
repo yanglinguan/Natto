@@ -40,6 +40,8 @@ func (p *PrepareResultReplicationOp) Execute(storage *Storage) {
 			replicationMsg.PreparedReadKeyVersion = storage.txnStore[p.txnId].conditionalPrepareResultRequest.ReadKeyVerList
 			replicationMsg.PreparedWriteKeyVersion = storage.txnStore[p.txnId].conditionalPrepareResultRequest.WriteKeyVerList
 			replicationMsg.Conditions = storage.txnStore[p.txnId].conditionalPrepareResultRequest.Conditions
+		} else if replicationMsg.Status == FORWARD_PREPARED {
+			replicationMsg.Forward = storage.txnStore[p.txnId].forwardPrepareResultRequest.Forward
 		} else {
 			replicationMsg.PreparedReadKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.ReadKeyVerList
 			replicationMsg.PreparedWriteKeyVersion = storage.txnStore[p.txnId].prepareResultRequest.WriteKeyVerList

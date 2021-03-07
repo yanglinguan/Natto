@@ -10,6 +10,59 @@ import (
 	"time"
 )
 
+//type ReadAndPrepareResultSender struct {
+//	stream rpc.Carousel_ReadAndPrepareServer
+//	readResult chan *rpc.ReadAndPrepareReply
+//}
+//
+//func NewReadAndPrepareResultSender(stream rpc.Carousel_ReadAndPrepareServer) *ReadAndPrepareResultSender {
+//	s := &ReadAndPrepareResultSender{
+//		stream: stream,
+//		readResult: make(chan *rpc.ReadAndPrepareReply, 102400),
+//	}
+//	go s.run()
+//	return s
+//}
+//
+//func (r *ReadAndPrepareResultSender) run() {
+//	for {
+//		result := <- r.readResult
+//		err := r.stream.Send(result)
+//		if err != nil {
+//			logrus.Fatalf("send error %v", err)
+//		}
+//	}
+//}
+//
+//func (r *ReadAndPrepareResultSender) Send(result *rpc.ReadAndPrepareReply) {
+//	r.readResult <- result
+//}
+//
+//func (server *Server) ReadAndPrepare(stream rpc.Carousel_ReadAndPrepareServer) error {
+//	logrus.Println("Started stream")
+//	sender := NewReadAndPrepareResultSender(stream)
+//	for {
+//		request, err := stream.Recv()
+//		logrus.Println("Received value")
+//		if err == io.EOF {
+//			return nil
+//		}
+//		if err != nil {
+//			return err
+//		}
+//
+//		if int(request.Txn.CoordPartitionId) == server.partitionId {
+//			op := NewReadAndPrepareCoordinator(request)
+//			server.coordinator.AddOperation(op)
+//		}
+//
+//		if !request.IsNotParticipant {
+//			requestOp := server.operationCreator.createReadAndPrepareOp(request, sender)
+//			server.scheduler.AddOperation(requestOp)
+//		}
+//	}
+//}
+
 func (server *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
 	logrus.Infof("RECEIVE ReadAndPrepare %v readOnly %v",
@@ -270,5 +323,36 @@ func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq
 	}
 
 	server.coordinator.startProbe()
+	return &rpc.Empty{}, nil
+}
+
+// client sends to coordinator
+func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
+	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)
+	op := NewReadRequestFromCoordinator(request, srv)
+	server.coordinator.AddOperation(op)
+	return nil
+}
+
+// client sends write data to coordinator
+func (server *Server) WriteData(cts context.Context, request *rpc.WriteDataRequest) (*rpc.Empty, error) {
+	logrus.Debugf("server %v receive write data for txn %v", server.serverAddress, request.TxnId, request.TxnId)
+	op := NewWriteDataOp(request)
+	server.coordinator.AddOperation(op)
+	return &rpc.Empty{}, nil
+}
+
+func (server *Server) ForwardReadRequestToCoordinator(cts context.Context, request *rpc.ForwardReadToCoordinator) (*rpc.Empty, error) {
+	logrus.Debugf("server %v receive forward read request for txn %v", server.serverAddress, request.TxnId)
+	op := NewForwardReadRequestToCoordinator(request)
+	server.coordinator.AddOperation(op)
+	return &rpc.Empty{}, nil
+}
+
+func (server *Server) CommitResultToCoordinator(cts context.Context, request *rpc.CommitResult) (*rpc.Empty, error) {
+	logrus.Debugf("server %v receives commitResultToCoordinator request for txn %v commit result %v",
+		server.serverAddress, request.TxnId, request.Result)
+	op := NewCommitResultToCoordinator(request)
+	server.coordinator.AddOperation(op)
 	return &rpc.Empty{}, nil
 }

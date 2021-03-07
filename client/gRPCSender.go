@@ -93,10 +93,10 @@ func (s *ReadOnlySender) Send() {
 		defer conn.Close(clientConn)
 	}
 
-	client := rpc.NewCarouselClient(clientConn)
+	c := rpc.NewCarouselClient(clientConn)
 	logrus.Infof("SEND ReadOnly %v to %v (%v)", s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId)
 
-	reply, err := client.ReadOnly(context.Background(), s.request)
+	reply, err := c.ReadOnly(context.Background(), s.request)
 	if err != nil {
 		if dstServerId, handled := utils.HandleError(err); handled {
 			logrus.Debugf("resend ReadOnly %v to %v", s.request.Txn.TxnId, dstServerId)
@@ -141,9 +141,9 @@ func (c *CommitRequestSender) Send() {
 		defer conn.Close(clientConn)
 	}
 
-	client := rpc.NewCarouselClient(clientConn)
+	cli := rpc.NewCarouselClient(clientConn)
 	logrus.Infof("SEND Commit %v to %v", c.request.TxnId, conn.GetDstAddr())
-	reply, err := client.Commit(context.Background(), c.request)
+	reply, err := cli.Commit(context.Background(), c.request)
 	if err == nil {
 		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, conn.GetDstAddr())
 		op := NewCommitReplyOp(c.txnId, reply)
@@ -312,6 +312,41 @@ func (p *StartProbeSender) Send() {
 			logrus.Debugf("resend startProbe to %v", dstServerId)
 			p.dstServerId = dstServerId
 			p.Send()
+		} else {
+			logrus.Fatalf("cannot send startProbe server %v: %v", conn.GetDstAddr(), err)
+		}
+	}
+}
+
+type WriteDataSender struct {
+	request     *rpc.WriteDataRequest
+	dstServerId int
+	client      *Client
+}
+
+func NewWriteDataSender(request *rpc.WriteDataRequest, dstServerId int, client *Client) *WriteDataSender {
+	r := &WriteDataSender{
+		request:     request,
+		dstServerId: dstServerId,
+		client:      client,
+	}
+	return r
+}
+
+func (w *WriteDataSender) Send() {
+	conn := w.client.connections[w.dstServerId]
+	clientConn := conn.GetConn()
+	if conn.GetPoolSize() > 0 {
+		defer conn.Close(clientConn)
+	}
+
+	client := rpc.NewCarouselClient(clientConn)
+	_, err := client.WriteData(context.Background(), w.request)
+	if err != nil {
+		if dstServerId, handled := utils.HandleError(err); handled {
+			logrus.Debugf("resend startProbe to %v", dstServerId)
+			w.dstServerId = dstServerId
+			w.Send()
 		} else {
 			logrus.Fatalf("cannot send startProbe server %v: %v", conn.GetDstAddr(), err)
 		}

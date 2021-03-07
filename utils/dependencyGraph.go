@@ -10,6 +10,7 @@ type Graph struct {
 	// t1 -> (t2, t3): t1 should complete after t2 and t3
 	revAdjList map[string]map[string]bool
 	inDegree   map[string]int
+	outDegree  map[string]int
 
 	noDependency []string
 
@@ -21,6 +22,7 @@ func NewDependencyGraph() *Graph {
 		adjList:      make(map[string]map[string]bool),
 		revAdjList:   make(map[string]map[string]bool),
 		inDegree:     make(map[string]int),
+		outDegree:    make(map[string]int),
 		noDependency: make([]string, 0),
 		keyToTxn:     make(map[string]map[string]bool),
 	}
@@ -33,6 +35,11 @@ func (g *Graph) AddNode(txnId string, keys map[string]bool) bool {
 		if _, exist := g.inDegree[txnId]; !exist {
 			g.inDegree[txnId] = 0
 		}
+
+		if _, exist := g.outDegree[txnId]; !exist {
+			g.inDegree[txnId] = 0
+		}
+
 		if _, exist := g.adjList[txnId]; !exist {
 			g.adjList[txnId] = make(map[string]bool)
 		}
@@ -45,7 +52,10 @@ func (g *Graph) AddNode(txnId string, keys map[string]bool) bool {
 		}
 
 		for txn := range g.keyToTxn[key] {
-			g.addEdge(txn, txnId)
+			if g.outDegree[txn] == 0 {
+				g.addEdge(txn, txnId)
+				g.outDegree[txn]++
+			}
 		}
 		g.keyToTxn[key][txnId] = true
 	}
@@ -85,7 +95,15 @@ func (g *Graph) addEdge(txn1 string, txn2 string) {
 		g.inDegree[txn1] = 0
 	}
 
+	if _, exist := g.outDegree[txn1]; !exist {
+		g.outDegree[txn1] = 0
+	}
+	if _, exist := g.outDegree[txn1]; !exist {
+		g.outDegree[txn1] = 0
+	}
+
 	g.inDegree[txn2]++
+	g.outDegree[txn1]++
 }
 
 func (g *Graph) GetNext() []string {
@@ -121,6 +139,7 @@ func (g *Graph) remove(txnId string) {
 			}
 			g.adjList[parent][child] = true
 			g.revAdjList[child][parent] = true
+			g.outDegree[parent]++
 		}
 		if g.inDegree[child] == 0 {
 			logrus.Debugf("txn %v can commit add to queue", child)
@@ -131,11 +150,13 @@ func (g *Graph) remove(txnId string) {
 
 	for parent := range g.revAdjList[txnId] {
 		delete(g.adjList[parent], txnId)
+		g.outDegree[parent]--
 	}
 
 	delete(g.adjList, txnId)
 	delete(g.revAdjList, txnId)
 	delete(g.inDegree, txnId)
+	delete(g.outDegree, txnId)
 }
 
 func (g *Graph) GetConflictTxn(txnId string) []string {
@@ -156,4 +177,8 @@ func (g *Graph) dfs(cur string, visited map[string]bool, stack *[]string) {
 	}
 
 	*stack = append(*stack, cur)
+}
+
+func (g *Graph) GetParent(txnId string) map[string]bool {
+	return g.revAdjList[txnId]
 }

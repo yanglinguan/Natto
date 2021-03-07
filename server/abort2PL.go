@@ -56,6 +56,10 @@ func (a Abort2PL) abortProcessedTxn(storage *Storage) {
 		storage.txnStore[txnId].status = COORDINATOR_ABORT
 		storage.replicateCommitResult(txnId, make([]*rpc.KeyValue, 0), COORDINATOR_ABORT)
 		storage.releaseKeyAndCheckPrepare(txnId)
+		if storage.server.config.ForwardReadToCoord() {
+			keys := storage.txnStore[txnId].readAndPrepareRequestOp.GetKeyMap()
+			storage.dependGraph.RemoveNode(txnId, keys)
+		}
 		return
 	}
 
