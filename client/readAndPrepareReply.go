@@ -51,6 +51,8 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 	}
 
 	if !execution.receiveAllReadResult() {
+		logrus.Debugf("txn %v received %v expect %v",
+			op.reply.TxnId, len(execution.tmpReadResult), execution.readKeyNum)
 		return
 	}
 

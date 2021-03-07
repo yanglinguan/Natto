@@ -345,6 +345,8 @@ func (s *Storage) forwardToCoordinator(op *ReadAndPrepareHighPriority) {
 			KeyList:    parentList[1],
 			Idx:        idx[coorId],
 		}
+		log.Debugf("txn %v forward request txn %v 's coord %v , keys: %v , idx: %v ",
+			op.txnId, parentList[0], parentList[1], idx[coorId])
 		sender := NewForwardReadRequestToCoordinatorSender(request, coorId, s.server)
 		go sender.Send()
 	}

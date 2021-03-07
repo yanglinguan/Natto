@@ -33,6 +33,7 @@ func NewCommitOp(txnId string, writeKeyValue map[string]string) *Commit {
 
 func (op *Commit) Execute(client *Client) {
 	//ongoingTxn := client.txnStore[op.txnId]
+	logrus.Debugf("txn %v execute commit op", op.txnId)
 	execution := client.getCurrentExecution(op.txnId)
 	execution.setCommitOp(op)
 
