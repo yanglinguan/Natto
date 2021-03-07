@@ -67,12 +67,12 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 			// only send to the leader of non-participant partition
 			sId := client.Config.GetLeaderIdByPartitionId(pId)
 			sender := NewReadAndPrepareSender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
-			sender.Send()
+			go sender.Send()
 		} else {
 			sIdList := client.Config.GetServerIdListByPartitionId(pId)
 			for _, sId := range sIdList {
 				sender := NewReadAndPrepareSender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
-				sender.Send()
+				go sender.Send()
 			}
 		}
 	}
