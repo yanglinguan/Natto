@@ -55,7 +55,8 @@ func (s *ReadAndPrepareSender) Send() {
 			logrus.Fatalf("cannot send txn %v readAndPrepare to server %v: %v", s.request.Txn.TxnId, conn.GetDstAddr(), err)
 		}
 	} else {
-		logrus.Debugf("RECEIVE ReadResult %v from %v status %v", s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status)
+		logrus.Debugf("RECEIVE ReadResult %v from %v status %v kv %v",
+			s.request.Txn.TxnId, conn.GetDstAddr(), reply.Status, reply.KeyValVerList)
 
 		op := NewReadAndPrepareReplyOp(s.txnId, s.executionCount, reply)
 		s.client.AddOperation(op)
