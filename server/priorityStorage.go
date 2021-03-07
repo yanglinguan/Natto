@@ -336,9 +336,10 @@ func (s *Storage) forwardToCoordinator(op *ReadAndPrepareHighPriority) {
 	}
 	thisCoorPId := s.txnStore[op.txnId].readAndPrepareRequestOp.GetCoordinatorPartitionId()
 	thisCoor := s.server.config.GetLeaderIdByPartitionId(thisCoorPId)
-
+	log.Debugf("txn %v forward read to coord %v", op.txnId, coorServerId)
 	for coorId, parentList := range coorServerId {
 		request := &rpc.ForwardReadToCoordinator{
+			TxnId:      op.txnId,
 			ClientId:   op.GetClientId(),
 			CoorId:     int32(thisCoor),
 			ParentTxns: parentList[0],
