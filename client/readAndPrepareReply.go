@@ -26,6 +26,10 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 		return
 	}
 
+	if len(op.reply.KeyValVerList) == 0 {
+		return
+	}
+
 	execution := client.getExecution(op.txnId, op.executionCount)
 
 	for _, kv := range op.reply.KeyValVerList {
@@ -60,6 +64,7 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 		logrus.Debugf("txn %v resend write data %v", op.reply.TxnId, op.reply.KeyValVerList)
 		client.reSendWriteData(op.reply.TxnId, op.reply.KeyValVerList)
 	} else {
+		logrus.Debugf("txn %v unblock read", op.reply.TxnId)
 		execution.readAndPrepareOp.Unblock()
 	}
 }
