@@ -70,6 +70,8 @@ func (s *Storage) sendPrepareResult(txnId string, status TxnStatus) {
 	prepareResultRequest := s.txnStore[txnId].prepareResultRequest
 	if status == CONDITIONAL_PREPARED {
 		prepareResultRequest = s.txnStore[txnId].conditionalPrepareResultRequest
+	} else if status == FORWARD_PREPARED {
+		prepareResultRequest = s.txnStore[txnId].forwardPrepareResultRequest
 	}
 	sender := NewPrepareResultSender(prepareResultRequest, dstServerId, s.server)
 	go sender.Send()
