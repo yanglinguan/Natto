@@ -52,6 +52,7 @@ func nextTxnWaitTime(client *client.Client) time.Duration {
 // or when the number of txn reaches the total txn specified in config file ("totalTxn")
 func (o *OpenLoopExperiment) Execute() {
 	o.client.Start()
+	time.Sleep(10 * time.Second)
 	// transaction sending rate (txn/s)
 	//txnRate := o.client.Config.GetTxnRate()
 	// waiting time between sending two transactions
