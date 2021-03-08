@@ -16,12 +16,13 @@ func NewReadReplyFromCoordinatorOp(reply *rpc.ReadReplyFromCoordinator) *ReadRep
 
 func (op *ReadReplyFromCoordinator) Execute(client *Client) {
 	count := client.getExecutionCountByTxnId(op.result.TxnId)
-	if client.getCurrentExecutionCount(op.result.TxnId) != count {
+	clientTxnId := client.getTxnIdByServerTxnId(op.result.TxnId)
+	if client.getCurrentExecutionCount(clientTxnId) != count {
 		logrus.Debugf("txn %v current execution count != op execution count ignore",
 			op.result.TxnId)
 		return
 	}
-	execution := client.getCurrentExecution(op.result.TxnId)
+	execution := client.getCurrentExecution(clientTxnId)
 	if execution.receiveAllReadResult() {
 		logrus.Debugf("txn %v already receive all read result", op.result.TxnId)
 		return
