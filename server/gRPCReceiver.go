@@ -6,6 +6,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"log"
 	"strconv"
 	"time"
 )
@@ -329,7 +330,24 @@ func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq
 // client sends to coordinator
 func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
 	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)
-	go server.coordinator.sendForwardResult(request.ClientId, srv)
+	//go server.coordinator.sendForwardResult(request.ClientId, srv)
+	if _, exist := server.coordinator.clientReadRequestChan[request.ClientId]; !exist {
+		server.coordinator.clientReadRequestChan[request.ClientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+	}
+	clientChan := server.coordinator.clientReadRequestChan[request.ClientId]
+	ack := &rpc.ReadReplyFromCoordinator{
+		KeyValVerList: nil,
+		TxnId:         "ACK",
+	}
+	clientChan <- ack
+	for {
+		result := <-clientChan
+		err := srv.Send(result)
+		if err != nil {
+			log.Fatalf("stream cannot send to client %v txn %v error %v",
+				request.ClientId, result.TxnId, err)
+		}
+	}
 	//op := NewReadRequestFromCoordinator(request, srv)
 	//server.coordinator.AddOperation(op)
 	return nil
