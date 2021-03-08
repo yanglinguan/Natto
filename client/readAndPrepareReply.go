@@ -43,7 +43,7 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 			logrus.Debugf("txn %v already receive key %v and same version",
 				op.txnId, kv.Key)
 			execution.readFromLeader[kv.Key] = true
-			return
+			continue
 		}
 		execution.tmpReadResult[kv.Key] = kv
 		//execution.readFromLeader[kv.Key] = op.reply.IsLeader
