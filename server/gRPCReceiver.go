@@ -326,17 +326,21 @@ func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq
 	return &rpc.Empty{}, nil
 }
 
-// client sends to coordinator
-func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
-	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)
-	op := NewReadRequestFromCoordinator(request, srv)
+func (server *Server) sendAck(clientId string, srv rpc.Carousel_ReadResultFromCoordinatorServer) {
 	err := srv.Send(&rpc.ReadReplyFromCoordinator{
 		KeyValVerList: nil,
 		TxnId:         "ACK",
 	})
 	if err != nil {
-		logrus.Fatalf("cannot send ack to client %v", request.ClientId)
+		logrus.Fatalf("cannot send ack to client %v", clientId)
 	}
+}
+
+// client sends to coordinator
+func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
+	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)
+	op := NewReadRequestFromCoordinator(request, srv)
+	server.sendAck(request.ClientId, srv)
 	server.coordinator.AddOperation(op)
 	return nil
 }
