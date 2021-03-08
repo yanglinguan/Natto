@@ -2,7 +2,6 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
-	"github.com/sirupsen/logrus"
 )
 
 // op created when client send the stream rpc to coordinator
@@ -22,12 +21,12 @@ func NewReadRequestFromCoordinator(request *rpc.ReadRequestToCoordinator, stream
 }
 
 func (r *ReadRequestFromCoordinator) Execute(c *Coordinator) {
-	c.clientReadRequestToCoordinator[r.request.ClientId] = r.stream
-	err := c.clientReadRequestToCoordinator[r.request.ClientId].Send(&rpc.ReadReplyFromCoordinator{
-		KeyValVerList: nil,
-		TxnId:         "ACK",
-	})
-	if err != nil {
-		logrus.Fatalf("cannot send ack to client %v", r.request.ClientId)
-	}
+	//c.clientReadRequestToCoordinator[r.request.ClientId] = r.stream
+	//err := c.clientReadRequestToCoordinator[r.request.ClientId].Send(&rpc.ReadReplyFromCoordinator{
+	//	KeyValVerList: nil,
+	//	TxnId:         "ACK",
+	//})
+	//if err != nil {
+	//	logrus.Fatalf("cannot send ack to client %v", r.request.ClientId)
+	//}
 }
