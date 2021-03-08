@@ -42,7 +42,8 @@ type TwoPCInfo struct {
 
 	forwardPrepare bool
 	// this txn commit if and only if dependTxns commit
-	dependTxns map[string]bool
+	dependTxnByPId map[int]map[string]bool
+	dependTxns     map[string]bool
 	// when this txn commit or abort, it should notify the txns' coordinator
 	notifyTxns map[string]int
 	// the txns that waiting the result of this txn
@@ -178,6 +179,7 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 			writeDataFromLeader:      make(map[string]bool),
 			conditionGraph:           utils.NewDepGraph(c.server.config.GetTotalPartition()),
 			dependTxns:               make(map[string]bool),
+			dependTxnByPId:           make(map[int]map[string]bool),
 			waitingTxns:              make(map[string]bool),
 			waitingWriteDataTxn:      make(map[string]*forwardReadWaiting),
 			notifyTxns:               make(map[string]int),
@@ -356,6 +358,15 @@ func (c *Coordinator) sendAbort(info *TwoPCInfo) {
 	c.sendResultToCoordinator(info)
 }
 
+func (c *Coordinator) sendResultToCoordinatorId(info *TwoPCInfo, dstId int) {
+	request := &rpc.CommitResult{
+		TxnId:  info.txnId,
+		Result: info.status == COMMIT,
+	}
+	sender := NewCommitResultToCoordinatorSender(request, dstId, c.server)
+	go sender.Send()
+}
+
 func (c *Coordinator) sendResultToCoordinator(info *TwoPCInfo) {
 	for txn, dstId := range info.notifyTxns {
 		request := &rpc.CommitResult{
@@ -481,8 +492,12 @@ func (c *Coordinator) forwardPrepare(request *rpc.PrepareResultRequest) {
 	twoPCInfo := c.txnStore[txnId]
 
 	twoPCInfo.hasForward = true
+	if _, exist := twoPCInfo.dependTxnByPId[int(request.PartitionId)]; !exist {
+		twoPCInfo.dependTxnByPId[int(request.PartitionId)] = make(map[string]bool)
+	}
 	for _, txn := range request.Forward {
 		twoPCInfo.dependTxns[txn] = true
+		twoPCInfo.dependTxnByPId[int(request.PartitionId)][txn] = true
 	}
 
 	c.checkResult(twoPCInfo)

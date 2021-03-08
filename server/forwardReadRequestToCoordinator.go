@@ -2,6 +2,7 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"github.com/sirupsen/logrus"
 )
 
 type ForwardReadRequestToCoordinator struct {
@@ -27,6 +28,12 @@ func (r *ForwardReadRequestToCoordinator) Execute(c *Coordinator) {
 			keys = append(keys, key)
 		}
 		start += num
+		twoPCInfo.notifyTxns[r.request.TxnId] = int(r.request.CoorId)
+		if twoPCInfo.status == COMMIT || twoPCInfo.status.IsAbort() {
+			logrus.Debugf("txn %v already commit/abort send result %v to server %v for txn %v ",
+				twoPCInfo.txnId, twoPCInfo.status, r.request.TxnId)
+			c.sendResultToCoordinatorId(twoPCInfo, int(r.request.CoorId))
+		}
 		if twoPCInfo.writeDataReceived {
 			c.sendReadResultToClient(twoPCInfo, r.request.TxnId, r.request.ClientId, keys)
 		} else {
@@ -35,6 +42,5 @@ func (r *ForwardReadRequestToCoordinator) Execute(c *Coordinator) {
 				clientId: r.request.ClientId,
 			}
 		}
-		twoPCInfo.notifyTxns[r.request.TxnId] = int(r.request.CoorId)
 	}
 }

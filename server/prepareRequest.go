@@ -89,6 +89,12 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 
 	switch status {
 	case PREPARED:
+		if txns, exist := twoPCInfo.dependTxnByPId[pId]; exist {
+			for depTxn := range txns {
+				delete(twoPCInfo.dependTxns, depTxn)
+			}
+			delete(twoPCInfo.dependTxnByPId, pId)
+		}
 		coordinator.checkResult(twoPCInfo)
 	case CONDITIONAL_PREPARED:
 		twoPCInfo.conditionPrepare = true
