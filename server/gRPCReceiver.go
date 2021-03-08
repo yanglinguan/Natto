@@ -329,8 +329,9 @@ func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq
 // client sends to coordinator
 func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
 	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)
-	op := NewReadRequestFromCoordinator(request, srv)
-	server.coordinator.AddOperation(op)
+	go server.coordinator.sendForwardResult(request.ClientId, srv)
+	//op := NewReadRequestFromCoordinator(request, srv)
+	//server.coordinator.AddOperation(op)
 	return nil
 }
 

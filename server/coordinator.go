@@ -60,7 +60,7 @@ type forwardReadWaiting struct {
 func (c *Coordinator) sendReadResultToClient(info *TwoPCInfo, txnId string, clientId string, keys []string) {
 	log.Debugf("txn %v 's coord %v send txn %v read keys %v to client %v",
 		info.txnId, c.server.serverId, txnId, keys, clientId)
-	stream := c.clientReadRequestToCoordinator[clientId]
+	//stream := c.clientReadRequestToCoordinator[clientId]
 	readResult := &rpc.ReadReplyFromCoordinator{
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 		TxnId:         txnId,
@@ -74,11 +74,11 @@ func (c *Coordinator) sendReadResultToClient(info *TwoPCInfo, txnId string, clie
 		}
 		readResult.KeyValVerList = append(readResult.KeyValVerList, r)
 	}
-
-	err := stream.Send(readResult)
-	if err != nil {
-		log.Fatalf("stream send read result error %v txn %v to client %v", err, txnId, clientId)
-	}
+	c.clientReadRequestChan[clientId] <- readResult
+	//err := stream.Send(readResult)
+	//if err != nil {
+	//	log.Fatalf("stream send read result error %v txn %v to client %v", err, txnId, clientId)
+	//}
 }
 
 type Coordinator struct {
@@ -87,19 +87,37 @@ type Coordinator struct {
 
 	operation chan CoordinatorOperation
 
-	clientReadRequestToCoordinator map[string]rpc.Carousel_ReadResultFromCoordinatorServer
-	latencyPredictor               *latencyPredictor.LatencyPredictor
-	probeC                         chan *LatInfo
-	probeTimeC                     chan *LatTimeInfo
+	clientReadRequestChan map[string]chan *rpc.ReadReplyFromCoordinator
+
+	//clientReadRequestToCoordinator map[string]rpc.Carousel_ReadResultFromCoordinatorServer
+	latencyPredictor *latencyPredictor.LatencyPredictor
+	probeC           chan *LatInfo
+	probeTimeC       chan *LatTimeInfo
+}
+
+func (c *Coordinator) sendForwardResult(clientId string, srv rpc.Carousel_ReadResultFromCoordinatorServer) {
+	if _, exist := c.clientReadRequestChan[clientId]; !exist {
+		c.clientReadRequestChan[clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+	}
+	clientChan := c.clientReadRequestChan[clientId]
+	for {
+		result := <-clientChan
+		err := srv.Send(result)
+		if err != nil {
+			log.Fatalf("stream cannot send to client %v txn %v error %v",
+				clientId, result.TxnId, err)
+		}
+	}
 }
 
 func NewCoordinator(server *Server) *Coordinator {
 	queueLen := server.config.GetQueueLen()
 	c := &Coordinator{
-		txnStore:                       make(map[string]*TwoPCInfo),
-		server:                         server,
-		operation:                      make(chan CoordinatorOperation, queueLen),
-		clientReadRequestToCoordinator: make(map[string]rpc.Carousel_ReadResultFromCoordinatorServer),
+		txnStore:              make(map[string]*TwoPCInfo),
+		server:                server,
+		operation:             make(chan CoordinatorOperation, queueLen),
+		clientReadRequestChan: make(map[string]chan *rpc.ReadReplyFromCoordinator),
+		//clientReadRequestToCoordinator: make(map[string]rpc.Carousel_ReadResultFromCoordinatorServer),
 	}
 
 	go c.executeOperations()
