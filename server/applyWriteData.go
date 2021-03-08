@@ -32,7 +32,10 @@ func (w ApplyWriteData) Execute(coordinator *Coordinator) {
 				continue
 			}
 			twoPCInfo.writeDataMap[kv.Key] = kv
-			twoPCInfo.writeDataFromLeader[kv.Key] = w.msg.WriteDataFromLeader[i]
+			twoPCInfo.writeDataFromLeader[kv.Key] = true
+			if len(w.msg.WriteDataFromLeader) > 0 {
+				twoPCInfo.writeDataFromLeader[kv.Key] = w.msg.WriteDataFromLeader[i]
+			}
 		}
 
 		for _, kv := range w.msg.WriteData {
