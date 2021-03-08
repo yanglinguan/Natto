@@ -156,6 +156,10 @@ func (c *Client) receiveReadResultFromCoordinatorStream(i int) {
 
 		logrus.Debugf("Receive read result from coor: %v from partition %v leader",
 			resp.TxnId, i)
+		if resp.TxnId == "ACK" {
+			logrus.Debugf("receive ack")
+			continue
+		}
 		op := NewReadReplyFromCoordinatorOp(resp)
 		c.AddOperation(op)
 	}
