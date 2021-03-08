@@ -100,6 +100,11 @@ func (c *Coordinator) sendForwardResult(clientId string, srv rpc.Carousel_ReadRe
 		c.clientReadRequestChan[clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
 	}
 	clientChan := c.clientReadRequestChan[clientId]
+	ack := &rpc.ReadReplyFromCoordinator{
+		KeyValVerList: nil,
+		TxnId:         "ACK",
+	}
+	clientChan <- ack
 	for {
 		result := <-clientChan
 		err := srv.Send(result)
