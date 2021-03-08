@@ -77,7 +77,7 @@ func (c *Coordinator) sendReadResultToClient(info *TwoPCInfo, txnId string, clie
 
 	err := stream.Send(readResult)
 	if err != nil {
-		log.Fatalf("stream send read result error %v txn %v ", err, txnId)
+		log.Fatalf("stream send read result error %v txn %v to client %v", err, txnId, clientId)
 	}
 }
 
