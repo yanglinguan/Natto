@@ -291,10 +291,9 @@ func (s *Storage) forwardPrepare(op *ReadAndPrepareHighPriority) {
 	if !s.highHold(op) {
 		return
 	}
-
+	s.dependGraph.AddNode(op.txnId, op.keyMap)
 	s.forwardToCoordinator(op)
 
-	s.dependGraph.AddNode(op.txnId, op.keyMap)
 	parent := s.dependGraph.GetParent(op.txnId)
 
 	s.txnStore[op.txnId].status = FORWARD_PREPARED

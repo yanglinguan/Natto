@@ -154,7 +154,8 @@ func (c *Client) receiveReadResultFromCoordinatorStream(i int) {
 			logrus.Fatalf("cannot receive %v", err)
 		}
 
-		logrus.Debugf("Resp received: %s from partition %v leader", resp.TxnId, i)
+		logrus.Debugf("Receive read result from coor: %v from partition %v leader",
+			resp.TxnId, i)
 		op := NewReadReplyFromCoordinatorOp(resp)
 		c.AddOperation(op)
 	}
