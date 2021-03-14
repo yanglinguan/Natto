@@ -21,6 +21,8 @@ type ReadAndPrepareBase struct {
 
 	index         int
 	passTimestamp bool
+
+	isSinglePartition bool
 }
 
 func NewReadAndPrepareBase(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareBase {
@@ -40,6 +42,8 @@ func NewReadAndPrepareBase(request *rpc.ReadAndPrepareRequest) *ReadAndPrepareBa
 	}
 	o.txnId = request.Txn.TxnId
 	o.highPriority = request.Txn.HighPriority
+
+	o.isSinglePartition = len(request.Txn.ParticipatedPartitionIds) == 1
 
 	for _, key := range request.Txn.ReadKeyList {
 		o.keyMap[key] = false
@@ -165,4 +169,8 @@ func (o *ReadAndPrepareBase) SetPassTimestamp() {
 
 func (o *ReadAndPrepareBase) IsPassTimestamp() bool {
 	return o.passTimestamp
+}
+
+func (o *ReadAndPrepareBase) IsSinglePartition() bool {
+	return o.isSinglePartition
 }

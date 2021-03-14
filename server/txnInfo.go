@@ -119,6 +119,7 @@ type TxnInfo struct {
 	isConditionalPrepare             bool
 	isForwardPrepare                 bool
 	maxQueueLen                      int
+	canReverse                       bool
 }
 
 func NewTxnInfo() *TxnInfo {

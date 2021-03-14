@@ -2,12 +2,43 @@ package server
 
 import (
 	"Carousel-GTS/rpc"
+	"Carousel-GTS/utils"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
 
 func (s *Storage) hasWaitingTxn(op LockingOp) bool {
 	return s.kvStore.HasWaitingTxn(op)
+}
+
+func (s *Storage) checkReorderConditionPreparedTxn(op *ReadAndPrepareHighPriority) bool {
+	conflict := make(map[string]bool)
+	for rk := range op.GetReadKeys() {
+		for txn := range s.kvStore.GetTxnHoldWrite(rk) {
+			conflict[txn] = true
+		}
+	}
+
+	for wk := range op.GetWriteKeys() {
+		for txn := range s.kvStore.GetTxnHoldRead(wk) {
+			conflict[txn] = true
+		}
+		for txn := range s.kvStore.GetTxnHoldWrite(wk) {
+			conflict[txn] = true
+		}
+	}
+
+	for txn := range conflict {
+		txnInfo := s.txnStore[txn].readAndPrepareRequestOp.(*ReadAndPrepareHighPriority)
+		for key := range txnInfo.otherPartitionKeys {
+			keyInt := utils.ConvertToInt(key)
+			if keyInt <= s.server.config.Popular() {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
@@ -44,7 +75,11 @@ func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
 		}
 	}
 	log.Warnf("txn %v maxPos %v", txnId, maxPos)
-	return maxPos >= s.server.config.QueuePos()
+	if maxPos >= s.server.config.QueuePos() {
+		return true
+	} else {
+		return s.checkReorderConditionPreparedTxn(op)
+	}
 }
 
 func (s *Storage) reorderPrepare(op *ReadAndPrepareHighPriority) {
@@ -60,6 +95,7 @@ func (s *Storage) reorderPrepare(op *ReadAndPrepareHighPriority) {
 	}
 	log.Debugf("txn %v reorder prepare", op.txnId)
 	s.txnStore[op.txnId].status = REORDER_PREPARED
+	s.txnStore[op.txnId].canReverse = op.IsSinglePartition()
 	s.kvStore.RecordPrepared(op)
 	s.setReadResult(op, -1, false)
 	s.setPrepareResult(op)
@@ -411,7 +447,8 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 			if s.txnStore[txnId].prepareResultRequest == nil {
 				continue
 			}
-			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
+			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED ||
+				!s.txnStore[txnId].canReverse {
 				return false, nil
 			}
 			reorderTxn[txnId] = true
@@ -424,7 +461,8 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 			if s.txnStore[txnId].prepareResultRequest == nil {
 				continue
 			}
-			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
+			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED ||
+				!s.txnStore[txnId].canReverse {
 				return false, nil
 			}
 			reorderTxn[txnId] = true
@@ -435,7 +473,8 @@ func (s *Storage) checkKeysAvailableFromQueue(op *ReadAndPrepareHighPriority) (b
 			if s.txnStore[txnId].prepareResultRequest == nil {
 				continue
 			}
-			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED {
+			if TxnStatus(s.txnStore[txnId].prepareResultRequest.PrepareStatus) != REORDER_PREPARED ||
+				!s.txnStore[txnId].canReverse {
 				return false, nil
 			}
 			reorderTxn[txnId] = true

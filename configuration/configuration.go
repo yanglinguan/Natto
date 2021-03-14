@@ -118,6 +118,8 @@ type Configuration interface {
 	UsePriorityScheduler() bool
 	ReadBeforeCommitReplicate() bool
 	ForwardReadToCoord() bool
+
+	Popular() int64
 }
 
 type FileConfiguration struct {
@@ -211,6 +213,7 @@ type FileConfiguration struct {
 	priorityScheduler         bool
 	readBeforeCommitReplicate bool
 	forwardReadToCoord        bool
+	popular                   int64
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -479,6 +482,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.readBeforeCommitReplicate = v.(bool)
 		} else if key == "forwardReadToCoord" {
 			f.forwardReadToCoord = v.(bool)
+		} else if key == "popular" {
+			f.popular = int64(v.(float64))
 		}
 	}
 }
@@ -852,4 +857,8 @@ func (f *FileConfiguration) ReadBeforeCommitReplicate() bool {
 
 func (f *FileConfiguration) ForwardReadToCoord() bool {
 	return f.forwardReadToCoord
+}
+
+func (f *FileConfiguration) Popular() int64 {
+	return f.popular
 }

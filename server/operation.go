@@ -60,6 +60,8 @@ type ReadAndPrepareOp interface {
 
 	BlockClient()
 	UnblockClient()
+
+	IsSinglePartition() bool
 }
 
 type OperationCreator interface {

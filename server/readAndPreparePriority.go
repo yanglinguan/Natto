@@ -12,16 +12,19 @@ type ReadAndPreparePriority struct {
 	allReadKeys  map[string]bool
 	allWriteKeys map[string]bool
 
+	otherPartitionKeys map[string]bool
+
 	// true: there is a conflict high priority txn within. only low priority txn will selfAbort
 	selfAbort bool
 }
 
 func NewReadAndPreparePriorityWithReplicatedMsg(msg *ReplicationMsg) *ReadAndPreparePriority {
 	r := &ReadAndPreparePriority{
-		ReadAndPrepare2PL: NewReadAndPrepare2PLWithReplicationMsg(msg),
-		allKeys:           make(map[string]bool),
-		allReadKeys:       make(map[string]bool),
-		allWriteKeys:      make(map[string]bool),
+		ReadAndPrepare2PL:  NewReadAndPrepare2PLWithReplicationMsg(msg),
+		allKeys:            make(map[string]bool),
+		allReadKeys:        make(map[string]bool),
+		allWriteKeys:       make(map[string]bool),
+		otherPartitionKeys: make(map[string]bool),
 	}
 
 	return r
@@ -29,13 +32,14 @@ func NewReadAndPreparePriorityWithReplicatedMsg(msg *ReplicationMsg) *ReadAndPre
 
 func NewReadAndPreparePriority(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPreparePriority {
 	r := &ReadAndPreparePriority{
-		ReadAndPrepare2PL: NewReadAndPrepareLock2PL(request),
-		allKeys:           make(map[string]bool),
-		allReadKeys:       make(map[string]bool),
-		allWriteKeys:      make(map[string]bool),
+		ReadAndPrepare2PL:  NewReadAndPrepareLock2PL(request),
+		allKeys:            make(map[string]bool),
+		allReadKeys:        make(map[string]bool),
+		allWriteKeys:       make(map[string]bool),
+		otherPartitionKeys: make(map[string]bool),
 	}
 
-	if server.config.IsEarlyAbort() {
+	if server.config.IsEarlyAbort() || server.config.IsOptimisticReorder() {
 		r.keyMap = make(map[string]bool)
 		r.readKeyList = make(map[string]bool)
 		r.writeKeyList = make(map[string]bool)
@@ -57,6 +61,7 @@ func (o *ReadAndPreparePriority) processKey(keys []string, server *Server, keyTy
 		}
 
 		if !server.storage.HasKey(key) {
+			o.otherPartitionKeys[key] = true
 			continue
 		}
 
