@@ -29,6 +29,7 @@ const (
 	ONETXN
 	RETWIS
 	REORDER
+	RANDYCSBT
 )
 
 type RetryMode int
@@ -389,6 +390,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.loadTimelineRatio = int(retwis["loadTimelineRatio"].(float64))
 			} else if workloadType == "reorder" {
 				f.workload = REORDER
+			} else if workloadType == "randYcsbt" {
+				f.workload = RANDYCSBT
 			}
 			f.highPriorityRate = int(workload["highPriority"].(float64))
 		} else if key == "seed" {
