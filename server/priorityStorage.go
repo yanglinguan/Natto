@@ -11,34 +11,43 @@ func (s *Storage) hasWaitingTxn(op LockingOp) bool {
 	return s.kvStore.HasWaitingTxn(op)
 }
 
-func (s *Storage) checkReorderConditionPreparedTxn(op *ReadAndPrepareHighPriority) bool {
-	conflict := make(map[string]bool)
-	for rk := range op.GetReadKeys() {
-		for txn := range s.kvStore.GetTxnHoldWrite(rk) {
-			conflict[txn] = true
-		}
-	}
-
-	for wk := range op.GetWriteKeys() {
-		for txn := range s.kvStore.GetTxnHoldRead(wk) {
-			conflict[txn] = true
-		}
-		for txn := range s.kvStore.GetTxnHoldWrite(wk) {
-			conflict[txn] = true
-		}
-	}
-
-	for txn := range conflict {
-		txnInfo := s.txnStore[txn].readAndPrepareRequestOp.(*ReadAndPrepareHighPriority)
-		for key := range txnInfo.otherPartitionKeys {
-			keyInt := utils.ConvertToInt(key)
-			if keyInt <= s.server.config.Popular() {
-				return true
+func (s *Storage) checkReorderConditionPreparedTxn(txnList map[string]*ReadAndPrepareHighPriority) bool {
+	for _, op := range txnList {
+		conflict := make(map[string]bool)
+		for rk := range op.GetReadKeys() {
+			for txn := range s.kvStore.GetTxnHoldWrite(rk) {
+				conflict[txn] = true
 			}
 		}
+
+		for wk := range op.GetWriteKeys() {
+			for txn := range s.kvStore.GetTxnHoldRead(wk) {
+				conflict[txn] = true
+			}
+			for txn := range s.kvStore.GetTxnHoldWrite(wk) {
+				conflict[txn] = true
+			}
+		}
+
+		ok := false
+		for txn := range conflict {
+			txnInfo := s.txnStore[txn].readAndPrepareRequestOp.(*ReadAndPrepareHighPriority)
+			for key := range txnInfo.otherPartitionKeys {
+				keyInt := utils.ConvertToInt(key)
+				if keyInt <= s.server.config.Popular() {
+					ok = true
+					break
+				}
+			}
+		}
+
+		if !ok {
+			return false
+		}
+
 	}
 
-	return false
+	return true
 }
 
 func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
@@ -59,8 +68,9 @@ func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
 		}
 	}
 
-	maxPos := 0
+	canReorder := true
 	for _, txn := range conflictTxn {
+		maxPos := 0
 		for rk := range txn.GetReadKeys() {
 			p := s.kvStore.Position(rk, txnId)
 			if p > maxPos {
@@ -73,13 +83,16 @@ func (s *Storage) checkReorderCondition(op *ReadAndPrepareHighPriority) bool {
 				maxPos = p
 			}
 		}
+		if maxPos < s.server.config.QueuePos() {
+			canReorder = false
+			break
+		}
 	}
-	log.Warnf("txn %v maxPos %v", txnId, maxPos)
-	if maxPos >= s.server.config.QueuePos() {
-		return true
-	} else {
-		return s.checkReorderConditionPreparedTxn(op)
+
+	if !canReorder {
+		return s.checkReorderConditionPreparedTxn(conflictTxn)
 	}
+	return true
 }
 
 func (s *Storage) reorderPrepare(op *ReadAndPrepareHighPriority) {
