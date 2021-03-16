@@ -12,6 +12,10 @@ func (s *Storage) hasWaitingTxn(op LockingOp) bool {
 }
 
 func (s *Storage) checkReorderConditionPreparedTxn(txnList map[string]*ReadAndPrepareHighPriority) bool {
+	if s.server.config.Popular() == 0 {
+		return false
+	}
+
 	for _, op := range txnList {
 		conflict := make(map[string]bool)
 		for rk := range op.GetReadKeys() {
