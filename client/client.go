@@ -467,7 +467,7 @@ func (c *Client) separatePartition(op ReadOp) (map[int][][]string, map[int]bool)
 	// separate key into partitions
 	partitionSet := make(map[int][][]string)
 	participants := make(map[int]bool)
-	if c.Config.GetServerMode() == configuration.PRIORITY && c.Config.IsEarlyAbort() {
+	if c.Config.GetServerMode() == configuration.PRIORITY && (c.Config.IsEarlyAbort() || c.Config.IsOptimisticReorder()) {
 		for _, key := range op.GetReadKeyList() {
 			pId := c.Config.GetPartitionIdByKey(key)
 			logrus.Debugf("read key %v, pId %v", key, pId)

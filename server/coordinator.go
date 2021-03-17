@@ -40,7 +40,11 @@ type TwoPCInfo struct {
 	reversedReorder        bool
 	rePrepare              bool
 
+	conditionPrepareFail bool
+
 	forwardPrepare bool
+
+	forwardPrepareFail bool
 	// this txn commit if and only if dependTxns commit
 	dependTxnByPId map[int]map[string]bool
 	dependTxns     map[string]bool
@@ -227,6 +231,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 			}
 			if info.readRequest.Txn.HighPriority && c.server.config.IsConditionalPrepare() {
 				if info.conditionGraph.IsCyclic() {
+					info.conditionPrepareFail = true
 					log.Warnf("txn %v condition has cycle, condition abort", info.txnId)
 					//info.status = CONDITION_ABORT
 					//info.abortReason = CYCLE
@@ -244,6 +249,7 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 						satisfyRequest = false
 						twoPCInfo.waitingTxns[info.txnId] = true
 					} else if twoPCInfo.status.IsAbort() {
+						info.forwardPrepareFail = true
 						keys := make(map[string]bool)
 						log.Debugf("txn %v depTxn %v is abort not handle for now", info.txnId, depTxn)
 						// check keys
@@ -580,7 +586,7 @@ func (c *Coordinator) print() {
 			fastPathUsed[pId] = r.fastPrepareUsed
 		}
 
-		line := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		line := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txnId,
 			info.status.String(),
 			info.reorderPrepare,
@@ -588,6 +594,9 @@ func (c *Coordinator) print() {
 			info.reversedReorderPrepare,
 			info.reversedReorder,
 			info.rePrepare,
+			info.forwardPrepare,
+			info.conditionPrepareFail,
+			info.forwardPrepareFail,
 			pResult,
 			fastPathUsed,
 		)
