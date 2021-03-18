@@ -19,13 +19,18 @@ args = arg_parser.parse_args()
 # path = os.getcwd()
 # if args.config is not None:
 #     path = args.config
+#low = 0 * 1000000000
+#high = 90 * 1000000000
 
-# low = 0 * 1000000000
-# high = 90 * 1000000000
 
+#low = 15 * 1000000000
+#high = 75 * 1000000000
 
-low = 15 * 1000000000
-high = 75 * 1000000000
+low = 10 * 1000000000
+high = 50 * 1000000000
+
+#low = 75 * 100000000
+#high = 225 * 100000000
 
 
 def analyse_fastPath(dir_name):
@@ -349,11 +354,11 @@ def analyse(dir_name):
     throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
     commit_rate, commit_rate_low, commit_rate_high = analyse_abort_rate(txn_map)
     # fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high = analyse_fast_prepare_rate(txn_map)
-    fastPathSuccessRate = analyse_fastPath(path)
+    #fastPathSuccessRate = analyse_fastPath(path)
 
     result["throughput"] = throughput
     result["abort_rate"] = commit_rate
-    result["fast_prepare_rate"] = fastPathSuccessRate
+    #result["fast_prepare_rate"] = fastPathSuccessRate
     if throughput_low != 0 and throughput_low != 0:
         result["throughput_low"] = throughput_low
         result["throughput_high"] = throughput_high

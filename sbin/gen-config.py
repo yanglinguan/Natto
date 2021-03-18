@@ -62,7 +62,10 @@ shortName = {
     "workloadtype": "workload",
     "fastPath": "fP",
     "openLoop": "oL",
-    "timeWindow": "tw"
+    "timeWindow": "tw",
+    "readBeforeCommitReplicate": "rbcr",
+    "forwardReadToCoord": "frtc",
+    "popular": "pop",
 }
 
 eList = []
