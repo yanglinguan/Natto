@@ -88,7 +88,11 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 	}
 
 	switch status {
-	case PREPARED:
+	case PREPARED, EARLY_ABORT_PREPARED:
+		if status == EARLY_ABORT_PREPARED {
+			twoPCInfo.hasEarlyAbort = true
+		}
+
 		if txns, exist := twoPCInfo.dependTxnByPId[pId]; exist {
 			for depTxn := range txns {
 				delete(twoPCInfo.dependTxns, depTxn)

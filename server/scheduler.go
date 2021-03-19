@@ -169,6 +169,7 @@ func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
 		duration := time.Duration(cur.Score - op.GetTimestamp())
 		if duration <= ts.server.config.GetTimeWindow() {
 			if conflict(op, cur.V.(PriorityOp)) {
+				cur.V.(*ReadAndPrepareHighPriority).hasEarlyAbort = true
 				op.setSelfAbort()
 				break
 			}

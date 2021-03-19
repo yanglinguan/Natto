@@ -16,6 +16,7 @@ const (
 	REVERSE_REORDER_PREPARED
 	FORWARD_PREPARED
 	PREPARED
+	EARLY_ABORT_PREPARED
 	COMMIT
 	// mark by partition server
 	PASS_TIMESTAMP_ABORT
@@ -45,7 +46,7 @@ func (t TxnStatus) IsAbort() bool {
 
 func (t TxnStatus) IsPrepare() bool {
 	switch t {
-	case PREPARED, REVERSE_REORDER_PREPARED, REORDER_PREPARED, CONDITIONAL_PREPARED, FORWARD_PREPARED:
+	case PREPARED, EARLY_ABORT_PREPARED, REVERSE_REORDER_PREPARED, REORDER_PREPARED, CONDITIONAL_PREPARED, FORWARD_PREPARED:
 		return true
 	default:
 		return false
@@ -90,6 +91,10 @@ func (t TxnStatus) String() string {
 		return "READTS_ABORT"
 	case WRITETS_ABORT:
 		return "WRITETS_ABORT"
+	case EARLY_ABORT_PREPARED:
+		return "EARLY_ABORT_PREPARED"
+	case FORWARD_PREPARED:
+		return "FORWARD_PREPARED"
 	default:
 		return fmt.Sprintf("%d", int(t))
 	}

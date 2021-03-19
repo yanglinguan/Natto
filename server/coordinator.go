@@ -44,6 +44,8 @@ type TwoPCInfo struct {
 
 	forwardPrepare bool
 
+	hasEarlyAbort bool
+
 	forwardPrepareFail bool
 	// this txn commit if and only if dependTxns commit
 	dependTxnByPId map[int]map[string]bool
@@ -574,7 +576,7 @@ func (c *Coordinator) print() {
 		log.Fatalf("Fails to create log file %v error %v", fName, err)
 		return
 	}
-	_, err = file.WriteString("#txnId commit/abort reorder-prepare condition-prepare reverse-reorder-prepare\n")
+	_, err = file.WriteString("#,txnId,status,reorderPrepare,conditionPrepare,reversedReorderPrepare,reversedReorder,rePrepare,forwardPrepare,conditionPrepareFail,forwardPrepareFail,hasEarlyAbort,pResult,fastPathUsed\n")
 	if err != nil {
 		log.Fatalf("cannot write to file %v error %v", fName, err)
 	}
@@ -586,7 +588,7 @@ func (c *Coordinator) print() {
 			fastPathUsed[pId] = r.fastPrepareUsed
 		}
 
-		line := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		line := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txnId,
 			info.status.String(),
 			info.reorderPrepare,
@@ -597,6 +599,7 @@ func (c *Coordinator) print() {
 			info.forwardPrepare,
 			info.conditionPrepareFail,
 			info.forwardPrepareFail,
+			info.hasEarlyAbort,
 			pResult,
 			fastPathUsed,
 		)

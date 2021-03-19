@@ -74,12 +74,12 @@ func (o *OpenLoopExperiment) Execute() {
 		if !o.highTxnOnly || txn.Priority {
 			o.wg.Add(1)
 			go o.execTxn(txn)
+			c++
 		}
 
 		waitTime := nextTxnWaitTime(o.client)
 		time.Sleep(waitTime)
 		d = time.Since(s)
-		c++
 	}
 
 	logrus.Debugf("waiting for all txn commit total %v", c)

@@ -304,6 +304,9 @@ func (s *Storage) writeToDB(kvs []*rpc.KeyValue) {
 
 func (s *Storage) prepare(op ReadAndPrepareOp) {
 	s.txnStore[op.GetTxnId()].status = PREPARED
+	if h, ok := op.(*ReadAndPrepareHighPriority); ok && h.hasEarlyAbort {
+		s.txnStore[op.GetTxnId()].status = EARLY_ABORT_PREPARED
+	}
 	s.kvStore.RecordPrepared(op)
 	s.setPrepareResult(op)
 	s.replicatePreparedResult(op.GetTxnId())
