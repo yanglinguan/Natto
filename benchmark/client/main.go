@@ -55,7 +55,7 @@ func main() {
 		break
 	case configuration.RANDYCSBT:
 		expWorkload = workload.NewRandSizeYcsbWorkload(
-			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize(), c.Config.GetSinglePartitionRate())
 		break
 	default:
 		logrus.Fatalf("workload should be: ycsbt, oneTxn, retwis or reorder")

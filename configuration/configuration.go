@@ -120,6 +120,8 @@ type Configuration interface {
 	ForwardReadToCoord() bool
 
 	Popular() int64
+
+	GetSinglePartitionRate() int
 }
 
 type FileConfiguration struct {
@@ -214,6 +216,8 @@ type FileConfiguration struct {
 	readBeforeCommitReplicate bool
 	forwardReadToCoord        bool
 	popular                   int64
+
+	randycsbtSingle int
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -395,6 +399,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.workload = REORDER
 			} else if workloadType == "randYcsbt" {
 				f.workload = RANDYCSBT
+				randycsbt := workload["randYcsbt"].(map[string]interface{})
+				f.randycsbtSingle = int(randycsbt["single"].(float64))
 			}
 			f.highPriorityRate = int(workload["highPriority"].(float64))
 		} else if key == "seed" {
@@ -699,6 +705,10 @@ func (f *FileConfiguration) GetPostTweetRatio() int {
 
 func (f *FileConfiguration) GetLoadTimelineRatio() int {
 	return f.loadTimelineRatio
+}
+
+func (f *FileConfiguration) GetSinglePartitionRate() int {
+	return f.randycsbtSingle
 }
 
 func (f *FileConfiguration) GetRaftPeersByServerId(serverId int) []string {
