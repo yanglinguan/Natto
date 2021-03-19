@@ -112,7 +112,7 @@ func (s *Storage) reorderPrepare(op *ReadAndPrepareHighPriority) {
 	}
 	log.Debugf("txn %v reorder prepare", op.txnId)
 	s.txnStore[op.txnId].status = REORDER_PREPARED
-	s.txnStore[op.txnId].canReverse = op.IsSinglePartition()
+	s.txnStore[op.txnId].canReverse = !op.IsSinglePartition()
 	s.kvStore.RecordPrepared(op)
 	s.setReadResult(op, -1, false)
 	s.setPrepareResult(op)
