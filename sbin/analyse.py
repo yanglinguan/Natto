@@ -19,18 +19,19 @@ args = arg_parser.parse_args()
 # path = os.getcwd()
 # if args.config is not None:
 #     path = args.config
-#low = 0 * 1000000000
-#high = 90 * 1000000000
+# low = 0 * 1000000000
+# high = 90 * 1000000000
 
 
-#low = 15 * 1000000000
-#high = 75 * 1000000000
+# low = 15 * 1000000000
+# high = 75 * 1000000000
 
 low = 10 * 1000000000
 high = 50 * 1000000000
 
-#low = 75 * 100000000
-#high = 225 * 100000000
+
+# low = 75 * 100000000
+# high = 225 * 100000000
 
 
 def analyse_fastPath(dir_name):
@@ -56,6 +57,55 @@ def analyse_fastPath(dir_name):
     rate = float(total - fail) / float(total)
     print("fast path success rate: " + str(rate))
     return rate
+
+
+def analyse_optimization_count(dir_name, txn_map):
+    lists = os.listdir(dir_name)
+    total_txn = len(txn_map)
+    result = {
+        "reorder_success": 0,
+        "reorder_fail": 0,
+        "conditional_success": 0,
+        "conditional_fail": 0,
+        "forward_success": 0,
+        "forward_fail": 0,
+        "early_abort": 0,
+    }
+    for f in lists:
+        if not f.endswith("coordinator.log"):
+            continue
+
+        lines = open(os.path.join(dir_name, f), "r").readlines()
+        for line in lines[1:]:
+            items = line.split(",")
+            txnId = items[0]
+            if txnId not in txn_map:
+                continue
+            if not txn_map[txnId]["priority"]:
+                continue
+            if items[2] == "True":
+                if items[6] == "False":
+                    result["reorder_success"] += 1
+                else:
+                    result["reorder_fail"] += 1
+            if items[3] == "True":
+                if items[8] == "True":
+                    result["conditional_fail"] += 1
+                else:
+                    result["conditional_success"] += 1
+            if items[7] == "True":
+                if items[9] == "True":
+                    result["forward_fail"] += 1
+                else:
+                    result["forward_success"] += 1
+            if items[10] == "True":
+                result["early_abort"] += 1
+
+    for k in result:
+        result[k] = (float(k) / float(total_txn)) * 100
+        print(k + ": " + str(result[k]))
+
+    return result
 
 
 def analyse_waiting(dir_name):
@@ -353,12 +403,13 @@ def analyse(dir_name):
     result = analyse_latency(txn_map)
     throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
     commit_rate, commit_rate_low, commit_rate_high = analyse_abort_rate(txn_map)
+    optimization_count = analyse_optimization_count(dir_name, txn_map)
     # fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high = analyse_fast_prepare_rate(txn_map)
-    #fastPathSuccessRate = analyse_fastPath(path)
+    # fastPathSuccessRate = analyse_fastPath(path)
 
     result["throughput"] = throughput
     result["abort_rate"] = commit_rate
-    #result["fast_prepare_rate"] = fastPathSuccessRate
+    # result["fast_prepare_rate"] = fastPathSuccessRate
     if throughput_low != 0 and throughput_low != 0:
         result["throughput_low"] = throughput_low
         result["throughput_high"] = throughput_high
@@ -366,6 +417,8 @@ def analyse(dir_name):
         result["abort_rate_high"] = commit_rate_high
         # result["fast_prepare_rate_low"] = fast_prepare_rate_low
         # result["fast_prepare_rate_high"] = fast_prepare_rate_high
+    for k in optimization_count:
+        result[k] = optimization_count[k]
 
     file_name = os.path.basename(path)
     with open(file_name + ".result", "w") as f:
