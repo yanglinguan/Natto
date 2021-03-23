@@ -171,11 +171,11 @@ func (ts *TimestampScheduler) checkConflictWithHighPriorityTxn(op PriorityOp) {
 			if conflict(op, cur.V.(PriorityOp)) {
 				cur.V.(*ReadAndPrepareHighPriority).hasEarlyAbort = true
 				op.setSelfAbort()
-				cur = cur.Forwards[0]
-				for cur != nil && cur.V != nil {
-					cur.V.(*ReadAndPrepareHighPriority).hasEarlyAbort = true
-				}
-				break
+				//cur = cur.Forwards[0]
+				//for cur != nil && cur.V != nil {
+				//	cur.V.(*ReadAndPrepareHighPriority).hasEarlyAbort = true
+				//}
+				//break
 			}
 		} else {
 			// if over the time window, break
