@@ -26,6 +26,8 @@ type PriorityOp interface {
 	GetAllReadKeys() map[string]bool
 	GetAllKeys() map[string]bool
 	IsSelfAbort() bool
+
+	GetOtherPartitionKeys() map[string]bool
 }
 
 type FastCommitOpI interface {

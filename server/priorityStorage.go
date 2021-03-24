@@ -186,6 +186,17 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority,
 	s.txnStore[txnId].prepareResultRequest = prepareResultRequest
 }
 
+func (s *Storage) conflictOnOtherPartition(low ReadAndPrepareOp, high ReadAndPrepareOp) bool {
+	lowKeys := low.(PriorityOp).GetOtherPartitionKeys()
+	highKeys := low.(PriorityOp).GetOtherPartitionKeys()
+	for key := range lowKeys {
+		if _, exist := highKeys[key]; exist {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Storage) setForwardPrepare(op *ReadAndPrepareHighPriority, condition map[string]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
@@ -265,16 +276,29 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition 
 	s.txnStore[txnId].conditionalPrepareResultRequest = prepareResultRequest
 }
 
+func (s *Storage) canConditionalPrepare(txnHold ReadAndPrepareOp, txn ReadAndPrepareOp) bool {
+	if txnHold.GetPriority() {
+		log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", txn.GetTxnId(), txnHold.GetTxnId())
+		return false
+	}
+	if s.outTimeWindow(txnHold, txn) {
+		log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", txn.GetTxnId(), txnHold.GetTxnId())
+		return false
+	}
+
+	if !s.conflictOnOtherPartition(txnHold, txn) {
+		log.Debugf("txn %v cannot conditional prepare because txn %v does not conflict with txn %v on other partitions", txn.GetTxnId(), txnHold.GetTxnId())
+		return false
+	}
+	return true
+}
+
 func (s *Storage) checkConditionTxn(op *ReadAndPrepareHighPriority) (bool, map[string]bool) {
 	// check if there is high priority txn hold keys
 	lowTxnList := make(map[string]bool)
 	for rk := range op.GetReadKeys() {
 		for txnId := range s.kvStore.GetTxnHoldWrite(rk) {
-			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
-				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
-				return false, nil
-			} else if s.outTimeWindow(s.txnStore[txnId].readAndPrepareRequestOp, op) {
-				log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", op.txnId, txnId)
+			if !s.canConditionalPrepare(s.txnStore[txnId].readAndPrepareRequestOp, op) {
 				return false, nil
 			}
 			lowTxnList[txnId] = true
@@ -283,22 +307,14 @@ func (s *Storage) checkConditionTxn(op *ReadAndPrepareHighPriority) (bool, map[s
 
 	for wk := range op.GetWriteKeys() {
 		for txnId := range s.kvStore.GetTxnHoldRead(wk) {
-			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
-				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for read", op.txnId, txnId)
-				return false, nil
-			} else if s.outTimeWindow(s.txnStore[txnId].readAndPrepareRequestOp, op) {
-				log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", op.txnId, txnId)
+			if !s.canConditionalPrepare(s.txnStore[txnId].readAndPrepareRequestOp, op) {
 				return false, nil
 			}
 			lowTxnList[txnId] = true
 		}
 
 		for txnId := range s.kvStore.GetTxnHoldWrite(wk) {
-			if s.txnStore[txnId].readAndPrepareRequestOp.GetPriority() {
-				log.Debugf("txn %v cannot conditional prepare because key %v hold by %v for write", op.txnId, txnId)
-				return false, nil
-			} else if s.outTimeWindow(s.txnStore[txnId].readAndPrepareRequestOp, op) {
-				log.Debugf("txn %v cannot conditional prepare because txn %v out of the time window", op.txnId, txnId)
+			if !s.canConditionalPrepare(s.txnStore[txnId].readAndPrepareRequestOp, op) {
 				return false, nil
 			}
 			lowTxnList[txnId] = true

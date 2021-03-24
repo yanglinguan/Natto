@@ -93,3 +93,7 @@ func (o *ReadAndPreparePriority) setSelfAbort() {
 func (o *ReadAndPreparePriority) IsSelfAbort() bool {
 	return o.selfAbort
 }
+
+func (o *ReadAndPrepareHighPriority) GetOtherPartitionKeys() map[string]bool {
+	return o.otherPartitionKeys
+}

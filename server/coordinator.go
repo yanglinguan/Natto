@@ -255,17 +255,19 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 						keys := make(map[string]bool)
 						log.Debugf("txn %v depTxn %v is abort not handle for now", info.txnId, depTxn)
 						// check keys
-						for i, txnId := range info.forwardReadOp.request.ParentTxns {
-							if txnId != depTxn {
-								continue
+						if info.forwardReadOp != nil {
+							for i, txnId := range info.forwardReadOp.request.ParentTxns {
+								if txnId != depTxn {
+									continue
+								}
+								num := int(info.forwardReadOp.request.Idx[i])
+								for j := 0; j < num; j++ {
+									idx := i + j
+									k := info.forwardReadOp.request.KeyList[idx]
+									keys[k] = true
+								}
+								break
 							}
-							num := int(info.forwardReadOp.request.Idx[i])
-							for j := 0; j < num; j++ {
-								idx := i + j
-								k := info.forwardReadOp.request.KeyList[idx]
-								keys[k] = true
-							}
-							break
 						}
 						for k := range keys {
 							fromLeader, exist := info.writeDataFromLeader[k]
@@ -589,19 +591,19 @@ func (c *Coordinator) print() {
 		}
 
 		line := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
-			txnId,
-			info.status.String(),
-			info.reorderPrepare,
-			info.conditionPrepare,
-			info.reversedReorderPrepare,
-			info.reversedReorder,
-			info.rePrepare,
-			info.forwardPrepare,
-			info.conditionPrepareFail,
-			info.forwardPrepareFail,
-			info.hasEarlyAbort,
-			pResult,
-			fastPathUsed,
+			txnId,                       //1
+			info.status.String(),        //2
+			info.reorderPrepare,         //3
+			info.conditionPrepare,       //4
+			info.reversedReorderPrepare, //5
+			info.reversedReorder,        //6
+			info.rePrepare,              //7
+			info.forwardPrepare,         //8
+			info.conditionPrepareFail,   //9
+			info.forwardPrepareFail,     //10
+			info.hasEarlyAbort,          //11
+			pResult,                     //12
+			fastPathUsed,                //13
 		)
 		_, err := file.WriteString(line)
 		if err != nil {
