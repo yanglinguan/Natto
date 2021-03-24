@@ -94,6 +94,6 @@ func (o *ReadAndPreparePriority) IsSelfAbort() bool {
 	return o.selfAbort
 }
 
-func (o *ReadAndPrepareHighPriority) GetOtherPartitionKeys() map[string]bool {
+func (o *ReadAndPreparePriority) GetOtherPartitionKeys() map[string]bool {
 	return o.otherPartitionKeys
 }
