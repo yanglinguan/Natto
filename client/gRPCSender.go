@@ -41,9 +41,11 @@ func (s *ReadAndPrepareSender) Send() {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
-	logrus.Debugf("SEND ReadAndPrepare %v to %v (%v) delay %v",
+	logrus.Debugf("SEND ReadAndPrepare %v to %v (%v) delay %v est %v pId %v",
 		s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId,
-		s.request.Timestamp)
+		s.request.Timestamp,
+		s.request.Txn.EstimateArrivalTimes,
+		s.request.Txn.ParticipatedPartitionIds)
 
 	for i := range s.request.Txn.EstimateArrivalTimes {
 		s.request.Txn.EstimateArrivalTimes[i] += int64(time.Now().Nanosecond())
