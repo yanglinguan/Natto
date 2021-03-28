@@ -187,11 +187,19 @@ func (s *Storage) setReverseReorderPrepareResult(op *ReadAndPrepareHighPriority,
 }
 
 func (s *Storage) conflictOnOtherPartition(low ReadAndPrepareOp, high ReadAndPrepareOp) bool {
-	lowKeys := low.(PriorityOp).GetOtherPartitionKeys()
-	highKeys := low.(PriorityOp).GetOtherPartitionKeys()
+	lowOp := low.(PriorityOp)
+	highOp := high.(PriorityOp)
+	lowKeys := lowOp.GetOtherPartitionKeys()
+	highKeys := highOp.GetOtherPartitionKeys()
+	highTxnArrivalTime := highOp.GetEstimatedTimes()
 	for key := range lowKeys {
+		processTime := lowOp.GetTimestamp()
 		if _, exist := highKeys[key]; exist {
-			return true
+			pId := s.server.config.GetPartitionIdByKey(key)
+			arrivalTime := highTxnArrivalTime[pId]
+			if arrivalTime < processTime {
+				return true
+			}
 		}
 	}
 	return false

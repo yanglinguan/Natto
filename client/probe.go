@@ -114,3 +114,14 @@ func (c *Client) predictOneWayLatency(serverList []int) int64 {
 	}
 	return max
 }
+
+func (c *Client) estimateArrivalTime(serverList []int) []int64 {
+	result := make([]int64, len(serverList))
+	for i, sId := range serverList {
+		addr := c.Config.GetServerAddressByServerId(sId)
+		lat := c.latencyPredictor.PredictLat(addr)
+		result[i] = lat
+	}
+
+	return result
+}

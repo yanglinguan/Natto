@@ -16,6 +16,8 @@ type ReadAndPreparePriority struct {
 
 	// true: there is a conflict high priority txn within. only low priority txn will selfAbort
 	selfAbort bool
+	// partitionId -> estimate arrival times
+	estimateTimes map[int]int64
 }
 
 func NewReadAndPreparePriorityWithReplicatedMsg(msg *ReplicationMsg) *ReadAndPreparePriority {
@@ -37,6 +39,7 @@ func NewReadAndPreparePriority(request *rpc.ReadAndPrepareRequest, server *Serve
 		allReadKeys:        make(map[string]bool),
 		allWriteKeys:       make(map[string]bool),
 		otherPartitionKeys: make(map[string]bool),
+		estimateTimes:      make(map[int]int64),
 	}
 
 	if server.config.IsEarlyAbort() || server.config.IsOptimisticReorder() {
@@ -46,6 +49,10 @@ func NewReadAndPreparePriority(request *rpc.ReadAndPrepareRequest, server *Serve
 
 		r.processKey(request.Txn.ReadKeyList, server, READ)
 		r.processKey(request.Txn.WriteKeyList, server, WRITE)
+	}
+
+	for i, pId := range request.Txn.ParticipatedPartitionIds {
+		r.estimateTimes[int(pId)] = request.Txn.EstimateArrivalTimes[i]
 	}
 
 	return r
@@ -96,4 +103,8 @@ func (o *ReadAndPreparePriority) IsSelfAbort() bool {
 
 func (o *ReadAndPreparePriority) GetOtherPartitionKeys() map[string]bool {
 	return o.otherPartitionKeys
+}
+
+func (o *ReadAndPreparePriority) GetEstimatedTimes() map[int]int64 {
+	return o.estimateTimes
 }

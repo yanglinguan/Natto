@@ -28,6 +28,7 @@ type PriorityOp interface {
 	IsSelfAbort() bool
 
 	GetOtherPartitionKeys() map[string]bool
+	GetEstimatedTimes() map[int]int64
 }
 
 type FastCommitOpI interface {

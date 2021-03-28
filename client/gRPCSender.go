@@ -45,6 +45,10 @@ func (s *ReadAndPrepareSender) Send() {
 		s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId,
 		s.request.Timestamp)
 
+	for i := range s.request.Txn.EstimateArrivalTimes {
+		s.request.Txn.EstimateArrivalTimes[i] += int64(time.Now().Nanosecond())
+	}
+
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err != nil {
 		if dstServerId, handled := utils.HandleError(err); handled {

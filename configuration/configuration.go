@@ -66,6 +66,7 @@ type Configuration interface {
 	GetDataCenterIdByServerId(serverId int) int
 	GetDataCenterIdByClientId(clientId int) int
 	GetMaxDelay(clientDCId int, dcIds map[int]bool) time.Duration
+	GetLatencyList(clientDCId int, serverList []int) []int64
 	GetServerListByDataCenterId(dataCenterId int) []int
 	GetLeaderIdListByDataCenterId(dataCenterId int) []int
 	GetKeyNum() int64
@@ -599,6 +600,19 @@ func (f *FileConfiguration) GetMaxDelay(clientDCId int, dcIds map[int]bool) time
 		}
 	}
 	return max
+}
+
+func (f *FileConfiguration) GetLatencyList(clientDCId int, serverList []int) []int64 {
+	if clientDCId >= f.dcNum || clientDCId < 0 {
+		log.Fatalf("invalid dataCenter Id %v should < %v", clientDCId, f.dcNum)
+	}
+	dis := f.dataCenterDistance[clientDCId]
+	result := make([]int64, len(serverList))
+	for i, sId := range serverList {
+		dcId := f.GetDataCenterIdByServerId(sId)
+		result[i] = dis[dcId].Nanoseconds()
+	}
+	return result
 }
 
 func (f *FileConfiguration) GetServerListByDataCenterId(dataCenterId int) []int {

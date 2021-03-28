@@ -56,9 +56,10 @@ message Transaction {
     repeated string readKeyList = 2;
     repeated string writeKeyList = 3;
     repeated int32 participatedPartitionIds = 4;
-    int32 coordPartitionId = 5; // Coordination partition id
-    bool readOnly = 6;
-    bool highPriority = 7;
+    repeated int64 estimateArrivalTimes = 5;
+    int32 coordPartitionId = 6; // Coordination partition id
+    bool readOnly = 7;
+    bool highPriority = 8;
 }
 
 message ReadAndPrepareRequest {

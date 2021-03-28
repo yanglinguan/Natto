@@ -50,6 +50,8 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 
 	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
 
+	estimateLat := client.getEstimateArrivalTime(txn.participatedPartitions)
+
 	logrus.Debugf("txn %v maxDelay %v", maxDelay)
 
 	// send read and prepare request to each partition
@@ -57,6 +59,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 		request := op.buildRequest(
 			keyLists,
 			txn.participatedPartitions,
+			estimateLat,
 			coordinatorPartitionId,
 			maxDelay,
 			txn.participants[pId],
@@ -86,6 +89,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 func (op *ReadAndPrepare) buildRequest(
 	keyLists [][]string,
 	participatedPartitions []int32,
+	estimateArrivalTime []int64,
 	coordinatorPartitionId int,
 	maxDelay int64,
 	isParticipants bool,
@@ -96,6 +100,7 @@ func (op *ReadAndPrepare) buildRequest(
 		ReadKeyList:              keyLists[0],
 		WriteKeyList:             keyLists[1],
 		ParticipatedPartitionIds: participatedPartitions,
+		EstimateArrivalTimes:     estimateArrivalTime,
 		CoordPartitionId:         int32(coordinatorPartitionId),
 		ReadOnly:                 client.getTxn(op.txnId).isReadOnly(),
 		HighPriority:             client.getTxn(op.txnId).priority,

@@ -271,6 +271,19 @@ func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64
 	return maxDelay
 }
 
+func (c *Client) getEstimateArrivalTime(participantPartitions []int32) []int64 {
+	serverList := make([]int, len(participantPartitions))
+	for i, pId := range participantPartitions {
+		leaderId := c.Config.GetLeaderIdByPartitionId(int(pId))
+		serverList[i] = leaderId
+	}
+	if c.Config.IsDynamicLatency() {
+		return c.estimateArrivalTime(serverList)
+	} else {
+		return c.Config.GetLatencyList(c.clientDataCenterId, serverList)
+	}
+}
+
 func (c *Client) addTxnIfNotExist(op ReadOp) {
 
 	txnId := op.GetTxnId()
