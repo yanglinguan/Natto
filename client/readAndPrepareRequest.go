@@ -52,7 +52,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 
 	estimateLat := client.getEstimateArrivalTime(txn.participatedPartitions)
 
-	logrus.Debugf("txn %v maxDelay %v est lat %v", maxDelay, estimateLat)
+	logrus.Debugf("txn %v maxDelay %v est lat %v", txn.txnId, maxDelay, estimateLat)
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range txn.partitionSet {
