@@ -101,6 +101,10 @@ func (s *ReadOnlySender) Send() {
 	c := rpc.NewCarouselClient(clientConn)
 	logrus.Infof("SEND ReadOnly %v to %v (%v)", s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId)
 
+	for i := range s.request.Txn.EstimateArrivalTimes {
+		s.request.Txn.EstimateArrivalTimes[i] += int64(time.Now().Nanosecond())
+	}
+
 	reply, err := c.ReadOnly(context.Background(), s.request)
 	if err != nil {
 		if dstServerId, handled := utils.HandleError(err); handled {

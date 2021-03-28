@@ -33,12 +33,14 @@ func (op *ReadOnly) Execute(client *Client) {
 
 	//_, execution := c.getTxnAndExecution(op.txnId)
 	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
+	estimateLat := client.getEstimateArrivalTime(txn.participatedPartitions)
 
 	// send read and prepare request to each partition
 	for pId, keyLists := range txn.partitionSet {
 		request := op.buildRequest(
 			keyLists,
 			txn.participatedPartitions,
+			estimateLat,
 			-1,
 			maxDelay,
 			txn.participants[pId],
