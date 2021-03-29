@@ -277,11 +277,17 @@ func (c *Client) getEstimateArrivalTime(participantPartitions []int32) []int64 {
 		leaderId := c.Config.GetLeaderIdByPartitionId(int(pId))
 		serverList[i] = leaderId
 	}
+	var result []int64
 	if c.Config.IsDynamicLatency() {
-		return c.estimateArrivalTime(serverList)
+		result = c.estimateArrivalTime(serverList)
 	} else {
-		return c.Config.GetLatencyList(c.clientDataCenterId, serverList)
+		result = c.Config.GetLatencyList(c.clientDataCenterId, serverList)
 	}
+	now := time.Now().UnixNano()
+	for i := range result {
+		result[i] += now
+	}
+	return result
 }
 
 func (c *Client) addTxnIfNotExist(op ReadOp) {

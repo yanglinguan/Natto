@@ -41,15 +41,12 @@ func (s *ReadAndPrepareSender) Send() {
 	}
 
 	client := rpc.NewCarouselClient(clientConn)
+
 	logrus.Debugf("SEND ReadAndPrepare %v to %v (%v) delay %v est %v pId %v",
 		s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId,
 		s.request.Timestamp,
 		s.request.Txn.EstimateArrivalTimes,
 		s.request.Txn.ParticipatedPartitionIds)
-
-	for i := range s.request.Txn.EstimateArrivalTimes {
-		s.request.Txn.EstimateArrivalTimes[i] += int64(time.Now().Nanosecond())
-	}
 
 	reply, err := client.ReadAndPrepare(context.Background(), s.request)
 	if err != nil {
@@ -102,10 +99,6 @@ func (s *ReadOnlySender) Send() {
 
 	c := rpc.NewCarouselClient(clientConn)
 	logrus.Infof("SEND ReadOnly %v to %v (%v)", s.request.Txn.TxnId, conn.GetDstAddr(), s.dstServerId)
-
-	for i := range s.request.Txn.EstimateArrivalTimes {
-		s.request.Txn.EstimateArrivalTimes[i] += int64(time.Now().Nanosecond())
-	}
 
 	reply, err := c.ReadOnly(context.Background(), s.request)
 	if err != nil {
