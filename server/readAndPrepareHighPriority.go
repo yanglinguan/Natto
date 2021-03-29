@@ -45,7 +45,7 @@ func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {
 			}
 
 			if available {
-				logrus.Warnf("txn %v can be reorder", o.txnId)
+				//logrus.Warnf("txn %v can be reorder", o.txnId)
 				storage.reorderPrepare(o)
 			} else if !waiting {
 				cond := storage.conditionalPrepare(o)
