@@ -192,12 +192,13 @@ func (s *Storage) conflictOnOtherPartition(low ReadAndPrepareOp, high ReadAndPre
 	lowKeys := lowOp.GetOtherPartitionKeys()
 	highKeys := highOp.GetOtherPartitionKeys()
 	highTxnArrivalTime := highOp.GetEstimatedTimes()
+	log.Warnf("low txn %v key %v, high txn %v txn key %v", low.GetTxnId(), lowKeys, high.GetTxnId(), highKeys)
 	for key := range lowKeys {
 		processTime := lowOp.GetTimestamp()
 		if _, exist := highKeys[key]; exist {
 			pId := s.server.config.GetPartitionIdByKey(key)
 			arrivalTime := highTxnArrivalTime[pId]
-			log.Warnf("txn %v and txn %v has conflict on partition %v; high txn arrival %v low txn process %v; low txn keys %v high txn keys %v",
+			log.Warnf("txn %v and txn %v has conflict on partition %v; high txn arrival %v low txn process %v",
 				low.GetTxnId(), high.GetTxnId(), pId, arrivalTime, processTime, lowKeys, highKeys)
 			if arrivalTime < processTime {
 				return true
