@@ -27,25 +27,25 @@ func NewOneTxnWorkload(
 }
 
 // Generates a txn. This function is currently not thread-safe
-func (oneTxn *OneTxnWorkload) GenTxn() *Txn {
+func (oneTxn *OneTxnWorkload) GenTxn() Txn {
 	oneTxn.txnCount++
 	txnId := strconv.FormatInt(oneTxn.txnCount, 10)
 
-	txn := &Txn{
-		TxnId:     txnId,
-		ReadKeys:  make([]string, 0),
-		WriteData: make(map[string]string),
+	txn := &BaseTxn{
+		txnId:     txnId,
+		readKeys:  make([]string, 0),
+		writeData: make(map[string]string),
 	}
 
 	// read keys
 	for i := 0; i < oneTxn.readNum; i++ {
-		txn.ReadKeys = append(txn.ReadKeys, utils.ConvertToString(oneTxn.keySize, int64(i)))
+		txn.readKeys = append(txn.readKeys, utils.ConvertToString(oneTxn.keySize, int64(i)))
 	}
 	// write keys
 	for i := 0; i < oneTxn.writeNum; i++ {
 		//txn.WriteData[oneTxn.KeyList[i]] = oneTxn.KeyList[i]
 		k := utils.ConvertToString(oneTxn.keySize, int64(i))
-		txn.WriteData[k] = k
+		txn.writeData[k] = k
 	}
 
 	return txn

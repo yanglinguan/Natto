@@ -2,14 +2,15 @@ package workload
 
 import (
 	"Carousel-GTS/utils"
-	log "github.com/sirupsen/logrus"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ReorderWorkload struct {
 	*AbstractWorkload
 
-	txnQueue chan *Txn
+	txnQueue chan Txn
 	// number of partition
 	partitionNum int
 
@@ -24,7 +25,7 @@ func NewReorderWorkload(
 	localPartition int) *ReorderWorkload {
 	rw := &ReorderWorkload{
 		AbstractWorkload: workload,
-		txnQueue:         make(chan *Txn, 1024),
+		txnQueue:         make(chan Txn, 1024),
 		partitionNum:     partitionNum,
 		localPartition:   localPartition,
 	}
@@ -35,7 +36,7 @@ func NewReorderWorkload(
 	return rw
 }
 
-func (rw *ReorderWorkload) GenTxn() *Txn {
+func (rw *ReorderWorkload) GenTxn() Txn {
 	if len(rw.txnQueue) > 0 {
 		return <-rw.txnQueue
 	}
@@ -84,12 +85,12 @@ func (rw *ReorderWorkload) GenTxn() *Txn {
 		log.Debugf("reorder workload: txn for local: %v", txnList[i])
 		rw.txnCount++
 		txnId := strconv.FormatInt(rw.txnCount, 10)
-		txn := &Txn{
-			TxnId:     txnId,
-			ReadKeys:  txnList[i],
-			WriteKeys: txnList[i],
-			WriteData: make(map[string]string),
-			Priority:  true,
+		txn := &BaseTxn{
+			txnId:     txnId,
+			readKeys:  txnList[i],
+			writeKeys: txnList[i],
+			writeData: make(map[string]string),
+			priority:  true,
 		}
 		rw.txnQueue <- txn
 	}

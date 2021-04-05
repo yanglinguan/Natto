@@ -29,7 +29,7 @@ func NewRandSizeYcsbWorkload(
 }
 
 // Generates a txn. This function is currently not thread-safe
-func (ycsbt *RandSizeYcsbt) GenTxn() *Txn {
+func (ycsbt *RandSizeYcsbt) GenTxn() Txn {
 	ycsbt.txnCount++
 	txnId := strconv.FormatInt(ycsbt.txnCount, 10)
 	r := rand.Intn(100)

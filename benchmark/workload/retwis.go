@@ -1,9 +1,10 @@
 package workload
 
 import (
-	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Retwis workload
@@ -41,7 +42,7 @@ func NewRetwisWorkload(
 }
 
 // Generates a retwis txn. This function is currently not thread-safe
-func (retwis *RetwisWorkload) GenTxn() *Txn {
+func (retwis *RetwisWorkload) GenTxn() Txn {
 	retwis.txnCount++
 	txnId := strconv.FormatInt(retwis.txnCount, 10)
 

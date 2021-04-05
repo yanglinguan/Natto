@@ -6,26 +6,8 @@ import (
 	"math/rand"
 )
 
-type Txn struct {
-	TxnId     string
-	ReadKeys  []string
-	WriteKeys []string
-	WriteData map[string]string
-	Priority  bool
-}
-
-func (t *Txn) GenWriteData(readData map[string]string) {
-	for key := range t.WriteData {
-		if value, exist := readData[key]; exist {
-			t.WriteData[key] = utils.ConvertToString(len(value), utils.ConvertToInt(value)+1)
-		} else {
-			t.WriteData[key] = key
-		}
-	}
-}
-
 type Workload interface {
-	GenTxn() *Txn
+	GenTxn() Txn
 }
 
 type AbstractWorkload struct {
@@ -67,12 +49,12 @@ func NewAbstractWorkload(
 func (workload *AbstractWorkload) buildTxn(
 	txnId string,
 	rN, wN int,
-) *Txn {
-	txn := &Txn{
-		TxnId:     txnId,
-		ReadKeys:  make([]string, 0),
-		WriteKeys: make([]string, 0),
-		WriteData: make(map[string]string),
+) Txn {
+	txn := &BaseTxn{
+		txnId:     txnId,
+		readKeys:  make([]string, 0),
+		writeKeys: make([]string, 0),
+		writeData: make(map[string]string),
 	}
 
 	max := wN
@@ -84,17 +66,17 @@ func (workload *AbstractWorkload) buildTxn(
 
 	// Read keys
 	for i := 0; i < rN; i++ {
-		txn.ReadKeys = append(txn.ReadKeys, keyList[i])
+		txn.readKeys = append(txn.readKeys, keyList[i])
 	}
 	// Write keys
 	for i := 0; i < wN; i++ {
-		//txn.WriteData[keyList[i]] = keyList[i] // uses the key as the data, like in TAPIR's benchmark
-		txn.WriteData[keyList[i]] = ""
-		txn.WriteKeys = append(txn.WriteKeys, keyList[i])
+		//txn.writeData[keyList[i]] = keyList[i] // uses the key as the data, like in TAPIR's benchmark
+		txn.writeData[keyList[i]] = ""
+		txn.writeKeys = append(txn.writeKeys, keyList[i])
 	}
 
 	p := rand.Intn(100)
-	txn.Priority = p < workload.priorityPercentage
+	txn.priority = p < workload.priorityPercentage
 
 	return txn
 }

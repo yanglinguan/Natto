@@ -28,7 +28,7 @@ func NewYCSBTWorkload(
 }
 
 // Generates a txn. This function is currently not thread-safe
-func (ycsbt *YCSBTWorkload) GenTxn() *Txn {
+func (ycsbt *YCSBTWorkload) GenTxn() Txn {
 	ycsbt.txnCount++
 	txnId := strconv.FormatInt(ycsbt.txnCount, 10)
 	return ycsbt.buildTxn(txnId, ycsbt.readNumPerTxn, ycsbt.readNumPerTxn)
