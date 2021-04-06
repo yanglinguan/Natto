@@ -3,11 +3,12 @@ package main
 import (
 	"Carousel-GTS/benchmark/workload"
 	"Carousel-GTS/client"
-	"github.com/sirupsen/logrus"
 	"math"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Experiment interface {
@@ -71,7 +72,7 @@ func (o *OpenLoopExperiment) Execute() {
 		//	txn = o.workload.GenTxn()
 		//}
 		txn := o.workload.GenTxn()
-		if !o.highTxnOnly || txn.Priority {
+		if !o.highTxnOnly || txn.GetPriority() {
 			o.wg.Add(1)
 			go o.execTxn(txn)
 			c++
@@ -87,45 +88,48 @@ func (o *OpenLoopExperiment) Execute() {
 	logrus.Debugf("all txn commit %v", c)
 }
 
-func (o *OpenLoopExperiment) execTxn(txn *workload.Txn) {
-	logrus.Debugf("exec txn %v ", txn.TxnId)
+func (o *OpenLoopExperiment) execTxn(txn workload.Txn) {
+	logrus.Debugf("exec txn %v ", txn.GetTxnId())
 	o.retry(txn)
 	o.wg.Done()
 }
 
 // run txn
 // txn finishes when it commits or does not require retry
-func (o *OpenLoopExperiment) retry(txn *workload.Txn) {
+func (o *OpenLoopExperiment) retry(txn workload.Txn) {
 	commit, retry, waitTime, _ := execTxn(o.client, txn)
 	// txn finishes when it commits or does not require retry
 	if commit || !retry {
-		logrus.Debugf("txn %v commit result %v retry %v", txn.TxnId, commit, retry)
+		logrus.Debugf("txn %v commit result %v retry %v", txn.GetTxnId(), commit, retry)
 		return
 	}
 	//o.txnChan <- txn
 	//// when retry the transaction, wait time depends on the retry policy (exponential back-off or constant time)
-	logrus.Debugf("RETRY txn %v wait time %v", txn.TxnId, waitTime)
+	logrus.Debugf("RETRY txn %v wait time %v", txn.GetTxnId(), waitTime)
 	time.Sleep(waitTime)
 	o.retry(txn)
 }
 
-func execTxn(client *client.Client, txn *workload.Txn) (bool, bool, time.Duration, time.Duration) {
+func execTxn(client *client.Client, txn workload.Txn) (bool, bool, time.Duration, time.Duration) {
 	// call client lib ReadAndPrepare to send ReadAndPrepareRequest
 	// for read only txn, it will return if the txn commits
-	readResult, isAbort := client.ReadAndPrepare(txn.ReadKeys, txn.WriteKeys, txn.TxnId, txn.Priority)
+	readResult, isAbort := client.ReadAndPrepare(txn.GetReadKeys(), txn.GetWriteKeys(), txn.GetTxnId(), txn.GetPriority())
 
 	if isAbort {
-		retry, waitTime := client.Abort(txn.TxnId)
+		retry, waitTime := client.Abort(txn.GetTxnId())
 		return false, retry, waitTime, 0
 	}
 
 	txn.GenWriteData(readResult)
 
-	for k, v := range txn.WriteData {
-		logrus.Debugf("txn %v write key %v: %v", txn.TxnId, k, v)
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+
+		for k, v := range txn.GetWriteData() {
+			logrus.Debugf("txn %v write key %v: %v", txn.GetTxnId(), k, v)
+		}
 	}
 
-	return client.Commit(txn.WriteData, txn.TxnId)
+	return client.Commit(txn.GetWriteData(), txn.GetTxnId())
 }
 
 type CloseLoopExperiment struct {
@@ -152,7 +156,7 @@ func (e *CloseLoopExperiment) Execute() {
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
 		commit, retry, waitTime, expWait := execTxn(e.client, txn)
 		if !commit && retry {
-			logrus.Infof("RETRY txn %v wait time %v", txn.TxnId, waitTime)
+			logrus.Infof("RETRY txn %v wait time %v", txn.GetTxnId(), waitTime)
 			time.Sleep(waitTime)
 			continue
 		}
