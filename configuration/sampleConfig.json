@@ -56,6 +56,11 @@
         "postTweetRatio": 30,
         "loadTimelineRatio": 50
       },
+      "smallbank": {
+        "checkingFlag": "c",
+        "savingsFlag": "s",
+        "initBalance": 50000.0
+      },
       "highPriority": 10
     },
     "seed": 0,

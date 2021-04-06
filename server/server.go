@@ -5,12 +5,13 @@ import (
 	"Carousel-GTS/connection"
 	"Carousel-GTS/raftnode"
 	"Carousel-GTS/rpc"
+	"net"
+	"strings"
+
 	"github.com/coreos/etcd/raft/raftpb"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
-	"strings"
 )
 
 type Server struct {
@@ -110,7 +111,20 @@ func NewServer(serverId int, configFile string) *Server {
 	}
 
 	server.commitScheduler = NewCommitScheduler(server)
-	server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
+	//server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
+	keyList := server.config.GetKeyListByPartitionId(server.partitionId)
+	if server.config.GetWorkLoad() == configuration.SMALLBANK {
+		// Small Bank Workload
+		server.storage.InitSmallBankData(
+			keyList,
+			server.config.GetSbCheckingAccountFlag(),
+			server.config.GetSbSavingsAccountFlag(),
+			server.config.GetSbInitBalance(),
+			server.config.GetSbInitBalance(),
+		)
+	} else {
+		server.storage.LoadKeys(keyList)
+	}
 
 	rpc.RegisterCarouselServer(server.gRPCServer, server)
 	reflection.Register(server.gRPCServer)

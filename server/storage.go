@@ -3,9 +3,10 @@ package server
 import (
 	"Carousel-GTS/rpc"
 	"Carousel-GTS/utils"
-	log "github.com/sirupsen/logrus"
 	"reflect"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Storage struct {
@@ -140,6 +141,19 @@ func (s *Storage) LoadKeys(keys []string) {
 	log.Debugf("server load key %v", len(keys))
 	for _, key := range keys {
 		s.kvStore.AddKeyValue(key, key)
+	}
+}
+
+// SmallBank workload
+func (s *Storage) InitSmallBankData(
+	keys []string, // customer/account IDs
+	cFlag, sFlag string, // flags for checking and savings accounts for each customer
+	cB, sB string, // initialized value for checkinga and savings accounts
+) {
+	log.Debugf("server load SmallBank key %v", len(keys))
+	for _, key := range keys {
+		s.kvStore.AddKeyValue(key+cFlag, cB) // checking account
+		s.kvStore.AddKeyValue(key+sFlag, sB) // savings account
 	}
 }
 

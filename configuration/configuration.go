@@ -3,12 +3,13 @@ package configuration
 import (
 	"Carousel-GTS/utils"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ServerMode int
@@ -30,6 +31,7 @@ const (
 	RETWIS
 	REORDER
 	RANDYCSBT
+	SMALLBANK
 )
 
 type RetryMode int
@@ -93,6 +95,11 @@ type Configuration interface {
 	GetPostTweetRatio() int
 	GetLoadTimelineRatio() int
 	GetReplication() bool
+
+	// SmallBank
+	GetSbCheckingAccountFlag() string
+	GetSbSavingsAccountFlag() string
+	GetSbInitBalance() string
 
 	GetSSHIdentity() string
 	GetSSHUsername() string
@@ -177,6 +184,11 @@ type FileConfiguration struct {
 	followUnfollowRatio int
 	postTweetRatio      int
 	loadTimelineRatio   int
+
+	// SmallBank
+	sbCheckingFlag string
+	sbSavingsFlag  string
+	sbInitBalance  string // encoded float64 instead of a string of a number
 
 	isReplication     bool
 	replicationFactor int
@@ -396,6 +408,12 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.followUnfollowRatio = int(retwis["followUnfollowRatio"].(float64))
 				f.postTweetRatio = int(retwis["postTweetRatio"].(float64))
 				f.loadTimelineRatio = int(retwis["loadTimelineRatio"].(float64))
+			} else if workloadType == "smallbank" {
+				f.workload = SMALLBANK
+				sb := workload["smallbank"].(map[string]interface{})
+				f.sbCheckingFlag = sb["checkingFlag"].(string)
+				f.sbSavingsFlag = sb["savingsFlag"].(string)
+				f.sbInitBalance = utils.EncodeFloat64(sb["initBalance"].(float64))
 			} else if workloadType == "reorder" {
 				f.workload = REORDER
 			} else if workloadType == "randYcsbt" {
@@ -719,6 +737,18 @@ func (f *FileConfiguration) GetPostTweetRatio() int {
 
 func (f *FileConfiguration) GetLoadTimelineRatio() int {
 	return f.loadTimelineRatio
+}
+
+func (f *FileConfiguration) GetSbCheckingAccountFlag() string {
+	return f.sbCheckingFlag
+}
+
+func (f *FileConfiguration) GetSbSavingsAccountFlag() string {
+	return f.sbSavingsFlag
+}
+
+func (f *FileConfiguration) GetSbInitBalance() string {
+	return f.sbInitBalance
 }
 
 func (f *FileConfiguration) GetSinglePartitionRate() int {
