@@ -1,9 +1,9 @@
 package workload
 
 import (
-	"encoding/binary"
-	"math"
 	"strconv"
+
+	"Carousel-GTS/utils"
 )
 
 /*
@@ -70,13 +70,13 @@ func (t *TxnAmalgamate) GenWriteData(readData map[string]string) {
 		// TODO Error
 	}
 	ccId1, csId1, ccId2 := t.readKeys[0], t.readKeys[1], t.readKeys[2]
-	cB1, sB1 := decodeFloat64(readData[ccId1]), decodeFloat64(readData[csId1])
-	cB2 := decodeFloat64(readData[ccId2])
+	cB1, sB1 := utils.DecodeFloat64(readData[ccId1]), utils.DecodeFloat64(readData[csId1])
+	cB2 := utils.DecodeFloat64(readData[ccId2])
 	cB2 += cB1 + sB1
 	cB1, sB1 = 0, 0
-	t.writeData[ccId1] = encodeFloat64(cB1)
-	t.writeData[csId1] = encodeFloat64(sB1)
-	t.writeData[ccId2] = encodeFloat64(cB2)
+	t.writeData[ccId1] = utils.EncodeFloat64(cB1)
+	t.writeData[csId1] = utils.EncodeFloat64(sB1)
+	t.writeData[ccId2] = utils.EncodeFloat64(cB2)
 	if len(t.writeData) != 3 {
 		// TODO Error
 	}
@@ -106,9 +106,9 @@ func (t *TxnDepositChecking) GenWriteData(readData map[string]string) {
 		// TODO Error
 	}
 	ccId := t.readKeys[0]
-	balance := decodeFloat64(readData[ccId])
+	balance := utils.DecodeFloat64(readData[ccId])
 	balance += SB_PARAM_DEPOSIT_CHECKING_AMOUNT
-	t.writeData[ccId] = encodeFloat64(balance)
+	t.writeData[ccId] = utils.EncodeFloat64(balance)
 	if len(t.writeData) != 1 {
 		// TODO Error
 	}
@@ -124,10 +124,10 @@ func (t *TxnSendPayment) GenWriteData(readData map[string]string) {
 		// TODO Error
 	}
 	ccId1, ccId2 := t.readKeys[0], t.readKeys[1]
-	b1, b2 := decodeFloat64(readData[ccId1]), decodeFloat64(readData[ccId2])
+	b1, b2 := utils.DecodeFloat64(readData[ccId1]), utils.DecodeFloat64(readData[ccId2])
 	b1 -= SB_PARAM_SEND_PAYMENT_AMOUNT // Assuming there are sufficient money
 	b2 += SB_PARAM_SEND_PAYMENT_AMOUNT
-	t.writeData[ccId1], t.writeData[ccId2] = encodeFloat64(b1), encodeFloat64(b2)
+	t.writeData[ccId1], t.writeData[ccId2] = utils.EncodeFloat64(b1), utils.EncodeFloat64(b2)
 	if len(t.writeData) != 2 {
 		// TODO Error
 	}
@@ -143,9 +143,9 @@ func (t *TxnTransactSavings) GenWriteData(readData map[string]string) {
 		// TODO Error
 	}
 	csId := t.readKeys[0]
-	balance := decodeFloat64(readData[csId])
+	balance := utils.DecodeFloat64(readData[csId])
 	balance -= SB_PARAM_TRANSACT_SAVINGS_AMOUNT
-	t.writeData[csId] = encodeFloat64(balance)
+	t.writeData[csId] = utils.EncodeFloat64(balance)
 	if len(t.writeData) != 1 {
 		// TODO Error
 	}
@@ -161,13 +161,13 @@ func (t *TxnWriteCheck) GenWriteData(readData map[string]string) {
 		// TODO Error
 	}
 	ccId, csId := t.readKeys[0], t.readKeys[1]
-	cB, sB := decodeFloat64(readData[ccId]), decodeFloat64(readData[csId])
+	cB, sB := utils.DecodeFloat64(readData[ccId]), utils.DecodeFloat64(readData[csId])
 	if cB+sB < SB_PARAM_WRITE_CHECK_AMOUNT {
 		cB -= SB_PARAM_WRITE_CHECK_AMOUNT + 1
 	} else {
 		cB -= SB_PARAM_WRITE_CHECK_AMOUNT
 	}
-	t.writeData[ccId] = encodeFloat64(cB)
+	t.writeData[ccId] = utils.EncodeFloat64(cB)
 	if len(t.writeData) != 1 {
 		// TODO Error
 	}
@@ -287,20 +287,4 @@ func (w *SmallBankWorkload) getCheckingID(cId string) string {
 
 func (w *SmallBankWorkload) getSavingsID(cId string) string {
 	return cId + SB_SAVINGS
-}
-
-//// Helper functions
-func encodeFloat64(f float64) string {
-	buf := make([]byte, binary.MaxVarintLen64)
-	n := math.Float64bits(f)
-	binary.PutUvarint(buf, n)
-	s := string(buf)
-	return s
-}
-
-func decodeFloat64(s string) float64 {
-	bf := []byte(s)
-	n, _ := binary.Uvarint(bf)
-	f := math.Float64frombits(n)
-	return f
 }
