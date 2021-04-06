@@ -15,7 +15,7 @@
 # vendor/
 exp-result/*
 *.log
-*.pb.go
+#*.pb.go
 *.pyc
 exp/*
 sbin/graph-script/
