@@ -6,8 +6,9 @@ import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/utils"
 	"flag"
-	"github.com/sirupsen/logrus"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 var isDebug = false
@@ -45,6 +46,23 @@ func main() {
 			c.Config.GetPostTweetRatio(),
 			c.Config.GetLoadTimelineRatio())
 		break
+	case configuration.SMALLBANK:
+		expWorkload = workload.NewSmallBankWorkload(
+			baseWorkload,
+			c.Config.GetSbIsHotSpotFixedSize(),
+			c.Config.GetSbHotSpotFixedSize(),
+			c.Config.GetSbHotSpotPercentage(),
+			c.Config.GetSbHotSpotTxnRatio(),
+			c.Config.GetSbAmalgamateRatio(),
+			c.Config.GetSbBalanceRatio(),
+			c.Config.GetSbDepositCheckingRatio(),
+			c.Config.GetSbSendPaymentRatio(),
+			c.Config.GetSbTransactSavingsRatio(),
+			c.Config.GetSbWriteCheckRatio(),
+			c.Config.GetSbCheckingAccountFlag(),
+			c.Config.GetSbSavingsAccountFlag(),
+		)
+		break
 	case configuration.REORDER:
 		clientDCId := c.Config.GetDataCenterIdByClientId(clientId)
 		leaderIdList := c.Config.GetLeaderIdListByDataCenterId(clientDCId)
@@ -58,7 +76,7 @@ func main() {
 			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize(), c.Config.GetSinglePartitionRate())
 		break
 	default:
-		logrus.Fatalf("workload should be: ycsbt, oneTxn, retwis or reorder")
+		logrus.Fatalf("workload should be: ycsbt, oneTxn, retwis, smallbank, or reorder")
 		return
 	}
 

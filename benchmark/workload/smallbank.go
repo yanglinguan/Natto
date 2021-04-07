@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"math/rand"
 	"strconv"
 
 	"Carousel-GTS/utils"
@@ -22,37 +23,34 @@ import (
  * the same datacenter, better within the same data partition.
  */
 const (
-	// ACCOUNT TYPES
-	SB_CHECKING = "c"
-	SB_SAVINGS  = "s"
+	//// ----------------------------------------------------------------
+	//// ACCOUNT INFORMATION
+	//// ----------------------------------------------------------------
+	//// Default number of customers in bank
+	//SB_NUM_ACCOUNTS           = 1000000
+	//SB_HOTSPOT_USE_FIXED_SIZE = false
+	//SB_HOTSPOT_PERCENTAGE     = 25  // [0% - 100%]
+	//SB_HOTSPOT_FIXED_SIZE     = 100 // fixed number of tuples
 
-	// ----------------------------------------------------------------
-	// ACCOUNT INFORMATION
-	// ----------------------------------------------------------------
-	// Default number of customers in bank
-	SB_NUM_ACCOUNTS           = 1000000
-	SB_HOTSPOT_USE_FIXED_SIZE = false
-	SB_HOTSPOT_PERCENTAGE     = 25  // [0% - 100%]
-	SB_HOTSPOT_FIXED_SIZE     = 100 // fixed number of tuples
-
-	// ----------------------------------------------------------------
-	// ADDITIONAL CONFIGURATION SETTINGS
-	// ----------------------------------------------------------------
-	// Initial balance amount
-	// We'll just make it really big so that they never run out of money
-	SB_MIN_BALANCE = 10000
-	SB_MAX_BALANCE = 50000
+	//// ----------------------------------------------------------------
+	//// ADDITIONAL CONFIGURATION SETTINGS
+	//// ----------------------------------------------------------------
+	//// Initial balance amount
+	//// We'll just make it really big so that they never run out of money
+	//SB_MIN_BALANCE = 10000
+	//SB_MAX_BALANCE = 50000
 
 	// ----------------------------------------------------------------
 	// PROCEDURE PARAMETERS
 	// These amounts are from the original code
+	// TODO Make these parameters configurable in config files
 	// ----------------------------------------------------------------
 	SB_PARAM_SEND_PAYMENT_AMOUNT     = 5.0
 	SB_PARAM_DEPOSIT_CHECKING_AMOUNT = 1.3
 	SB_PARAM_TRANSACT_SAVINGS_AMOUNT = 20.20
 	SB_PARAM_WRITE_CHECK_AMOUNT      = 5.0
 
-	// TXN TYPES
+	// TXN TYPES // Weights: 15,15,15,25,15,15
 	SB_TXN_AMALGAMATE       = 0
 	SB_TXN_BALANCE          = 1
 	SB_TXN_DEPOSIT_CHECKING = 2
@@ -176,6 +174,67 @@ func (t *TxnWriteCheck) GenWriteData(readData map[string]string) {
 // SmallBank workload from OLTPBench
 type SmallBankWorkload struct {
 	*AbstractWorkload
+	sbIsHotSpotFixedSize   bool
+	sbHotSpotFixedSize     int
+	sbHotSpotPercentage    int
+	sbHotSpotTxnRatio      int
+	sbAmalgamateRatio      int
+	sbBalanceRatio         int
+	sbDepositCheckRatio    int
+	sbSendPaymentRatio     int
+	sbTransactSavingsRatio int
+	sbWriteCheckRatio      int
+	sbCheckingFlag         string
+	sbSavingsFlag          string
+
+	sbNonHotSpotSize int
+}
+
+func NewSmallBankWorkload(
+	workload *AbstractWorkload,
+	sbIsHotSpotFixedSize bool,
+	sbHotSpotFixedSize int,
+	sbHotSpotPercentage int,
+	sbHotSpotTxnRatio int,
+	sbAmalgamateRatio int,
+	sbBalanceRatio int,
+	sbDepositCheckRatio int,
+	sbSendPaymentRatio int,
+	sbTransactSavingsRatio int,
+	sbWriteCheckRatio int,
+	checkingFlag, savingsFlag string,
+) *SmallBankWorkload {
+	sb := &SmallBankWorkload{
+		AbstractWorkload:       workload,
+		sbIsHotSpotFixedSize:   sbIsHotSpotFixedSize,
+		sbHotSpotFixedSize:     sbHotSpotFixedSize,
+		sbHotSpotPercentage:    sbHotSpotPercentage,
+		sbHotSpotTxnRatio:      sbHotSpotTxnRatio,
+		sbAmalgamateRatio:      sbAmalgamateRatio,
+		sbBalanceRatio:         sbBalanceRatio,
+		sbDepositCheckRatio:    sbDepositCheckRatio,
+		sbSendPaymentRatio:     sbSendPaymentRatio,
+		sbTransactSavingsRatio: sbTransactSavingsRatio,
+		sbWriteCheckRatio:      sbWriteCheckRatio,
+		sbCheckingFlag:         checkingFlag,
+		sbSavingsFlag:          savingsFlag,
+	}
+	// The order is critical
+	sb.sbBalanceRatio += sb.sbAmalgamateRatio
+	sb.sbDepositCheckRatio += sb.sbBalanceRatio
+	sb.sbSendPaymentRatio += sb.sbDepositCheckRatio
+	sb.sbTransactSavingsRatio += sb.sbSendPaymentRatio
+	sb.sbWriteCheckRatio += sb.sbTransactSavingsRatio
+	if sb.sbWriteCheckRatio != 100 {
+		// TODO Error
+		return nil
+	}
+
+	if !sb.sbIsHotSpotFixedSize {
+		sb.sbHotSpotFixedSize = int(sb.KeyNum/100.0) * sb.sbHotSpotPercentage
+	}
+	sb.sbNonHotSpotSize = int(sb.KeyNum) - sb.sbHotSpotFixedSize
+	return sb
 }
 
 func (w *SmallBankWorkload) GenTxn() Txn {
@@ -272,19 +331,41 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 }
 
 func (w *SmallBankWorkload) genTxnType() int {
-	// TODO implementation
+	t := rand.Intn(100) //[0,100)
+	if t < w.sbAmalgamateRatio {
+		return SB_TXN_AMALGAMATE
+	} else if t < w.sbBalanceRatio {
+		return SB_TXN_BALANCE
+	} else if t < w.sbDepositCheckRatio {
+		return SB_TXN_DEPOSIT_CHECKING
+	} else if t < w.sbSendPaymentRatio {
+		return SB_TXN_SEND_PAYMENT
+	} else if t < w.sbTransactSavingsRatio {
+		return SB_TXN_TRANSACT_SAVINGS
+	} else if t < w.sbWriteCheckRatio {
+		return SB_TXN_WRITE_CHECK
+	}
 	return -1
 }
 
 func (w *SmallBankWorkload) genCustomerID() string {
-	// TODO implementation
-	return ""
+	p := rand.Intn(100) //[0,100)
+	k := 0
+	if p < w.sbHotSpotTxnRatio {
+		// Txn accesses hotspot data
+		k = rand.Intn(w.sbHotSpotFixedSize)
+	} else {
+		k = rand.Intn(w.sbNonHotSpotSize) + w.sbHotSpotFixedSize
+	}
+	// Txn accesses non-hotspot data
+	id := utils.ConvertToString(w.keySize, int64(k))
+	return id
 }
 
 func (w *SmallBankWorkload) getCheckingID(cId string) string {
-	return cId + SB_CHECKING
+	return cId + w.sbCheckingFlag
 }
 
 func (w *SmallBankWorkload) getSavingsID(cId string) string {
-	return cId + SB_SAVINGS
+	return cId + w.sbSavingsFlag
 }

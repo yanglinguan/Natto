@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -97,6 +98,16 @@ type Configuration interface {
 	GetReplication() bool
 
 	// SmallBank
+	GetSbIsHotSpotFixedSize() bool
+	GetSbHotSpotFixedSize() int
+	GetSbHotSpotPercentage() int
+	GetSbHotSpotTxnRatio() int
+	GetSbAmalgamateRatio() int
+	GetSbBalanceRatio() int
+	GetSbDepositCheckingRatio() int
+	GetSbSendPaymentRatio() int
+	GetSbTransactSavingsRatio() int
+	GetSbWriteCheckRatio() int
 	GetSbCheckingAccountFlag() string
 	GetSbSavingsAccountFlag() string
 	GetSbInitBalance() string
@@ -186,9 +197,19 @@ type FileConfiguration struct {
 	loadTimelineRatio   int
 
 	// SmallBank
-	sbCheckingFlag string
-	sbSavingsFlag  string
-	sbInitBalance  string // encoded float64 instead of a string of a number
+	sbIsHotSpotFixedSize   bool
+	sbHotSpotFixedSize     int
+	sbHotSpotPercentage    int
+	sbHotSpotTxnRatio      int
+	sbAmalgamateRatio      int
+	sbBalanceRatio         int
+	sbDepositCheckRatio    int
+	sbSendPaymentRatio     int
+	sbTransactSavingsRatio int
+	sbWriteCheckRatio      int
+	sbCheckingFlag         string
+	sbSavingsFlag          string
+	sbInitBalance          string // encoded float64 instead of a string of a number
 
 	isReplication     bool
 	replicationFactor int
@@ -411,6 +432,16 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			} else if workloadType == "smallbank" {
 				f.workload = SMALLBANK
 				sb := workload["smallbank"].(map[string]interface{})
+				f.sbIsHotSpotFixedSize = sb["isHotSpotFixedSize"].(bool)
+				f.sbHotSpotFixedSize = sb["hotSpotFixedSize"].(int)
+				f.sbHotSpotPercentage = sb["hotSpotPercentage"].(int)
+				f.sbHotSpotTxnRatio = sb["hotSpotTxnRatio"].(int)
+				f.sbAmalgamateRatio = sb["amalgamateRatio"].(int)
+				f.sbBalanceRatio = sb["balance"].(int)
+				f.sbDepositCheckRatio = sb["depositChecking"].(int)
+				f.sbSendPaymentRatio = sb["sendPayment"].(int)
+				f.sbTransactSavingsRatio = sb["transactSavings"].(int)
+				f.sbWriteCheckRatio = sb["writeCheck"].(int)
 				f.sbCheckingFlag = sb["checkingFlag"].(string)
 				f.sbSavingsFlag = sb["savingsFlag"].(string)
 				f.sbInitBalance = utils.EncodeFloat64(sb["initBalance"].(float64))
@@ -579,8 +610,23 @@ func (f *FileConfiguration) GetKeyListByPartitionId(partitionId int) []string {
 
 func (f *FileConfiguration) GetPartitionIdByKey(key string) int {
 	totalPartition := len(f.partitions)
-	i := utils.ConvertToInt(key)
-	return int(i) % totalPartition
+	if f.GetWorkLoad() == SMALLBANK {
+		n := 0
+		if strings.HasSuffix(key, f.GetSbCheckingAccountFlag()) {
+			n = len(f.GetSbCheckingAccountFlag())
+		} else if strings.HasSuffix(key, f.GetSbSavingsAccountFlag()) {
+			n = len(f.GetSbSavingsAccountFlag())
+		} else {
+			log.Fatalf("Invalid suffix for key %s in SmallBank Workload", key)
+			return -1
+		}
+		k := key[:len(key)-n]
+		i := utils.ConvertToInt(k)
+		return int(i) % totalPartition
+	} else {
+		i := utils.ConvertToInt(key)
+		return int(i) % totalPartition
+	}
 }
 
 func (f *FileConfiguration) GetDataCenterIdByServerId(serverId int) int {
@@ -737,6 +783,46 @@ func (f *FileConfiguration) GetPostTweetRatio() int {
 
 func (f *FileConfiguration) GetLoadTimelineRatio() int {
 	return f.loadTimelineRatio
+}
+
+func (f *FileConfiguration) GetSbIsHotSpotFixedSize() bool {
+	return f.sbIsHotSpotFixedSize
+}
+
+func (f *FileConfiguration) GetSbHotSpotFixedSize() int {
+	return f.sbHotSpotFixedSize
+}
+
+func (f *FileConfiguration) GetSbHotSpotPercentage() int {
+	return f.sbHotSpotPercentage
+}
+
+func (f *FileConfiguration) GetSbHotSpotTxnRatio() int {
+	return f.sbHotSpotTxnRatio
+}
+
+func (f *FileConfiguration) GetSbAmalgamateRatio() int {
+	return f.sbAmalgamateRatio
+}
+
+func (f *FileConfiguration) GetSbBalanceRatio() int {
+	return f.sbBalanceRatio
+}
+
+func (f *FileConfiguration) GetSbDepositCheckingRatio() int {
+	return f.sbDepositCheckRatio
+}
+
+func (f *FileConfiguration) GetSbSendPaymentRatio() int {
+	return f.sbSendPaymentRatio
+}
+
+func (f *FileConfiguration) GetSbTransactSavingsRatio() int {
+	return f.sbTransactSavingsRatio
+}
+
+func (f *FileConfiguration) GetSbWriteCheckRatio() int {
+	return f.sbWriteCheckRatio
 }
 
 func (f *FileConfiguration) GetSbCheckingAccountFlag() string {

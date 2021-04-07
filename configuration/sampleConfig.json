@@ -57,6 +57,16 @@
         "loadTimelineRatio": 50
       },
       "smallbank": {
+        "isHotSpotFixedSize": false,
+        "hotSpotFixedSize": 100,
+        "hotSpotPercentage": 25,
+        "hotSpotTxnRatio": 90,
+        "amalgamateRatio": 15,
+        "balance": 15,
+        "depositChecking": 15,
+        "sendPayment": 25,
+        "transactSavings": 15,
+        "writeCheck": 15,
         "checkingFlag": "c",
         "savingsFlag": "s",
         "initBalance": 50000.0
