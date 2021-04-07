@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"log"
 	"math/rand"
 	"strconv"
 
@@ -65,7 +66,7 @@ type TxnAmalgamate struct {
 
 func (t *TxnAmalgamate) GenWriteData(readData map[string]string) {
 	if len(readData) != 3 {
-		// TODO Error
+		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId1, csId1, ccId2 := t.readKeys[0], t.readKeys[1], t.readKeys[2]
 	cB1, sB1 := utils.DecodeFloat64(readData[ccId1]), utils.DecodeFloat64(readData[csId1])
@@ -76,7 +77,7 @@ func (t *TxnAmalgamate) GenWriteData(readData map[string]string) {
 	t.writeData[csId1] = utils.EncodeFloat64(sB1)
 	t.writeData[ccId2] = utils.EncodeFloat64(cB2)
 	if len(t.writeData) != 3 {
-		// TODO Error
+		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
 }
 
@@ -87,10 +88,10 @@ type TxnBalance struct {
 
 func (t *TxnBalance) GenWriteData(readData map[string]string) {
 	if len(readData) != 2 {
-		// TODO Error
+		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	if len(t.writeData) != 0 {
-		// TODO Error
+		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
 }
 
@@ -101,14 +102,14 @@ type TxnDepositChecking struct {
 
 func (t *TxnDepositChecking) GenWriteData(readData map[string]string) {
 	if len(readData) != 1 {
-		// TODO Error
+		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId := t.readKeys[0]
 	balance := utils.DecodeFloat64(readData[ccId])
 	balance += SB_PARAM_DEPOSIT_CHECKING_AMOUNT
 	t.writeData[ccId] = utils.EncodeFloat64(balance)
 	if len(t.writeData) != 1 {
-		// TODO Error
+		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
 }
 
@@ -119,7 +120,7 @@ type TxnSendPayment struct {
 
 func (t *TxnSendPayment) GenWriteData(readData map[string]string) {
 	if len(readData) != 2 {
-		// TODO Error
+		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId1, ccId2 := t.readKeys[0], t.readKeys[1]
 	b1, b2 := utils.DecodeFloat64(readData[ccId1]), utils.DecodeFloat64(readData[ccId2])
@@ -127,7 +128,7 @@ func (t *TxnSendPayment) GenWriteData(readData map[string]string) {
 	b2 += SB_PARAM_SEND_PAYMENT_AMOUNT
 	t.writeData[ccId1], t.writeData[ccId2] = utils.EncodeFloat64(b1), utils.EncodeFloat64(b2)
 	if len(t.writeData) != 2 {
-		// TODO Error
+		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
 }
 
@@ -138,14 +139,14 @@ type TxnTransactSavings struct {
 
 func (t *TxnTransactSavings) GenWriteData(readData map[string]string) {
 	if len(readData) != 1 {
-		// TODO Error
+		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	csId := t.readKeys[0]
 	balance := utils.DecodeFloat64(readData[csId])
 	balance -= SB_PARAM_TRANSACT_SAVINGS_AMOUNT
 	t.writeData[csId] = utils.EncodeFloat64(balance)
 	if len(t.writeData) != 1 {
-		// TODO Error
+		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
 }
 
@@ -156,7 +157,7 @@ type TxnWriteCheck struct {
 
 func (t *TxnWriteCheck) GenWriteData(readData map[string]string) {
 	if len(readData) != 2 {
-		// TODO Error
+		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId, csId := t.readKeys[0], t.readKeys[1]
 	cB, sB := utils.DecodeFloat64(readData[ccId]), utils.DecodeFloat64(readData[csId])
@@ -167,7 +168,7 @@ func (t *TxnWriteCheck) GenWriteData(readData map[string]string) {
 	}
 	t.writeData[ccId] = utils.EncodeFloat64(cB)
 	if len(t.writeData) != 1 {
-		// TODO Error
+		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
 }
 
@@ -226,7 +227,7 @@ func NewSmallBankWorkload(
 	sb.sbTransactSavingsRatio += sb.sbSendPaymentRatio
 	sb.sbWriteCheckRatio += sb.sbTransactSavingsRatio
 	if sb.sbWriteCheckRatio != 100 {
-		// TODO Error
+		log.Fatalf("All txn percentage not 100 but: %v", sb.sbWriteCheckRatio)
 		return nil
 	}
 
@@ -325,7 +326,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		return &TxnWriteCheck{BaseTxn: baseTxn}
 
 	default:
-		// TODO Error
+		log.Fatalf("Incorrect txn type: %v", txnType)
 	}
 	return nil
 }
