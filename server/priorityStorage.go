@@ -600,8 +600,14 @@ func (s *Storage) overlapPartitions(txnId1 string, txnId2 string) map[int]bool {
 		pId := s.server.config.GetPartitionIdByKey(key)
 		p1[pId] = true
 	}
+
+	op2, ok := s.txnStore[txnId1].readAndPrepareRequestOp.(PriorityOp)
+	if !ok {
+		log.Fatalf("txn %v cannot convert to read and prepare gts", op.GetTxnId())
+	}
+
 	result := make(map[int]bool)
-	for key := range op.GetAllKeys() {
+	for key := range op2.GetAllKeys() {
 		pId := s.server.config.GetPartitionIdByKey(key)
 		if _, exist := p1[pId]; exist {
 			result[pId] = true

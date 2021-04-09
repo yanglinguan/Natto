@@ -248,7 +248,8 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		writeKeys: make([]string, 0),
 		writeData: make(map[string]string),
 	}
-
+	priority := w.genPriority()
+	baseTxn.SetPriority(priority)
 	txnType := w.genTxnType()
 	switch txnType {
 	case SB_TXN_AMALGAMATE:
@@ -329,6 +330,11 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		log.Fatalf("Incorrect txn type: %v", txnType)
 	}
 	return nil
+}
+
+func (w *SmallBankWorkload) genPriority() bool {
+	p := rand.Intn(100)
+	return p < w.priorityPercentage
 }
 
 func (w *SmallBankWorkload) genTxnType() int {
