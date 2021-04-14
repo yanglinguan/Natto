@@ -128,19 +128,19 @@ func (ts *TimestampScheduler) run() {
 }
 
 func conflict(low PriorityOp, high PriorityOp) bool {
-	for rk := range low.GetAllReadKeys() {
-		if _, exist := high.GetAllWriteKeys()[rk]; exist {
+	for rk := range low.GetReadKeys() {
+		if _, exist := high.GetWriteKeys()[rk]; exist {
 			log.Debugf("key %v : txn (low) %v read and txn (high) %v write",
 				rk, low.GetTxnId(), high.GetTxnId())
 			return true
 		}
 	}
 
-	for wk := range low.GetAllWriteKeys() {
-		if _, exist := high.GetAllWriteKeys()[wk]; exist {
+	for wk := range low.GetWriteKeys() {
+		if _, exist := high.GetWriteKeys()[wk]; exist {
 			return true
 		}
-		if _, exist := high.GetAllReadKeys()[wk]; exist {
+		if _, exist := high.GetReadKeys()[wk]; exist {
 			return true
 		}
 	}

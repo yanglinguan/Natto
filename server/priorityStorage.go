@@ -601,7 +601,7 @@ func (s *Storage) overlapPartitions(txnId1 string, txnId2 string) map[int]bool {
 		p1[pId] = true
 	}
 
-	op2, ok := s.txnStore[txnId1].readAndPrepareRequestOp.(PriorityOp)
+	op2, ok := s.txnStore[txnId2].readAndPrepareRequestOp.(PriorityOp)
 	if !ok {
 		log.Fatalf("txn %v cannot convert to read and prepare gts", op.GetTxnId())
 	}
