@@ -16,8 +16,15 @@ arg_parser.add_argument('-d', '--directory', dest='directory', nargs='?',
 
 args = arg_parser.parse_args()
 
+fcounter = 0
 if not os.path.exists(args.directory):
     os.makedirs(args.directory)
+
+for f in os.listdir(args.directory):
+    if f.startswith(args.directory) and f.endswith(".json"):
+        n = int((f.split(".")[0]).split('-')[-1])
+        if n > fcounter:
+            fcounter = n
 
 # Reads machine configurations
 config_file = open(args.config, "r")
@@ -73,7 +80,7 @@ eList = []
 for value in combo:
     i = 0
     e = copy.deepcopy(exp)
-    fileName = ""
+    # fileName = ""
     for v in value:
         name = var_names[i]
         i += 1
@@ -85,12 +92,12 @@ for value in combo:
             e[name] = v
         if n in shortName:
             n = shortName[n]
-        fileName += n
+        # fileName += n
         x = v
         if name == "zipfAlpha":
             x = int(v*100)
-        fileName += "_" + str(x) + "-"
-    e["fileName"] = fileName
+        # fileName += "_" + str(x) + "-"
+    # e["fileName"] = fileName
     eList.append(e)
 
 config_list.append(eList)
@@ -105,8 +112,9 @@ for combo in config_combo:
         config[name] = c
         i += 1
 
-    config["experiment"]["fileName"] += "client_" + str(config["clients"]["nums"])
-    config["experiment"]["fileName"] += ".json"
-    f = config["experiment"]["fileName"]
+    f = args.directory+ "-" + str(fcounter) + ".json"
+    fcounter += 1
+    config["experiment"]["fileName"] = f
+
     with open(os.path.join(args.directory, f), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
