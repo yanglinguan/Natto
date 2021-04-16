@@ -26,6 +26,7 @@ func main() {
 		c.Config.GetZipfAlpha(),
 		c.Config.GetKeySize(),
 		c.Config.GetHighPriorityRate(),
+		c.Config.GetTotalPartition(),
 	)
 	var expWorkload workload.Workload
 	var exp Experiment

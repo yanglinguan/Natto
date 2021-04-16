@@ -23,6 +23,7 @@ type AbstractWorkload struct {
 	keySize            int // the size of value in Bytes
 	priorityPercentage int
 	//val     string
+	partition int
 }
 
 func NewAbstractWorkload(
@@ -30,12 +31,14 @@ func NewAbstractWorkload(
 	zipfAlpha float64,
 	keySize int,
 	priorityPercentage int,
+	partition int,
 ) *AbstractWorkload {
 	workload := &AbstractWorkload{
-		KeyNum:             keyNum,
+		KeyNum:             keyNum / int64(partition),
 		alpha:              zipfAlpha,
 		keySize:            keySize,
 		priorityPercentage: priorityPercentage,
+		partition:          partition,
 	}
 	workload.zipf = nil
 	workload.zipfReady = false
@@ -152,7 +155,9 @@ func (workload *AbstractWorkload) randKey() int64 {
 				return mid + 1
 			}
 		}
-		return mid
+
+		p := int64(rand.Intn(workload.partition))
+		return p + int64(workload.partition)*mid
 	}
 }
 
