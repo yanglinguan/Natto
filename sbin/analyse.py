@@ -74,35 +74,34 @@ def analyse_optimization_count(dir_name, txn_map):
     for f in lists:
         if not f.endswith("coordinator.log"):
             continue
-
         lines = open(os.path.join(dir_name, f), "r").readlines()
         for line in lines[1:]:
             items = line.split(",")
-            txnId = items[0]
+            txnId = items[0][:-2]
             if txnId not in txn_map:
                 continue
             if not txn_map[txnId]["priority"]:
                 continue
-            if items[2] == "True":
-                if items[6] == "False":
+            if items[2] == "true":
+                if items[6] == "false":
                     result["reorder_success"] += 1
                 else:
                     result["reorder_fail"] += 1
-            if items[3] == "True":
-                if items[8] == "True":
+            if items[3] == "true":
+                if items[8] == "true":
                     result["conditional_fail"] += 1
                 else:
                     result["conditional_success"] += 1
-            if items[7] == "True":
-                if items[9] == "True":
+            if items[7] == "true":
+                if items[9] == "true":
                     result["forward_fail"] += 1
                 else:
                     result["forward_success"] += 1
-            if items[10] == "True":
+            if items[10] == "true":
                 result["early_abort"] += 1
 
     for k in result:
-        result[k] = (float(k) / float(total_txn)) * 100
+        result[k] = (float(result[k]) / float(total_txn)) * 100
         print(k + ": " + str(result[k]))
 
     return result
@@ -229,7 +228,14 @@ def analyse_latency(txn_map):
 
     latency.sort()
 
-    result = {"median": median, "p90": p90, "p95": p95, "p10": p10, "p99": p99, "avg": avg, "latency": latency}
+    result = {"median": median, 
+            "p90": p90, 
+            "p95": p95, 
+            "p10": p10, 
+            "p99": p99, 
+            "avg": avg, 
+            #"latency": latency
+            }
 
     if len(latency_high) == 0 or len(latency_low) == 0:
         return result
@@ -247,7 +253,7 @@ def analyse_latency(txn_map):
     result["p99_high"] = p99
     result["p10_high"] = p10
     result["avg_high"] = avg
-    result["latency_high"] = latency_high
+    #result["latency_high"] = latency_high
     print("10 per (ms) high: " + str(p10))
     print("median (ms) high: " + str(median))
     print("90 per (ms) high: " + str(p90))
@@ -268,7 +274,7 @@ def analyse_latency(txn_map):
     result["p99_low"] = p99
     result["p10_low"] = p10
     result["avg_low"] = avg
-    result["latency_low"] = latency_low
+    #result["latency_low"] = latency_low
     print("10 per (ms) low: " + str(p10))
     print("median (ms) low: " + str(median))
     print("90 per (ms) low: " + str(p90))
@@ -448,6 +454,9 @@ def error_bar(path, prefix):
         error = 2 * numpy.std(value)
 
         result[key] = {"mean": mean, "error": error}
+    cf = open(os.path.join(path, prefix + ".json"), "r")
+    config = json.load(cf)
+    result["config"] = config
     file_name = prefix + ".final"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
