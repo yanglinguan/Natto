@@ -112,9 +112,7 @@ for combo in config_combo:
         config[name] = c
         i += 1
 
-    f = args.directory+ "-" + str(fcounter) + ".json"
+    f = args.directory + "-" + str(fcounter) + ".json"
     fcounter += 1
-    config["experiment"]["fileName"] = f
-
     with open(os.path.join(args.directory, f), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
