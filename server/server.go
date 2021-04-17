@@ -40,6 +40,8 @@ type Server struct {
 	port          string
 
 	getLeaderId func() uint64
+
+	readResultFromCoordinatorChan chan *readResultFromCoordinatorRequest
 }
 
 func NewServer(serverId int, configFile string) *Server {
@@ -53,6 +55,7 @@ func NewServer(serverId int, configFile string) *Server {
 	server.port = strings.Split(server.serverAddress, ":")[1]
 	server.partitionId = server.config.GetPartitionIdByServerId(server.serverId)
 
+	server.readResultFromCoordinatorChan = make(chan *readResultFromCoordinatorRequest, server.config.GetTotalClient())
 	//server.executor = NewExecutor(server)
 
 	switch server.config.GetServerMode() {
@@ -131,6 +134,31 @@ func NewServer(serverId int, configFile string) *Server {
 
 	log.Debugf("connection %v", server.connections)
 	return server
+}
+
+type readResultFromCoordinatorRequest struct {
+	clientId  string
+	wait      chan bool
+	replyChan chan *rpc.ReadReplyFromCoordinator
+}
+
+func NewReadResultFromCoordinatorRequest(clientId string) *readResultFromCoordinatorRequest {
+	return &readResultFromCoordinatorRequest{
+		clientId: clientId,
+		wait:     make(chan bool),
+	}
+}
+
+func (req *readResultFromCoordinatorRequest) block() bool {
+	return <-req.wait
+}
+
+func (server *Server) handleReadResultFromCoordinatorRequest(request *readResultFromCoordinatorRequest) {
+	if _, exist := server.coordinator.clientReadRequestChan[request.clientId]; !exist {
+		server.coordinator.clientReadRequestChan[request.clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+	}
+	request.replyChan = server.coordinator.clientReadRequestChan[request.clientId]
+	request.wait <- true
 }
 
 func (server *Server) Start() {

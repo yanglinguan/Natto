@@ -331,17 +331,12 @@ func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq
 func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
 	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)
 	//go server.coordinator.sendForwardResult(request.ClientId, srv)
-	if _, exist := server.coordinator.clientReadRequestChan[request.ClientId]; !exist {
-		server.coordinator.clientReadRequestChan[request.ClientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
-	}
-	clientChan := server.coordinator.clientReadRequestChan[request.ClientId]
-	ack := &rpc.ReadReplyFromCoordinator{
-		KeyValVerList: nil,
-		TxnId:         "ACK",
-	}
-	clientChan <- ack
+	req := NewReadResultFromCoordinatorRequest(request.ClientId)
+	server.readResultFromCoordinatorChan <- req
+	req.block()
+
 	for {
-		result := <-clientChan
+		result := <-req.replyChan
 		err := srv.Send(result)
 		if err != nil {
 			log.Fatalf("stream cannot send to client %v txn %v error %v",
