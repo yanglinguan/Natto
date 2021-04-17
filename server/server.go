@@ -153,17 +153,20 @@ func (req *readResultFromCoordinatorRequest) block() bool {
 	return <-req.wait
 }
 
-func (server *Server) handleReadResultFromCoordinatorRequest(request *readResultFromCoordinatorRequest) {
-	if _, exist := server.coordinator.clientReadRequestChan[request.clientId]; !exist {
-		server.coordinator.clientReadRequestChan[request.clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+func (server *Server) handleReadResultFromCoordinatorRequest() {
+	for {
+		request := <-server.readResultFromCoordinatorChan
+		if _, exist := server.coordinator.clientReadRequestChan[request.clientId]; !exist {
+			server.coordinator.clientReadRequestChan[request.clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+		}
+		request.replyChan = server.coordinator.clientReadRequestChan[request.clientId]
+		request.wait <- true
 	}
-	request.replyChan = server.coordinator.clientReadRequestChan[request.clientId]
-	request.wait <- true
 }
 
 func (server *Server) Start() {
 	log.Infof("Starting Server %v", server.serverId)
-
+	go server.handleReadResultFromCoordinatorRequest()
 	if server.config.GetReplication() {
 		// The channel for proposing operations to Raft
 		raftInputChannel := make(chan string, server.config.GetQueueLen())
