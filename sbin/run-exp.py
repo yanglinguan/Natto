@@ -29,6 +29,9 @@ arg_parser.add_argument('-dir', '--directory', dest="directory", nargs='?',
 arg_parser.add_argument('-n', '--num', dest="num", nargs='?',
                         help='number of run', required=False)
 
+arg_parser.add_argument('-f', '--force',
+                        help="force exp to run n times", action='store_true')
+
 args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
@@ -49,6 +52,15 @@ def getNextRunCount(f):
     return i
 
 
+def getRunExpNum(f):
+    prefix = f.split(".")[0]
+    i = 0
+    for d in os.listdir(path):
+        if os.path.isdir(d) and d.startswith(prefix):
+            i += 1
+    return i
+
+
 def run_exp(i):
     run_list = []
     if args.config is not None:
@@ -61,6 +73,9 @@ def run_exp(i):
     finishes = 0
     errorRun = []
     for f in run_list:
+        if not args.force and getRunExpNum(f) >= n:
+            print("config " + f + " already run " + str(n) + " times")
+            continue
         nextRun = getNextRunCount(f)
         p = multiprocessing.Process(target=run, name="run", args=(nextRun, f))
         p.start()
