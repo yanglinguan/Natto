@@ -65,9 +65,9 @@ def run_exp(i, run_list):
     finishes = 0
     errorRun = []
     for item in run_list:
-        f = item.first
-        x = item.second
-        if i != item.second:
+        f = item[0]
+        x = item[1]
+        if i < x:
             print(f + " already run " + str(x) + " times skip this time " + str(i))
             continue
         nextRun = getNextRunCount(f)
@@ -116,7 +116,10 @@ def getRunIdx(f):
     if args.force:
         return 0
     exp_run_num = getRunExpNum(f)
-    return n - exp_run_num
+    x = n - exp_run_num
+    if x <= 0:
+        return -1
+    return exp_run_num
 
 
 def main():
@@ -139,10 +142,10 @@ def main():
             if f.endswith(".json"):
                 idx = getRunIdx(f)
                 if idx < 0:
-                    print(args.config, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
+                    print(f + " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
                     continue
                 # (fname, num of exp already run)
-                print(f + " needs to run " + str(n - idx) + " times")
+                print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
     errorRun = []
     for i in range(n):
