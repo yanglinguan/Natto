@@ -61,20 +61,14 @@ def getRunExpNum(f):
     return i
 
 
-def run_exp(i):
-    run_list = []
-    if args.config is not None:
-        run_list.append(args.config)
-    else:
-        lists = os.listdir(path)
-        for f in lists:
-            if f.endswith(".json"):
-                run_list.append(f)
+def run_exp(i, run_list):
     finishes = 0
     errorRun = []
-    for f in run_list:
-        if not args.force and getRunExpNum(f) >= n:
-            print("config " + f + " already run " + str(n) + " times")
+    for item in run_list:
+        f = item.first
+        x = item.second
+        if i != item.second:
+            print(f + " already run " + str(x) + " times skip this time " + str(i))
             continue
         nextRun = getNextRunCount(f)
         p = multiprocessing.Process(target=run, name="run", args=(nextRun, f))
@@ -118,6 +112,13 @@ def notification(message):
     mail.close()
 
 
+def getRunIdx(f):
+    if args.force:
+        return 0
+    exp_run_num = getRunExpNum(f)
+    return n - exp_run_num
+
+
 def main():
     finishes = 0
 
@@ -125,9 +126,27 @@ def main():
         subprocess.call([bin_path + "gen_config.py", "-m", args.machines, "-d", args.directory])
         subprocess.call(["cd", args.directory])
 
+    run_list = []
+    if args.config is not None:
+        idx = getRunIdx(args.config)
+        if idx < 0:
+            print(args.config, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
+            return
+        run_list.append((args.config, idx))
+    else:
+        lists = os.listdir(path)
+        for f in lists:
+            if f.endswith(".json"):
+                idx = getRunIdx(f)
+                if idx < 0:
+                    print(args.config, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
+                    continue
+                # (fname, num of exp already run)
+                print(f + " needs to run " + str(n - idx) + " times")
+                run_list.append((f, idx))
     errorRun = []
     for i in range(n):
-        finish, succ, failed = run_exp(i)
+        finish, succ, failed = run_exp(i, run_list)
         if succ:
             finishes += finish
         else:
