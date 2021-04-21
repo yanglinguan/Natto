@@ -279,11 +279,14 @@ def enforce_leader():
 
 def stop_servers():
     threads = list()
-    for ip in config["servers"]["machines"]:
+    for ip, machine in machines_server.items():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
-        cmd = "killall -9 carousel-server"
+        server_dir = path + "/server-$id"
+        exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
+        cmd = "killall -9 carousel-server; " + loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
         threads.append(thread)
