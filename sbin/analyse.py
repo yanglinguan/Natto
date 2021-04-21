@@ -5,7 +5,6 @@ import os
 import argparse
 import sys
 import numpy
-import parseSetting
 
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
@@ -156,13 +155,18 @@ def load_statistic(dir_name):
     txn_map = {}
     lists = os.listdir(path)
     min_start = sys.maxsize
+    num_txn = []
+    client_num = 0
     for f in lists:
         if f.endswith(".statistic"):
+            client_num += 1
+            txn_count = 0
             lines = open(os.path.join(path, f), "r").readlines()
             for line in lines:
                 line = line.strip()
                 if line.startswith("#"):
                     continue
+                txn_count += 1
                 items = line.split(",")
                 txn_id = items[0]
                 commit = int(items[1]) == 1
@@ -187,7 +191,11 @@ def load_statistic(dir_name):
                                    "fastPrepare": fast_prepare,
                                    "readOnly": read_only,
                                    "exeCount": exe_count}
-
+            num_txn.append(txn_count)
+    avg = numpy.average(num_txn)
+    std = numpy.std(num_txn)
+    print("num client: " + str(client_num))
+    print("avg txn num: " + str(avg) + " error: " + str(std))
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
         if value["start"] < low or value["start"] > high:
@@ -228,14 +236,14 @@ def analyse_latency(txn_map):
 
     latency.sort()
 
-    result = {"median": median, 
-            "p90": p90, 
-            "p95": p95, 
-            "p10": p10, 
-            "p99": p99, 
-            "avg": avg, 
-            #"latency": latency
-            }
+    result = {"median": median,
+              "p90": p90,
+              "p95": p95,
+              "p10": p10,
+              "p99": p99,
+              "avg": avg,
+              # "latency": latency
+              }
 
     if len(latency_high) == 0 or len(latency_low) == 0:
         return result
@@ -253,7 +261,7 @@ def analyse_latency(txn_map):
     result["p99_high"] = p99
     result["p10_high"] = p10
     result["avg_high"] = avg
-    #result["latency_high"] = latency_high
+    # result["latency_high"] = latency_high
     print("10 per (ms) high: " + str(p10))
     print("median (ms) high: " + str(median))
     print("90 per (ms) high: " + str(p90))
@@ -274,7 +282,7 @@ def analyse_latency(txn_map):
     result["p99_low"] = p99
     result["p10_low"] = p10
     result["avg_low"] = avg
-    #result["latency_low"] = latency_low
+    # result["latency_low"] = latency_low
     print("10 per (ms) low: " + str(p10))
     print("median (ms) low: " + str(median))
     print("90 per (ms) low: " + str(p90))
@@ -334,13 +342,13 @@ def analyse_abort_rate(txn_map):
     count_low = 0
     for txn_id, value in txn_map.items():
         count += 1
-        #count += value["exeCount"]
+        # count += value["exeCount"]
         if value["priority"]:
             count_high += 1
-            #count_high += value["exeCount"]
+            # count_high += value["exeCount"]
         else:
             count_low += 1
-            #count_low += value["exeCount"]
+            # count_low += value["exeCount"]
         if value["commit"]:
             commit += 1
             if value["priority"]:
@@ -403,7 +411,7 @@ def analyse(dir_name):
     if n != clientN:
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
     #    return
-    
+
     print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
     # fastPathSuccessRate = analyse_fast_prepare_rate(path)
