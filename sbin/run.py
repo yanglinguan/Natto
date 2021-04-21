@@ -255,7 +255,7 @@ def start_clients():
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
         exe = "cd " + path + "/client;" + \
               client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
-        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + "; sleep 0.01; done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
@@ -352,14 +352,15 @@ def main():
     end_client = time.time()
     client_use = end_client - end_select_leader
     print("clients finish used %.5fs" % client_use)
-    dir_name = collect_client_log()
-    print_server_status(dir_name)
-    end_server = time.time()
-    server_use = end_server - end_client
-    print("server finish used %.5fs" % server_use)
-    collect_server_log(dir_name)
+    collect_client_log()
+    # dir_name = collect_client_log()
+    # print_server_status(dir_name)
+    # end_server = time.time()
+    # server_use = end_server - end_client
+    # print("server finish used %.5fs" % server_use)
+    # collect_server_log(dir_name)
     end_collect = time.time()
-    collect_use = end_collect - end_server
+    collect_use = end_collect - end_client
     print("collect log used %.5fs" % collect_use)
     stop_clients()
     stop_servers()
@@ -373,8 +374,8 @@ def main():
     print("start server use (+15s) %.5fs" % start_server_use)
     print("select leader used %.5fs" % select_leader_use)
     print("run clients used %.5fs" % client_use)
-    print("server finish used %.5fs" % server_use)
-    print("collect log used %.5fs" % collect_use)
+    # print("server finish used %.5fs" % server_use)
+    # print("collect log used %.5fs" % collect_use)
     print("stop client and server use %.5f" % stop_server_use)
 
 
