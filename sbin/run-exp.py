@@ -148,6 +148,7 @@ def main():
                 print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
     errorRun = []
+    print(run_list)
     for i in range(n):
         finish, succ, failed = run_exp(i, run_list)
         if succ:

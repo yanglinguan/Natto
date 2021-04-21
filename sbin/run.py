@@ -243,7 +243,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    start_time = str(int((time.time() + 5) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 10) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -338,10 +338,10 @@ def main():
     deploy_use = end_deploy - end_build
     print("deploy use %.5fs" % deploy_use)
     start_servers()
-    time.sleep(15)
+    time.sleep(8)
     end_start_server = time.time()
     start_server_use = end_start_server - end_deploy
-    print("start server use (+15s) %.5fs" % start_server_use)
+    print("start server use (+8s) %.5fs" % start_server_use)
     enforce_leader()
     end_select_leader = time.time()
     select_leader_use = end_select_leader - end_start_server

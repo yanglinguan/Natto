@@ -334,13 +334,13 @@ def analyse_abort_rate(txn_map):
     count_low = 0
     for txn_id, value in txn_map.items():
         count += 1
-        count += value["exeCount"]
+        #count += value["exeCount"]
         if value["priority"]:
             count_high += 1
-            count_high += value["exeCount"]
+            #count_high += value["exeCount"]
         else:
             count_low += 1
-            count_low += value["exeCount"]
+            #count_low += value["exeCount"]
         if value["commit"]:
             commit += 1
             if value["priority"]:
@@ -393,15 +393,18 @@ def analyse_abort_rate(txn_map):
 
 
 def analyse(dir_name):
-    setting = parseSetting.getSetting(dir_name)
-    clientN = int(setting["client"])
+    l = dir_name.split(".")[0].split("-")[:-1]
+    sn = '-'.join(l) + ".json"
+    sf = open(sn)
+    setting = json.load(sf)
+    clientN = setting["clients"]["nums"]
     n = len([f for f in os.listdir(dir_name)
              if f.endswith('.statistic') and os.path.isfile(os.path.join(dir_name, f))])
     if n != clientN:
-        print(dir_name + " does not contain *.statistic file, requires " + str(clientN))
-        return
-
-    print(dir_name)
+        print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
+    #    return
+    
+    print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
     # fastPathSuccessRate = analyse_fast_prepare_rate(path)
     # analyse_waiting(path)
@@ -454,10 +457,10 @@ def error_bar(path, prefix):
         error = 2 * numpy.std(value)
 
         result[key] = {"mean": mean, "error": error}
-    cf = open(os.path.join(path, prefix + ".json"), "r")
+    cf = open(os.path.join(path, prefix[:-1] + ".json"), "r")
     config = json.load(cf)
     result["config"] = config
-    file_name = prefix + ".final"
+    file_name = prefix[:-1] + ".final"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
 
@@ -470,16 +473,18 @@ def main():
         lists = os.listdir(path)
         prefix = ""
         if args.configFile is not None:
-            prefix = args.configFile.split(".")[0]
+            prefix = args.configFile.split(".")[0] + "-"
         fLists = [f for f in lists if f.startswith(prefix)]
         for f in fLists:
             if os.path.isdir(os.path.join(path, f)):
                 analyse(f)
-
-        for f in fLists:
-            if f.endswith(".json"):
-                prefix = f.split(".")[0]
-                error_bar(path, prefix)
+        if args.configFile is not None:
+            error_bar(path, prefix)
+        else:
+            for f in fLists:
+                if f.endswith(".json"):
+                    prefix = f.split(".")[0] + "-"
+                    error_bar(path, prefix)
 
 
 if __name__ == "__main__":

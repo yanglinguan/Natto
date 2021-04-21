@@ -25,7 +25,7 @@ for f in os.listdir(args.directory):
         n = int((f.split(".")[0]).split('-')[-1])
         if n > fcounter:
             fcounter = n
-
+fcounter += 1
 # Reads machine configurations
 config_file = open(args.config, "r")
 config_option = json.load(config_file)
@@ -80,7 +80,7 @@ eList = []
 for value in combo:
     i = 0
     e = copy.deepcopy(exp)
-    # fileName = ""
+    varExp = ""
     for v in value:
         name = var_names[i]
         i += 1
@@ -92,12 +92,12 @@ for value in combo:
             e[name] = v
         if n in shortName:
             n = shortName[n]
-        # fileName += n
+        varExp += n
         x = v
         if name == "zipfAlpha":
             x = int(v*100)
-        # fileName += "_" + str(x) + "-"
-    # e["fileName"] = fileName
+        varExp += "_" + str(x) + "-"
+    e["varExp"] = varExp
     eList.append(e)
 
 config_list.append(eList)
