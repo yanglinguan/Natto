@@ -5,14 +5,13 @@ import os
 import argparse
 import sys
 import numpy
-import glob
 
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
 # Cluster configuration file
 arg_parser.add_argument('-d', '--resultDir', dest='resultDir', nargs='?',
                         help='result dir', required=False)
-arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='?',
+arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='*',
                         help='configuration file', required=False)
 
 args = arg_parser.parse_args()
@@ -445,6 +444,17 @@ def analyse(dir_name):
         json.dump(result, f, indent=4)
 
 
+def print_result(result, prefix):
+    print("result for " + prefix[:-1])
+    for key in result:
+        if key.endswith("high"):
+            print(key + ": " + str(result[key]['mean']) + " error: " + str(result[key]["error"]))
+    for key in result:
+        if key.endswith("low"):
+            print(key + ": " + str(result[key]['mean']) + " error: " + str(result[key]["error"]))
+    print("--------------------------------------------")
+
+
 def error_bar(path, prefix):
     lists = os.listdir(path)
     result = {}
@@ -478,10 +488,9 @@ def error_bar(path, prefix):
 
 
 def analyse_file():
-    configList = glob.glob(args.configFile)
     path = os.getcwd()
     lists = os.listdir(path)
-    for f in configList:
+    for f in args.configFile:
         print(f)
         prefix = f.split(".")[0] + "-"
         dLists = [d for d in lists if f.startswith(prefix) and os.path.isdir(os.path.join(path, f))]
