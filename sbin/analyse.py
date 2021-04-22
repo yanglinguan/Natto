@@ -478,7 +478,7 @@ def error_bar(path, prefix):
         error = 2 * numpy.std(value)
 
         result[key] = {"mean": mean, "error": error}
-        print(key + ": " + str(mean) + " error: " + str(error))
+    print_result(result, prefix)
     cf = open(os.path.join(path, prefix[:-1] + ".json"), "r")
     config = json.load(cf)
     result["config"] = config
