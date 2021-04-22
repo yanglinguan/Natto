@@ -14,7 +14,8 @@ type AbstractWorkload struct {
 	Workload // interface
 
 	//KeyList   []string  // all of the keys
-	KeyNum    int64     // total number of the keys
+	KeyNum    int64 // total number of the keys
+	totalKey  int64
 	alpha     float64   // zipfian alpha value
 	zipf      []float64 // zipfian values
 	zipfReady bool      // If zipfian distribution has been initialized
@@ -23,7 +24,7 @@ type AbstractWorkload struct {
 	keySize            int // the size of value in Bytes
 	priorityPercentage int
 	//val     string
-	partition int
+	partition int64
 }
 
 func NewAbstractWorkload(
@@ -35,10 +36,11 @@ func NewAbstractWorkload(
 ) *AbstractWorkload {
 	workload := &AbstractWorkload{
 		KeyNum:             keyNum / int64(partition),
+		totalKey:           keyNum,
 		alpha:              zipfAlpha,
 		keySize:            keySize,
 		priorityPercentage: priorityPercentage,
-		partition:          partition,
+		partition:          int64(partition),
 	}
 	workload.zipf = nil
 	workload.zipfReady = false
@@ -105,7 +107,7 @@ func (workload *AbstractWorkload) genKeyList(num int) []string {
 func (workload *AbstractWorkload) randKey() int64 {
 	if workload.alpha < 0 {
 		// Uniform selection of keys.
-		return rand.Int63n(workload.KeyNum)
+		return rand.Int63n(workload.totalKey)
 	} else {
 		// Zipf-like selection of keys.
 		if !workload.zipfReady {
@@ -156,8 +158,8 @@ func (workload *AbstractWorkload) randKey() int64 {
 			}
 		}
 
-		p := int64(rand.Intn(workload.partition))
-		return p + int64(workload.partition)*mid
+		p := rand.Int63n(workload.partition)
+		return p + workload.partition*mid
 	}
 }
 
