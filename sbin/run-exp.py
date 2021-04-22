@@ -71,7 +71,7 @@ def run_exp(i, run_list):
             print(f + " already run " + str(x) + " times skip this time " + str(i))
             continue
         nextRun = getNextRunCount(f)
-        p = multiprocessing.Process(target=run, name="run", args=(nextRun, f))
+        p = multiprocessing.Process(target=run, name="run", args=(nextRun, f, i == x))
         p.start()
         p.join(timeout)
         if p.is_alive():
@@ -86,12 +86,14 @@ def run_exp(i, run_list):
     return finishes, True, errorRun
 
 
-def run(i, f):
+def run(i, f, b):
     # print("run " + f + " " + str(i))
+    run_args = [bin_path + "run.py", "-c", f, "-r", str(i)]
     if args.debug:
-        subprocess.call([bin_path + "run.py", "-d", "-c", f, "-r", str(i)])
-    else:
-        subprocess.call([bin_path + "run.py", "-c", f, "-r", str(i)])
+        run_args.append("-d")
+    if b:
+        run_args.append("-b")
+    subprocess.call(run_args)
 
 
 def remove_log(dir_path):

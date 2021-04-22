@@ -55,6 +55,7 @@ type RaftNode struct {
 	stopc     chan struct{} // signals proposal channel closed
 	httpstopc chan struct{} // signals http server to shutdown
 	httpdonec chan struct{} // signals http server shutdown complete
+	isLeader  bool
 }
 
 var defaultSnapCount uint64 = 1000000000
@@ -68,6 +69,7 @@ func NewRaftNode(id int, port string, peers []string, join bool,
 	getSnapshot func() ([]byte, error), proposeC <-chan string,
 	confChangeC <-chan raftpb.ConfChange,
 	raftOutputChannelSize int,
+	isLeader bool,
 ) (<-chan *string, <-chan error, <-chan *snap.Snapshotter, func() uint64, *RaftNode) {
 
 	commitC := make(chan *string, raftOutputChannelSize)
@@ -94,6 +96,7 @@ func NewRaftNode(id int, port string, peers []string, join bool,
 
 		snapshotterReady: make(chan *snap.Snapshotter, 1),
 		// rest of structure populated after WAL replay
+		isLeader: isLeader,
 	}
 	go rc.startRaft()
 	return commitC, errorC, rc.snapshotterReady, func() uint64 { return rc.lead }, rc
@@ -270,6 +273,7 @@ func (rc *RaftNode) startRaft() {
 		Storage:         rc.raftStorage,
 		MaxSizePerMsg:   1024 * 1024,
 		MaxInflightMsgs: 256,
+		IsLeader:        rc.isLeader,
 	}
 
 	if oldwal {

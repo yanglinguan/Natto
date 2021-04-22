@@ -5,6 +5,7 @@ import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/utils"
 	"flag"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"os/exec"
 	"strconv"
@@ -45,11 +46,11 @@ func main() {
 	}
 
 	wg.Wait()
-	time.Sleep(time.Second * 10)
-	for _, expectedLeaderServerId := range carouselClient.Config.GetExpectPartitionLeaders() {
-		logrus.Debugf("start probe server %v", expectedLeaderServerId)
-		carouselClient.StartProbe(expectedLeaderServerId)
-	}
+	//time.Sleep(time.Second * 10)
+	//for _, expectedLeaderServerId := range carouselClient.Config.GetExpectPartitionLeaders() {
+	//	logrus.Debugf("start probe server %v", expectedLeaderServerId)
+	//		carouselClient.StartProbe(expectedLeaderServerId)
+	//	}
 }
 
 func ParseArgs() {
@@ -120,7 +121,7 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 			logrus.Fatalf("Invalid current leader address. Expected leader addr = %v", expectedLeaderServerId)
 		}
 
-		logrus.Infof("The current leader is server id = %v, expected leader id = %v", curLeaderId, expectedLeaderServerId)
+		fmt.Printf("The current leader is server id = %v, expected leader id = %v\n", curLeaderId, expectedLeaderServerId)
 	}
 }
 

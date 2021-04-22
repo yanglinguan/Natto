@@ -98,7 +98,7 @@ func main() {
 		logrus.Warnf("client wait %v to start", d)
 		time.Sleep(d)
 	}
-
+	logrus.Warnf("client %v start", clientId)
 	exp.Execute()
 
 	c.PrintTxnStatisticData()

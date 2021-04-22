@@ -173,7 +173,7 @@ func (server *Server) Start() {
 		defer close(raftInputChannel)
 		raftConfChangeChannel := make(chan raftpb.ConfChange)
 		defer close(raftConfChangeChannel)
-
+		isLeader := server.serverId == server.config.GetExpectPartitionLeaders()[server.partitionId]
 		// TODO: snapshot function
 		getSnapshotFunc := func() ([]byte, error) { return make([]byte, 0), nil }
 		raftOutputChannel, raftErrorChannel, raftSnapshotterChannel, getLeaderIdFunc, raftNode := raftnode.NewRaftNode(
@@ -185,6 +185,7 @@ func (server *Server) Start() {
 			raftInputChannel,
 			raftConfChangeChannel,
 			server.config.GetQueueLen(),
+			isLeader,
 		)
 
 		server.getLeaderId = getLeaderIdFunc

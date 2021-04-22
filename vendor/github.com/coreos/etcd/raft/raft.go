@@ -176,6 +176,8 @@ type Config struct {
 	// Logger is the logger used for raft log. For multinode which can host
 	// multiple raft group, each raft group can have its own logger
 	Logger Logger
+
+	IsLeader bool
 }
 
 func (c *Config) validate() error {
@@ -261,6 +263,8 @@ type raft struct {
 	step stepFunc
 
 	logger Logger
+
+	isLeader bool
 }
 
 func newRaft(c *Config) *raft {
@@ -295,6 +299,7 @@ func newRaft(c *Config) *raft {
 		checkQuorum:      c.CheckQuorum,
 		preVote:          c.PreVote,
 		readOnly:         newReadOnly(c.ReadOnlyOption),
+		isLeader:         c.IsLeader,
 	}
 	for _, p := range peers {
 		r.prs[p] = &Progress{Next: 1, ins: newInflights(r.maxInflight)}
@@ -526,7 +531,7 @@ func (r *raft) appendEntry(es ...pb.Entry) {
 func (r *raft) tickElection() {
 	r.electionElapsed++
 
-	if r.promotable() && r.pastElectionTimeout() {
+	if r.promotable() && r.pastElectionTimeout() && r.isLeader {
 		r.electionElapsed = 0
 		r.Step(pb.Message{From: r.id, Type: pb.MsgHup})
 	}

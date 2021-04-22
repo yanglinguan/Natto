@@ -20,6 +20,8 @@ arg_parser.add_argument('-d', '--debug', help="turn on debug",
                         action='store_true')
 arg_parser.add_argument('-r', '--runCount', dest='runCount', nargs='?',
                         help='runCount', required=True)
+arg_parser.add_argument('-b', '--buildDeploy', help="build and deploy",
+                        action='store_true')
 
 args = arg_parser.parse_args()
 
@@ -243,7 +245,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    start_time = str(int((time.time() + 10) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 20) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -253,9 +255,9 @@ def start_clients():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
-        exe = "cd " + path + "/client;" + \
-              client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
-        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + "; sleep 0.01; done; wait"
+        exe = "sleep 0.01; cd " + path + "/client;" + \
+                client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
@@ -284,7 +286,7 @@ def stop_servers():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         server_dir = path + "/server-$id"
-        exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log"
+        exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd = "killall -9 carousel-server; " + loop
         print(cmd + " # at " + ip)
@@ -330,21 +332,25 @@ def build():
 
 def main():
     start_time = time.time()
-    build()
-    end_build = time.time()
-    build_use = end_build - start_time
-    print("build use %.5fs" % build_use)
     parse_server_machine()
     parse_client_machine()
-    deploy()
-    end_deploy = time.time()
-    deploy_use = end_deploy - end_build
-    print("deploy use %.5fs" % deploy_use)
+    end_deploy = start_time
+    deploy_use = 0
+    print(args.runCount)
+    if args.buildDeploy:
+        build()
+        end_build = time.time()
+        build_use = end_build - start_time
+        print("build use %.5fs" % build_use)
+        deploy()
+        end_deploy = time.time()
+        deploy_use = end_deploy - end_build
+        print("deploy use %.5fs" % deploy_use)
     start_servers()
-    time.sleep(8)
+    time.sleep(15)
     end_start_server = time.time()
     start_server_use = end_start_server - end_deploy
-    print("start server use (+8s) %.5fs" % start_server_use)
+    print("start server use (+15s) %.5fs" % start_server_use)
     enforce_leader()
     end_select_leader = time.time()
     select_leader_use = end_select_leader - end_start_server
@@ -365,7 +371,7 @@ def main():
     end_collect = time.time()
     collect_use = end_collect - end_client
     print("collect log used %.5fs" % collect_use)
-    stop_clients()
+    # stop_clients()
     stop_servers()
     end_time = time.time()
     stop_server_use = end_time - end_collect
