@@ -16,16 +16,9 @@ arg_parser.add_argument('-d', '--directory', dest='directory', nargs='?',
 
 args = arg_parser.parse_args()
 
-fcounter = 0
 if not os.path.exists(args.directory):
     os.makedirs(args.directory)
 
-for f in os.listdir(args.directory):
-    if f.startswith(args.directory) and f.endswith(".json"):
-        n = int((f.split(".")[0]).split('-')[-1])
-        if n > fcounter:
-            fcounter = n
-fcounter += 1
 # Reads machine configurations
 config_file = open(args.config, "r")
 config_option = json.load(config_file)
@@ -52,55 +45,49 @@ exp = config_option["fix_exp"]
 exp["latency"] = config_option["latency"]
 
 var = config_option["var_exp"]
-var_names = []
-var_value = []
-for name in var:
-    var_names.append(name)
-    var_value.append(var[name])
-
-combo = list(itertools.product(*var_value))
-
-shortName = {
-    "optimisticReorder": "oR",
-    "conditionalPrepare": "cP",
-    "workloadhighPriority": "hP",
-    "retrymaxRetry": "maxRetry",
-    "zipfAlpha": "zipf",
-    "workloadtype": "workload",
-    "fastPath": "fP",
-    "openLoop": "oL",
-    "timeWindow": "tw",
-    "readBeforeCommitReplicate": "rbcr",
-    "forwardReadToCoord": "frtc",
-    "popular": "pop",
-}
-
 eList = []
 
-for value in combo:
-    i = 0
+
+def assign_value(exp_config, key, val):
+    name_list = key.split("_")
+    ev = exp_config
+    for ke in name_list[:-1]:
+        ev = ev[ke]
+    ev[name_list[-1]] = val
+
+
+for name in var:
+    var_value = var[name]
     e = copy.deepcopy(exp)
-    varExp = ""
-    for v in value:
-        name = var_names[i]
-        i += 1
-        items = name.split("_")
-        n = "".join(items)
-        if len(items) == 2:
-            e[items[0]][items[1]] = v
-        else:
-            e[name] = v
-        if n in shortName:
-            n = shortName[n]
-        varExp += n
-        x = v
-        if name == "zipfAlpha":
-            x = int(v*100)
-        varExp += "_" + str(x) + "-"
-    e["varExp"] = varExp
+    for k in var_value:
+        v = var_value[k]
+        assign_value(e, k, v)
+    e['varExp'] = name
     eList.append(e)
 
-config_list.append(eList)
+x_names = []
+x_values = []
+x_axis = config_option["x_axis"]
+for name in x_axis:
+    x_names.append(name)
+    x_values.append(x_axis[name])
+
+combo = list(itertools.product(*x_values))
+
+final_exp = []
+for ex in eList:
+    for value in combo:
+        i = 0
+        e = copy.deepcopy(ex)
+        for v in value:
+            name = x_names[i]
+            i += 1
+            assign_value(e, name, v)
+            e["varExp"] += "-" + name + "-"
+            e["varExp"] += str(v)
+        final_exp.append(e)
+
+config_list.append(final_exp)
 
 config_combo = list(itertools.product(*config_list))
 
@@ -112,7 +99,7 @@ for combo in config_combo:
         config[name] = c
         i += 1
 
-    f = args.directory + "-" + str(fcounter) + ".json"
-    fcounter += 1
+    f = config["experiment"]["varExp"] + ".json"
+
     with open(os.path.join(args.directory, f), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)

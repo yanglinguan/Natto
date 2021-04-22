@@ -1,59 +1,78 @@
 {
   "server": {
-    "nums": 3,
-    "partitions": 3,
-    "replicationFactor": 1,
+    "nums": 15,
+    "partitions": 5,
+    "replicationFactor": 3,
     "failure": 1,
     "raftPortBase": 20000,
     "rpcPortBase": 10000
   },
-  "client_nums": [5],
   "server_machines": [
-  "localhost",
-  "localhost",
-  "localhost"
+        "10.0.2.6",
+        "10.0.4.2",
+        "10.0.4.3",
+        "10.0.4.4",
+        "10.0.4.5",
+        "10.0.4.6",
+        "10.0.4.7",
+        "10.0.4.8",
+        "10.0.4.9",
+        "10.0.4.10",
+        "10.0.4.11",
+        "10.0.4.12",
+        "10.0.4.13",
+        "10.0.4.14",
+        "10.0.4.15"
   ],
+  "client_nums": [5],
   "client_machines": [
-    "localhost"
+        "10.0.2.4",
+        "10.0.2.5",
+        "10.0.2.9",
+        "10.0.2.7",
+        "10.0.2.8",
+        "10.0.2.10",
+        "10.0.2.13",
+        "10.0.2.14",
+        "10.0.3.1",
+        "10.0.3.2",
+        "10.0.3.3",
+        "10.0.3.4",
+        "10.0.3.5",
+        "10.0.3.11",
+        "10.0.3.12",
+        "10.0.3.13",
+        "10.0.3.14",
+        "10.0.3.100"
   ],
   "latency": {
-    "variance": "10ms",
-    "distribution": "pareto",
-    "oneWayDelay": [
-      [
-        "0ms",
-        "50ms",
-        "100ms"
-      ],
-      [
-        "50ms",
-        "0ms",
-        "80ms"
-      ],
-      [
-        "100ms",
-        "80ms",
-        "0ms"
-      ]
-    ]
+        "variance": "off",
+        "distribution": "pareto",
+        "oneWayDelay" : [
+            ["0ms", "36ms", "83ms", "51ms", "80ms"],
+            ["36ms", "0ms", "44ms", "86ms", "102ms"],
+            ["83ms", "44ms", "0ms", "117ms", "145ms"],
+            ["51ms", "86ms", "117ms", "0ms", "57ms"],
+            ["80ms", "102ms", "145ms", "57ms", "0ms"]
+        ]
   },
   "fix_exp": {
     "readOnly": true,
     "checkWaiting": false,
     "replication": true,
-    "totalKey": 10000000,
+    "totalKey": 1000000,
     "RPCPoolSize": 0,
     "keySize": 64,
-    "duration": "90s",
+    "duration": "60s",
     "totalTxn": 1000,
     "targetRate": 100,
     "dynamicLatency": {
-      "mode": false,
+      "mode": true,
       "probeWindowLen": "1s",
       "probeWindowMinSize": 10,
       "probeInterval": "10ms",
       "blocking": false,
-      "probeTime": false
+      "probeTime": true
     },
     "workload": {
       "type": "ycsbt",
@@ -63,37 +82,94 @@
         "postTweetRatio": 30,
         "loadTimelineRatio": 50
       },
-      "highPriority": 100
+      "smallbank": {
+        "isHotSpotFixedSize": false,
+        "hotSpotFixedSize": 100,
+        "hotSpotPercentage": 25,
+        "hotSpotTxnRatio": 90,
+        "amalgamateRatio": 15,
+        "balance": 15,
+        "depositChecking": 15,
+        "sendPayment": 25,
+        "transactSavings": 15,
+        "writeCheck": 15,
+        "checkingFlag": "c",
+        "savingsFlag": "s",
+        "initBalance": 50000.0
+      },
+      "randYcsbt": {
+        "single": 50
+      },
+      "highPriority": 10
     },
     "seed": 0,
-    "queueLen": 10240,
+    "queueLen": 102400,
     "retry": {
-      "mode": "exp",
-      "interval": "10ms",
-      "maxRetry": 20,
+      "mode": "const",
+      "interval": "0ms",
+      "maxRetry": 10,
       "maxSlot": 32
     },
     "ssh": {
-      "username": "l69yang",
+      "username": "",
       "identity": ""
     },
-    "runDir": "/ssd1/carousel-gts/"
+    "runDir": "/ssd1/carousel-gts/",
+    "waitToStart": 0,
+    "poissonProcess":true,
+    "highTxnOnly": false,
+    "queuePos": 2,
+    "priorityScheduler": true,
+    "popular": 0,
+    "optimisticReorder": false,
+    "fastPath": false,
+    "delay": "2ms",
+    "txnSize": 6,
+    "openLoop": true,
+    "txnRate": 100,
+    "zipfAlpha": 0.5,
+    "timeWindow": "0ms",
+    "conditionalPrepare": false,
+    "networkTimestamp": false,
+    "readBeforeCommitReplicate": false,
+    "forwardReadToCoord": false
   },
   "var_exp": {
-    "mode":  ["priority", "occ", "2PL", "TO"],
-    "fastPath": [false],
-    "delay": ["10ms"],
-    "txnSize": [2],
-    "openLoop": [true],
-    "txnRate":  [100],
-    "zipfAlpha": [0.5, 0.75, 0.85, 0.95],
-    "timeWindow": ["0ms"],
-    "conditionalPrepare":  [false],
-    "optimisticReorder":  [false],
-    "workload_highPriority": [10],
-    "workload_type": ["ycsbt"],
-    "retry_mode": ["exp", "const"],
-    "retry_maxRetry": [20, -1],
-    "networkTimestamp": [true]
+    "carousel": {
+      "mode": "occ"
+    },
+    "timestamp": {
+      "mode": "priority",
+      "networkTimestamp": true
+    },
+    "LOR": {
+      "mode": "priority",
+      "networkTimestamp": true,
+      "readBeforeCommitReplicate": true
+    },
+    "PriorityAbort": {
+      "mode": "priority",
+      "networkTimestamp": true,
+      "readBeforeCommitReplicate": true,
+      "timeWindow": "-1ms"
+    },
+    "ConditionalPrepare": {
+      "mode": "priority",
+      "networkTimestamp": true,
+      "readBeforeCommitReplicate": true,
+      "timeWindow": "-1ms",
+      "conditionalPrepare": true
+    },
+    "ROR": {
+      "mode": "priority",
+      "networkTimestamp": true,
+      "readBeforeCommitReplicate": true,
+      "timeWindow": "-1ms",
+      "conditionalPrepare": true,
+      "forwardReadToCoord": true
+    }
+  },
+  "x_axis": {
+    "txnRate": [100, 200, 300]
   }
 }

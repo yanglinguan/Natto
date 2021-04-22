@@ -5,6 +5,7 @@ import os
 import argparse
 import sys
 import numpy
+import glob
 
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
@@ -13,6 +14,7 @@ arg_parser.add_argument('-d', '--resultDir', dest='resultDir', nargs='?',
                         help='result dir', required=False)
 arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='?',
                         help='configuration file', required=False)
+
 args = arg_parser.parse_args()
 
 # path = os.getcwd()
@@ -227,12 +229,12 @@ def analyse_latency(txn_map):
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
-    print("10 per (ms): " + str(p10))
-    print("median (ms): " + str(median))
-    print("90 per (ms): " + str(p90))
-    print("95 per (ms): " + str(p95))
-    print("99 per (ms): " + str(p99))
-    print("avg (ms): " + str(avg))
+    # print("10 per (ms): " + str(p10))
+    # print("median (ms): " + str(median))
+    # print("90 per (ms): " + str(p90))
+    # print("95 per (ms): " + str(p95))
+    # print("99 per (ms): " + str(p99))
+    # print("avg (ms): " + str(avg))
 
     latency.sort()
 
@@ -262,12 +264,12 @@ def analyse_latency(txn_map):
     result["p10_high"] = p10
     result["avg_high"] = avg
     # result["latency_high"] = latency_high
-    print("10 per (ms) high: " + str(p10))
-    print("median (ms) high: " + str(median))
-    print("90 per (ms) high: " + str(p90))
-    print("95 per (ms) high: " + str(p95))
-    print("99 per (ms) high: " + str(p99))
-    print("avg (ms) high: " + str(avg))
+    # print("10 per (ms) high: " + str(p10))
+    # print("median (ms) high: " + str(median))
+    # print("90 per (ms) high: " + str(p90))
+    # print("95 per (ms) high: " + str(p95))
+    # print("99 per (ms) high: " + str(p99))
+    # print("avg (ms) high: " + str(avg))
 
     median = numpy.percentile(latency_low, 50)
     p90 = numpy.percentile(latency_low, 90)
@@ -283,12 +285,12 @@ def analyse_latency(txn_map):
     result["p10_low"] = p10
     result["avg_low"] = avg
     # result["latency_low"] = latency_low
-    print("10 per (ms) low: " + str(p10))
-    print("median (ms) low: " + str(median))
-    print("90 per (ms) low: " + str(p90))
-    print("95 per (ms) low: " + str(p95))
-    print("99 per (ms) low: " + str(p99))
-    print("avg (ms) low: " + str(avg))
+    # print("10 per (ms) low: " + str(p10))
+    # print("median (ms) low: " + str(median))
+    # print("90 per (ms) low: " + str(p90))
+    # print("95 per (ms) low: " + str(p95))
+    # print("99 per (ms) low: " + str(p99))
+    # print("avg (ms) low: " + str(avg))
 
     return result
 
@@ -308,10 +310,10 @@ def analyse_throughput(txn_map):
             max_time = value["start"]
 
         total_count += 1
-        #total_count += value["exeCount"]
+        # total_count += value["exeCount"]
         if value["commit"]:
             count += 1
-            #total_count += 1
+            # total_count += 1
             if value["priority"]:
                 count_high += 1
             else:
@@ -320,17 +322,17 @@ def analyse_throughput(txn_map):
     throughput = float(count * 1000000000) / (max_time - min_time)
     all_thro = float(total_count * 1000000000) / (max_time - min_time)
 
-    print("start time " + str(min_time) + "; end time" + str(max_time))
-    print("commit throughput (txn/s): " + str(throughput))
-    print("throughput(txn/s): " + str(all_thro))
+    # print("start time " + str(min_time) + "; end time" + str(max_time))
+    # print("commit throughput (txn/s): " + str(throughput))
+    # print("throughput(txn/s): " + str(all_thro))
 
     if count_high == 0 or count_low == 0:
         return throughput, 0, 0
 
     throughput_high = float(count_high * 1000000000) / (max_time - min_time)
     throughput_low = float(count_low * 1000000000) / (max_time - min_time)
-    print("commit throughput high (txn/s): " + str(throughput_high))
-    print("commit throughput low (txn/s): " + str(throughput_low))
+    # print("commit throughput high (txn/s): " + str(throughput_high))
+    # print("commit throughput low (txn/s): " + str(throughput_low))
     return throughput, throughput_low, throughput_high
 
 
@@ -359,15 +361,15 @@ def analyse_abort_rate(txn_map):
 
     abort_rate = 1 - float(commit) / count
 
-    print("Abort rate: " + str(abort_rate))
+    # print("Abort rate: " + str(abort_rate))
 
     if commit_high == 0 or commit_low == 0:
         return abort_rate, 0, 0
 
     abort_high_rate = 1 - float(commit_high) / count_high
     abort_low_rate = 1 - float(commit_low) / count_low
-    print("Abort rate high: " + str(abort_high_rate))
-    print("Abort rate low: " + str(abort_low_rate))
+    # print("Abort rate high: " + str(abort_high_rate))
+    # print("Abort rate low: " + str(abort_low_rate))
     return abort_rate, abort_low_rate, abort_high_rate
 
 
@@ -466,6 +468,7 @@ def error_bar(path, prefix):
         error = 2 * numpy.std(value)
 
         result[key] = {"mean": mean, "error": error}
+        print(key + ": " + str(mean) + " error: " + str(error))
     cf = open(os.path.join(path, prefix[:-1] + ".json"), "r")
     config = json.load(cf)
     result["config"] = config
@@ -474,26 +477,37 @@ def error_bar(path, prefix):
         json.dump(result, f, indent=4)
 
 
+def analyse_file():
+    configList = glob.glob(args.configFile)
+    path = os.getcwd()
+    lists = os.listdir(path)
+    for f in configList:
+        print(f)
+        prefix = f.split(".")[0] + "-"
+        dLists = [d for d in lists if f.startswith(prefix) and os.path.isdir(os.path.join(path, f))]
+        for d in dLists:
+            analyse(d)
+        error_bar(path, prefix)
+
+
 def main():
     if args.resultDir is not None:
         analyse(args.resultDir)
-    else:
-        path = os.getcwd()
-        lists = os.listdir(path)
-        prefix = ""
-        if args.configFile is not None:
-            prefix = args.configFile.split(".")[0] + "-"
-        fLists = [f for f in lists if f.startswith(prefix)]
-        for f in fLists:
-            if os.path.isdir(os.path.join(path, f)):
-                analyse(f)
-        if args.configFile is not None:
+        return
+    if args.configFile is not None:
+        analyse_file()
+        return
+
+    path = os.getcwd()
+    lists = os.listdir(path)
+    for f in lists:
+        if os.path.isdir(os.path.join(path, f)):
+            analyse(f)
+
+    for f in lists:
+        if f.endswith(".json"):
+            prefix = f.split(".")[0] + "-"
             error_bar(path, prefix)
-        else:
-            for f in fLists:
-                if f.endswith(".json"):
-                    prefix = f.split(".")[0] + "-"
-                    error_bar(path, prefix)
 
 
 if __name__ == "__main__":
