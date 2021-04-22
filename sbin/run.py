@@ -245,7 +245,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    start_time = str(int((time.time() + 20) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 5) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -336,7 +336,7 @@ def main():
     parse_client_machine()
     end_deploy = start_time
     deploy_use = 0
-    print(args.runCount)
+    build_use = 0
     if args.buildDeploy:
         build()
         end_build = time.time()

@@ -95,7 +95,7 @@ func EnforceLeader(expectedLeaderServerId int, config configuration.Configuratio
 	// The hear-beat response contains the current leader's server address.
 	curLeaderId := carouselClient.HeartBeat(expectedLeaderServerId)
 
-	logrus.Infof("The current leader is server id = %v expect leaderId %v", curLeaderId, expectedLeaderServerId)
+	fmt.Printf("The current leader is server id = %v expect leaderId %v\n", curLeaderId, expectedLeaderServerId)
 
 	// Kills the current leader until the expected server becomes the leader
 	for curLeaderId != expectedLeaderServerId {

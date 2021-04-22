@@ -307,10 +307,11 @@ def analyse_throughput(txn_map):
         if value["start"] > max_time:
             max_time = value["start"]
 
-        total_count += value["exeCount"]
+        total_count += 1
+        #total_count += value["exeCount"]
         if value["commit"]:
             count += 1
-            total_count += 1
+            #total_count += 1
             if value["priority"]:
                 count_high += 1
             else:
