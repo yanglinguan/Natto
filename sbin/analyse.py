@@ -9,7 +9,7 @@ import numpy
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
 # Cluster configuration file
-arg_parser.add_argument('-d', '--resultDir', dest='resultDir', nargs='?',
+arg_parser.add_argument('-d', '--resultDir', dest='resultDir', nargs='*',
                         help='result dir', required=False)
 arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='*',
                         help='configuration file', required=False)
@@ -501,7 +501,8 @@ def analyse_file():
 
 def main():
     if args.resultDir is not None:
-        analyse(args.resultDir)
+        for dr in args.resultDir:
+            analyse(dr)
         return
     if args.configFile is not None:
         analyse_file()
