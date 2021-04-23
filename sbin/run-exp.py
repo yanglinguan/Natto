@@ -11,7 +11,7 @@ path = os.getcwd()
 arg_parser = argparse.ArgumentParser(description="run exp.")
 
 # Cluster configuration file
-arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
+arg_parser.add_argument('-c', '--config', dest='config', nargs='*',
                         help='configuration file', required=False)
 arg_parser.add_argument('-d', '--debug', help="turn on debug",
                         action='store_true')
@@ -133,11 +133,12 @@ def main():
 
     run_list = []
     if args.config is not None:
-        idx = getRunIdx(args.config)
-        if idx < 0:
-            print(args.config, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
-            return
-        run_list.append((args.config, idx))
+        for c in args.config:
+            idx = getRunIdx(c)
+            if idx < 0:
+                print(c, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
+                return
+            run_list.append((c, idx))
     else:
         lists = os.listdir(path)
         for f in lists:
