@@ -137,7 +137,7 @@ def main():
             idx = getRunIdx(c)
             if idx < 0:
                 print(c, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
-                return
+                continue
             run_list.append((c, idx))
     else:
         lists = os.listdir(path)
