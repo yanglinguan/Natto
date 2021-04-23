@@ -35,7 +35,7 @@ func NewAbstractWorkload(
 	partition int,
 ) *AbstractWorkload {
 	workload := &AbstractWorkload{
-		KeyNum:             keyNum / int64(partition),
+		KeyNum:             keyNum,
 		totalKey:           keyNum,
 		alpha:              zipfAlpha,
 		keySize:            keySize,
@@ -158,8 +158,9 @@ func (workload *AbstractWorkload) randKey() int64 {
 			}
 		}
 
-		p := rand.Int63n(workload.partition)
-		return p + workload.partition*mid
+		//p := rand.Int63n(workload.partition)
+		//return p + workload.partition*mid
+		return mid
 	}
 }
 
