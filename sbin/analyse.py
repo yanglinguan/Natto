@@ -102,7 +102,7 @@ def analyse_optimization_count(dir_name, txn_map):
 
     for k in result:
         result[k] = (float(result[k]) / float(total_txn)) * 100
-        print(k + ": " + str(result[k]))
+        # print(k + ": " + str(result[k]))
 
     return result
 
@@ -228,12 +228,12 @@ def analyse_latency(txn_map):
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
-    # print("10 per (ms): " + str(p10))
-    # print("median (ms): " + str(median))
-    # print("90 per (ms): " + str(p90))
-    # print("95 per (ms): " + str(p95))
-    # print("99 per (ms): " + str(p99))
-    # print("avg (ms): " + str(avg))
+    print("10 per (ms): " + str(p10))
+    print("median (ms): " + str(median))
+    print("90 per (ms): " + str(p90))
+    print("95 per (ms): " + str(p95))
+    print("99 per (ms): " + str(p99))
+    print("avg (ms): " + str(avg))
 
     latency.sort()
 
@@ -493,7 +493,7 @@ def analyse_file():
     for f in args.configFile:
         print(f)
         prefix = f.split(".")[0] + "-"
-        dLists = [d for d in lists if f.startswith(prefix) and os.path.isdir(os.path.join(path, f))]
+        dLists = [d for d in lists if d.startswith(prefix) and os.path.isdir(os.path.join(path, d))]
         for d in dLists:
             analyse(d)
         error_bar(path, prefix)
