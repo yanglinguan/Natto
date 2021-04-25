@@ -70,7 +70,7 @@ def assign_value(exp_config, key, val):
     ev[name_list[-1]] = val
 
 
-def output(config_list):
+def output(config_list, var_client):
     config_combo = list(itertools.product(*config_list))
     for combo in config_combo:
         i = 0
@@ -79,7 +79,7 @@ def output(config_list):
             name = config_name[i]
             config[name] = c
             i += 1
-        if len(config_list[1]) > 1:
+        if var_client:
             exp = copy.deepcopy(config["experiment"])
             exp["varExp"] += "-client_nums-" + str(config["clients"]["nums"])
             config["experiment"] = exp
@@ -98,7 +98,8 @@ def main():
         exp_list = config_exp()
 
         x_values = x_axis[x_name]
-        if x_name == "client_nums":
+        var_client = x_name == "client_nums"
+        if var_client:
             client_config = config_client(x_values)
             config_list.append(client_config)
             config_list.append(exp_list)
@@ -108,13 +109,13 @@ def main():
             for exp in exp_list:
                 for val in x_values:
                     ev = copy.deepcopy(exp)
-                    if x_name != "client_nums":
+                    if not var_client:
                         assign_value(ev, x_name, val)
                     ev["varExp"] += "-" + x_name + "-"
                     ev["varExp"] += str(val)
                     final_exp_list.append(ev)
             config_list.append(final_exp_list)
-        output(config_list)
+        output(config_list, var_client)
 
 
 if __name__ == "__main__":
