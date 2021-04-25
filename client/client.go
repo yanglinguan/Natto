@@ -10,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"io"
-	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -82,6 +81,13 @@ func NewClient(clientId int, configFile string) *Client {
 		}
 	}
 
+	if c.Config.ForwardReadToCoord() {
+		c.createReadResultFromCoordinatorStream()
+		for i := range c.readResultFromCoordinatorStream {
+			go c.receiveReadResultFromCoordinatorStream(i)
+		}
+	}
+
 	return c
 }
 
@@ -99,7 +105,7 @@ func (c *Client) createReadResultFromCoordinatorStream() {
 		}
 		stream, err := client.ReadResultFromCoordinator(context.Background(), in)
 		if err != nil {
-			log.Fatalf("open stream error %v", err)
+			logrus.Fatalf("open stream error %v", err)
 		}
 		c.readResultFromCoordinatorStream[i] = stream
 	}
@@ -170,12 +176,6 @@ func (c *Client) receiveReadResultFromCoordinatorStream(i int) {
 func (c *Client) Start() {
 	// create stream to coordinators
 	// receiving result from coordinators
-	if c.Config.ForwardReadToCoord() {
-		c.createReadResultFromCoordinatorStream()
-		for i := range c.readResultFromCoordinatorStream {
-			go c.receiveReadResultFromCoordinatorStream(i)
-		}
-	}
 
 	go c.processOperation()
 
