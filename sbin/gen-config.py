@@ -23,29 +23,43 @@ if not os.path.exists(args.directory):
 config_file = open(args.config, "r")
 config_option = json.load(config_file)
 config_file.close()
-
-server = config_option["server"]
-server["machines"] = config_option["server_machines"]
-
 config_name = ["servers", "clients", "experiment"]
-config_list = [[server]]
 
-client_nums = config_option["client_nums"]
-clients = []
-for c_num in client_nums:
-    client = {
-        "nums": c_num,
-        "machines": config_option["client_machines"]
-    }
-    clients.append(client)
 
-config_list.append(clients)
+def config_server():
+    server = config_option["server"]
+    server["machines"] = config_option["server_machines"]
+    return server
 
-exp = config_option["fix_exp"]
-exp["latency"] = config_option["latency"]
 
-var = config_option["var_exp"]
-eList = []
+def config_client(nums):
+    client_list = []
+    for n in nums:
+        client_config = {
+            "nums": n,
+            "machines": config_option["client_machines"]
+        }
+        client_list.append(client_config)
+    return client_list
+
+
+def config_exp():
+    default_exp = config_option["default_exp"]
+    default_exp["latency"] = config_option["latency"]
+
+    var = config_option["var_exp"]
+    eList = []
+    for n in var:
+        var_value = var[n]
+        ev = copy.deepcopy(default_exp)
+        for k in var_value:
+            val = var_value[k]
+            assign_value(ev, k, val)
+        ev['varExp'] = n
+        eList.append(ev)
+    if len(eList) == 0:
+        eList.append(default_exp)
+    return eList
 
 
 def assign_value(exp_config, key, val):
@@ -56,50 +70,52 @@ def assign_value(exp_config, key, val):
     ev[name_list[-1]] = val
 
 
-for name in var:
-    var_value = var[name]
-    e = copy.deepcopy(exp)
-    for k in var_value:
-        v = var_value[k]
-        assign_value(e, k, v)
-    e['varExp'] = name
-    eList.append(e)
-
-x_names = []
-x_values = []
-x_axis = config_option["x_axis"]
-for name in x_axis:
-    x_names.append(name)
-    x_values.append(x_axis[name])
-
-combo = list(itertools.product(*x_values))
-
-final_exp = []
-for ex in eList:
-    for value in combo:
+def output(config_list):
+    config_combo = list(itertools.product(*config_list))
+    for combo in config_combo:
         i = 0
-        e = copy.deepcopy(ex)
-        for v in value:
-            name = x_names[i]
+        config = {}
+        for c in combo:
+            name = config_name[i]
+            config[name] = c
             i += 1
-            assign_value(e, name, v)
-            e["varExp"] += "-" + name + "-"
-            e["varExp"] += str(v)
-        final_exp.append(e)
+        if len(config_list[1]) > 1:
+            exp = copy.deepcopy(config["experiment"])
+            exp["varExp"] += "-client_nums-" + str(config["clients"]["nums"])
+            config["experiment"] = exp
 
-config_list.append(final_exp)
+        f = config["experiment"]["varExp"] + ".json"
+        with open(os.path.join(args.directory, f), "w") as fp:
+            json.dump(config, fp, indent=4, sort_keys=True)
 
-config_combo = list(itertools.product(*config_list))
 
-for combo in config_combo:
-    i = 0
-    config = {}
-    for c in combo:
-        name = config_name[i]
-        config[name] = c
-        i += 1
+def main():
+    x_axis = config_option["x_axis"]
+    server = config_server()
+    for x_name in x_axis:
+        config_list = [[server]]
+        client_config = config_client([config_option["client_nums"]])
+        exp_list = config_exp()
 
-    f = config["experiment"]["varExp"] + ".json"
+        x_values = x_axis[x_name]
+        if x_name == "client_nums":
+            client_config = config_client(x_values)
+            config_list.append(client_config)
+            config_list.append(exp_list)
+        else:
+            config_list.append(client_config)
+            final_exp_list = []
+            for exp in exp_list:
+                for val in x_values:
+                    ev = copy.deepcopy(exp)
+                    if x_name != "client_nums":
+                        assign_value(ev, x_name, val)
+                    ev["varExp"] += "-" + x_name + "-"
+                    ev["varExp"] += str(val)
+                    final_exp_list.append(ev)
+            config_list.append(final_exp_list)
+        output(config_list)
 
-    with open(os.path.join(args.directory, f), "w") as fp:
-        json.dump(config, fp, indent=4, sort_keys=True)
+
+if __name__ == "__main__":
+    main()
