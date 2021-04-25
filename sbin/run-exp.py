@@ -134,6 +134,8 @@ def main():
     run_list = []
     if args.config is not None:
         for c in args.config:
+            if not c.endswith(".json"):
+                continue
             idx = getRunIdx(c)
             if idx < 0:
                 print(c, " already run " + str(n) + " times. use -f force to run " + str(n) + " times")
