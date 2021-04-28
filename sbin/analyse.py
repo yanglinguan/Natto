@@ -55,7 +55,7 @@ def analyse_fastPath(dir_name):
                         fail += 1
                         break
     rate = float(total - fail) / float(total)
-    #print("fast path success rate: " + strrate)
+    # print("fast path success rate: " + strrate)
     return rate
 
 
@@ -197,8 +197,8 @@ def load_statistic(dir_name):
                 print(f + " dose not have txn")
     avg = numpy.average(num_txn)
     std = numpy.std(num_txn)
-    #print("num client: " + str(client_num))
-    #print("avg txn num: " + str(avg) + " error: " + str(std))
+    # print("num client: " + str(client_num))
+    # print("avg txn num: " + str(avg) + " error: " + str(std))
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
         if value["start"] < low or value["start"] > high:
@@ -230,12 +230,12 @@ def analyse_latency(txn_map):
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
-    #print("10 per (ms): " + str(p10))
-    #print("median (ms): " + str(median))
-    #print("90 per (ms): " + str(p90))
-    #print("95 per (ms): " + str(p95))
-    #print("99 per (ms): " + str(p99))
-    #print("avg (ms): " + str(avg))
+    # print("10 per (ms): " + str(p10))
+    # print("median (ms): " + str(median))
+    # print("90 per (ms): " + str(p90))
+    # print("95 per (ms): " + str(p95))
+    # print("99 per (ms): " + str(p99))
+    # print("avg (ms): " + str(avg))
 
     latency.sort()
 
@@ -265,12 +265,12 @@ def analyse_latency(txn_map):
     result["p10_high"] = p10
     result["avg_high"] = avg
     # result["latency_high"] = latency_high
-    #print("10 per (ms) high: " + str(p10))
-    #print("median (ms) high: " + str(median))
-    #print("90 per (ms) high: " + str(p90))
-    #print("95 per (ms) high: " + str(p95))
-    #print("99 per (ms) high: " + str(p99))
-    #print("avg (ms) high: " + str(avg))
+    # print("10 per (ms) high: " + str(p10))
+    # print("median (ms) high: " + str(median))
+    # print("90 per (ms) high: " + str(p90))
+    # print("95 per (ms) high: " + str(p95))
+    # print("99 per (ms) high: " + str(p99))
+    # print("avg (ms) high: " + str(avg))
 
     median = numpy.percentile(latency_low, 50)
     p90 = numpy.percentile(latency_low, 90)
@@ -286,12 +286,55 @@ def analyse_latency(txn_map):
     result["p10_low"] = p10
     result["avg_low"] = avg
     # result["latency_low"] = latency_low
-    #print("10 per (ms) low: " + str(p10))
-    #print("median (ms) low: " + str(median))
-    #print("90 per (ms) low: " + str(p90))
-    #print("95 per (ms) low: " + str(p95))
-    #print("99 per (ms) low: " + str(p99))
-    #print("avg (ms) low: " + str(avg))
+    # print("10 per (ms) low: " + str(p10))
+    # print("median (ms) low: " + str(median))
+    # print("90 per (ms) low: " + str(p90))
+    # print("95 per (ms) low: " + str(p95))
+    # print("99 per (ms) low: " + str(p99))
+    # print("avg (ms) low: " + str(avg))
+
+    return result
+
+
+def analyse_retry(txn_map):
+    low_retry = []
+    high_retry = []
+    for txn_id, value in txn_map.items():
+        if not value["commit"]:
+            continue
+        if value["priority"]:
+            high_retry.append(value["exeCount"])
+        else:
+            low_retry.append(value["execCount"])
+
+    median = numpy.percentile(low_retry, 50)
+    p90 = numpy.percentile(low_retry, 90)
+    p95 = numpy.percentile(low_retry, 95)
+    p99 = numpy.percentile(low_retry, 99)
+    p10 = numpy.percentile(low_retry, 10)
+    avg = numpy.average(low_retry)
+
+    result = {
+        "retry_median_low": median,
+        "retry_p90_low": p90,
+        "retry_p95_low": p95,
+        "retry_p99_low": p99,
+        "retry_p10_low": p10,
+        "retry_avg_low": avg,
+    }
+    median = numpy.percentile(high_retry, 50)
+    p90 = numpy.percentile(high_retry, 90)
+    p95 = numpy.percentile(high_retry, 95)
+    p99 = numpy.percentile(high_retry, 99)
+    p10 = numpy.percentile(high_retry, 10)
+    avg = numpy.average(high_retry)
+
+    result["retry_median_high"] = median
+    result["retry_p90_high"] = p90
+    result["retry_p95_high"] = p95
+    result["retry_p99_high"] = p99
+    result["retry_p10_high"] = p10
+    result["retry_avg_high"] = avg
 
     return result
 
@@ -332,8 +375,8 @@ def analyse_throughput(txn_map):
 
     throughput_high = float(count_high * 1000000000) / (max_time - min_time)
     throughput_low = float(count_low * 1000000000) / (max_time - min_time)
-    #print("commit throughput high (txn/s): " + str(throughput_high))
-    #print("commit throughput low (txn/s): " + str(throughput_low))
+    # print("commit throughput high (txn/s): " + str(throughput_high))
+    # print("commit throughput low (txn/s): " + str(throughput_low))
     return throughput, throughput_low, throughput_high
 
 
@@ -369,8 +412,8 @@ def analyse_abort_rate(txn_map):
 
     abort_high_rate = 1 - float(commit_high) / count_high
     abort_low_rate = 1 - float(commit_low) / count_low
-    #print("Abort rate high: " + str(abort_high_rate))
-    #print("Abort rate low: " + str(abort_low_rate))
+    # print("Abort rate high: " + str(abort_high_rate))
+    # print("Abort rate low: " + str(abort_low_rate))
     return abort_rate, abort_low_rate, abort_high_rate
 
 
@@ -417,7 +460,7 @@ def analyse(dir_name):
     #    return
     if n == 0:
         return
-    #print(clientN, dir_name, setting["experiment"]["varExp"])
+    # print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
     # fastPathSuccessRate = analyse_fast_prepare_rate(path)
     # analyse_waiting(path)
@@ -441,6 +484,11 @@ def analyse(dir_name):
         # result["fast_prepare_rate_high"] = fast_prepare_rate_high
     for k in optimization_count:
         result[k] = optimization_count[k]
+
+    retry = analyse_retry(txn_map)
+
+    for k in retry:
+        result[k] = retry[k]
 
     file_name = os.path.basename(path)
     with open(file_name + ".result", "w") as f:
@@ -481,7 +529,7 @@ def error_bar(path, prefix):
         error = 2 * numpy.std(value)
 
         result[key] = {"mean": mean, "error": error}
-    #print_result(result, prefix)
+    # print_result(result, prefix)
     cf = open(os.path.join(path, prefix[:-1] + ".json"), "r")
     config = json.load(cf)
     result["config"] = config
