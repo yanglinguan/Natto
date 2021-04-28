@@ -55,7 +55,7 @@ def analyse_fastPath(dir_name):
                         fail += 1
                         break
     rate = float(total - fail) / float(total)
-    print("fast path success rate: " + str(rate))
+    #print("fast path success rate: " + strrate)
     return rate
 
 
@@ -102,7 +102,7 @@ def analyse_optimization_count(dir_name, txn_map):
 
     for k in result:
         result[k] = (float(result[k]) / float(total_txn)) * 100
-        # print(k + ": " + str(result[k]))
+        # #print(k + ": " + str(result[k]))
 
     return result
 
@@ -193,10 +193,12 @@ def load_statistic(dir_name):
                                    "readOnly": read_only,
                                    "exeCount": exe_count}
             num_txn.append(txn_count)
+            if txn_count == 0:
+                print(f + " dose not have txn")
     avg = numpy.average(num_txn)
     std = numpy.std(num_txn)
-    print("num client: " + str(client_num))
-    print("avg txn num: " + str(avg) + " error: " + str(std))
+    #print("num client: " + str(client_num))
+    #print("avg txn num: " + str(avg) + " error: " + str(std))
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
         if value["start"] < low or value["start"] > high:
@@ -228,12 +230,12 @@ def analyse_latency(txn_map):
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
 
-    print("10 per (ms): " + str(p10))
-    print("median (ms): " + str(median))
-    print("90 per (ms): " + str(p90))
-    print("95 per (ms): " + str(p95))
-    print("99 per (ms): " + str(p99))
-    print("avg (ms): " + str(avg))
+    #print("10 per (ms): " + str(p10))
+    #print("median (ms): " + str(median))
+    #print("90 per (ms): " + str(p90))
+    #print("95 per (ms): " + str(p95))
+    #print("99 per (ms): " + str(p99))
+    #print("avg (ms): " + str(avg))
 
     latency.sort()
 
@@ -263,12 +265,12 @@ def analyse_latency(txn_map):
     result["p10_high"] = p10
     result["avg_high"] = avg
     # result["latency_high"] = latency_high
-    # print("10 per (ms) high: " + str(p10))
-    # print("median (ms) high: " + str(median))
-    # print("90 per (ms) high: " + str(p90))
-    # print("95 per (ms) high: " + str(p95))
-    # print("99 per (ms) high: " + str(p99))
-    # print("avg (ms) high: " + str(avg))
+    #print("10 per (ms) high: " + str(p10))
+    #print("median (ms) high: " + str(median))
+    #print("90 per (ms) high: " + str(p90))
+    #print("95 per (ms) high: " + str(p95))
+    #print("99 per (ms) high: " + str(p99))
+    #print("avg (ms) high: " + str(avg))
 
     median = numpy.percentile(latency_low, 50)
     p90 = numpy.percentile(latency_low, 90)
@@ -284,12 +286,12 @@ def analyse_latency(txn_map):
     result["p10_low"] = p10
     result["avg_low"] = avg
     # result["latency_low"] = latency_low
-    # print("10 per (ms) low: " + str(p10))
-    # print("median (ms) low: " + str(median))
-    # print("90 per (ms) low: " + str(p90))
-    # print("95 per (ms) low: " + str(p95))
-    # print("99 per (ms) low: " + str(p99))
-    # print("avg (ms) low: " + str(avg))
+    #print("10 per (ms) low: " + str(p10))
+    #print("median (ms) low: " + str(median))
+    #print("90 per (ms) low: " + str(p90))
+    #print("95 per (ms) low: " + str(p95))
+    #print("99 per (ms) low: " + str(p99))
+    #print("avg (ms) low: " + str(avg))
 
     return result
 
@@ -330,8 +332,8 @@ def analyse_throughput(txn_map):
 
     throughput_high = float(count_high * 1000000000) / (max_time - min_time)
     throughput_low = float(count_low * 1000000000) / (max_time - min_time)
-    # print("commit throughput high (txn/s): " + str(throughput_high))
-    # print("commit throughput low (txn/s): " + str(throughput_low))
+    #print("commit throughput high (txn/s): " + str(throughput_high))
+    #print("commit throughput low (txn/s): " + str(throughput_low))
     return throughput, throughput_low, throughput_high
 
 
@@ -367,8 +369,8 @@ def analyse_abort_rate(txn_map):
 
     abort_high_rate = 1 - float(commit_high) / count_high
     abort_low_rate = 1 - float(commit_low) / count_low
-    # print("Abort rate high: " + str(abort_high_rate))
-    # print("Abort rate low: " + str(abort_low_rate))
+    #print("Abort rate high: " + str(abort_high_rate))
+    #print("Abort rate low: " + str(abort_low_rate))
     return abort_rate, abort_low_rate, abort_high_rate
 
 
@@ -413,8 +415,9 @@ def analyse(dir_name):
     if n != clientN:
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
     #    return
-
-    print(clientN, dir_name, setting["experiment"]["varExp"])
+    if n == 0:
+        return
+    #print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
     # fastPathSuccessRate = analyse_fast_prepare_rate(path)
     # analyse_waiting(path)
@@ -478,7 +481,7 @@ def error_bar(path, prefix):
         error = 2 * numpy.std(value)
 
         result[key] = {"mean": mean, "error": error}
-    print_result(result, prefix)
+    #print_result(result, prefix)
     cf = open(os.path.join(path, prefix[:-1] + ".json"), "r")
     config = json.load(cf)
     result["config"] = config
