@@ -308,7 +308,7 @@ func (c *Client) addTxnIfNotExist(op ReadOp) {
 	rpcTxnId := c.genTxnIdToServer(txnId)
 	execution := NewExecutionRecord(op, rpcTxnId, len(c.txnStore[txnId].readKeyList))
 
-	logrus.Debugf("txn %v added, keys",
+	logrus.Debugf("txn %v added, keys: %v",
 		rpcTxnId, c.txnStore[txnId].partitionSet)
 
 	c.txnStore[txnId].executions = append(c.txnStore[txnId].executions, execution)

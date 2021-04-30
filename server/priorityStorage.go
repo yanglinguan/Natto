@@ -399,15 +399,18 @@ func (s *Storage) forwardToCoordinator(op *ReadAndPrepareHighPriority) {
 			coorServerId[serverId][0] = make([]string, 0)
 			coorServerId[serverId][1] = make([]string, 0)
 		}
-		coorServerId[serverId][0] = append(coorServerId[serverId][0], txnId)
+
 		keyNum := 0
-		for key := range s.txnStore[txnId].readAndPrepareRequestOp.GetKeyMap() {
-			if _, exist := op.keyMap[key]; exist {
+		for key := range s.txnStore[txnId].readAndPrepareRequestOp.GetWriteKeys() {
+			if _, exist := op.GetReadKeys()[key]; exist {
 				coorServerId[serverId][1] = append(coorServerId[serverId][1], key)
 				keyNum++
 			}
 		}
-
+		if keyNum == 0 {
+			continue
+		}
+		coorServerId[serverId][0] = append(coorServerId[serverId][0], txnId)
 		if _, exist := idx[serverId]; !exist {
 			idx[serverId] = make([]int32, 0)
 		}
@@ -417,6 +420,9 @@ func (s *Storage) forwardToCoordinator(op *ReadAndPrepareHighPriority) {
 	thisCoor := s.server.config.GetLeaderIdByPartitionId(thisCoorPId)
 	log.Debugf("txn %v forward read to coord %v", op.txnId, coorServerId)
 	for coorId, parentList := range coorServerId {
+		if len(parentList[0]) == 0 {
+			continue
+		}
 		request := &rpc.ForwardReadToCoordinator{
 			TxnId:      op.txnId,
 			ClientId:   op.GetClientId(),
