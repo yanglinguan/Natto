@@ -107,18 +107,18 @@ func (server *Server) ReadOnly(cts context.Context, request *rpc.ReadAndPrepareR
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
 	}
 
-	if int(request.Txn.CoordPartitionId) == server.partitionId {
-		op := NewReadAndPrepareCoordinator(request)
-		server.coordinator.AddOperation(op)
-	}
+	//if int(request.Txn.CoordPartitionId) == server.partitionId {
+	//	op := NewReadAndPrepareCoordinator(request)
+	//	server.coordinator.AddOperation(op)
+	//}
 
-	if request.IsNotParticipant {
-		reply := &rpc.ReadAndPrepareReply{
-			KeyValVerList: make([]*rpc.KeyValueVersion, 0),
-		}
-
-		return reply, nil
-	}
+	//if request.IsNotParticipant {
+	//	reply := &rpc.ReadAndPrepareReply{
+	//		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
+	//	}
+	//
+	//	return reply, nil
+	//}
 
 	requestOp := server.operationCreator.createReadOnlyOp(request)
 	//server.StartOp(requestOp)
