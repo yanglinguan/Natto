@@ -444,7 +444,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.sbWriteCheckRatio = int(sb["writeCheck"].(float64))
 				f.sbCheckingFlag = sb["checkingFlag"].(string)
 				f.sbSavingsFlag = sb["savingsFlag"].(string)
-				f.sbInitBalance = utils.EncodeFloat64(sb["initBalance"].(float64))
+				f.sbInitBalance = utils.ConvertFloatToString(sb["initBalance"].(float64))
 			} else if workloadType == "reorder" {
 				f.workload = REORDER
 			} else if workloadType == "randYcsbt" {

@@ -69,13 +69,13 @@ func (t *TxnAmalgamate) GenWriteData(readData map[string]string) {
 		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId1, csId1, ccId2 := t.readKeys[0], t.readKeys[1], t.readKeys[2]
-	cB1, sB1 := utils.DecodeFloat64(readData[ccId1]), utils.DecodeFloat64(readData[csId1])
-	cB2 := utils.DecodeFloat64(readData[ccId2])
+	cB1, sB1 := utils.ConvertToFloat(readData[ccId1]), utils.ConvertToFloat(readData[csId1])
+	cB2 := utils.ConvertToFloat(readData[ccId2])
 	cB2 += cB1 + sB1
 	cB1, sB1 = 0, 0
-	t.writeData[ccId1] = utils.EncodeFloat64(cB1)
-	t.writeData[csId1] = utils.EncodeFloat64(sB1)
-	t.writeData[ccId2] = utils.EncodeFloat64(cB2)
+	t.writeData[ccId1] = utils.ConvertFloatToString(cB1)
+	t.writeData[csId1] = utils.ConvertFloatToString(sB1)
+	t.writeData[ccId2] = utils.ConvertFloatToString(cB2)
 	if len(t.writeData) != 3 {
 		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
@@ -105,9 +105,9 @@ func (t *TxnDepositChecking) GenWriteData(readData map[string]string) {
 		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId := t.readKeys[0]
-	balance := utils.DecodeFloat64(readData[ccId])
+	balance := utils.ConvertToFloat(readData[ccId])
 	balance += SB_PARAM_DEPOSIT_CHECKING_AMOUNT
-	t.writeData[ccId] = utils.EncodeFloat64(balance)
+	t.writeData[ccId] = utils.ConvertFloatToString(balance)
 	if len(t.writeData) != 1 {
 		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
@@ -123,10 +123,10 @@ func (t *TxnSendPayment) GenWriteData(readData map[string]string) {
 		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId1, ccId2 := t.readKeys[0], t.readKeys[1]
-	b1, b2 := utils.DecodeFloat64(readData[ccId1]), utils.DecodeFloat64(readData[ccId2])
+	b1, b2 := utils.ConvertToFloat(readData[ccId1]), utils.ConvertToFloat(readData[ccId2])
 	b1 -= SB_PARAM_SEND_PAYMENT_AMOUNT // Assuming there are sufficient money
 	b2 += SB_PARAM_SEND_PAYMENT_AMOUNT
-	t.writeData[ccId1], t.writeData[ccId2] = utils.EncodeFloat64(b1), utils.EncodeFloat64(b2)
+	t.writeData[ccId1], t.writeData[ccId2] = utils.ConvertFloatToString(b1), utils.ConvertFloatToString(b2)
 	if len(t.writeData) != 2 {
 		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
@@ -142,9 +142,9 @@ func (t *TxnTransactSavings) GenWriteData(readData map[string]string) {
 		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	csId := t.readKeys[0]
-	balance := utils.DecodeFloat64(readData[csId])
+	balance := utils.ConvertToFloat(readData[csId])
 	balance -= SB_PARAM_TRANSACT_SAVINGS_AMOUNT
-	t.writeData[csId] = utils.EncodeFloat64(balance)
+	t.writeData[csId] = utils.ConvertFloatToString(balance)
 	if len(t.writeData) != 1 {
 		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}
@@ -160,13 +160,13 @@ func (t *TxnWriteCheck) GenWriteData(readData map[string]string) {
 		log.Fatalf("Incorrect read data size: %v", len(readData))
 	}
 	ccId, csId := t.readKeys[0], t.readKeys[1]
-	cB, sB := utils.DecodeFloat64(readData[ccId]), utils.DecodeFloat64(readData[csId])
+	cB, sB := utils.ConvertToFloat(readData[ccId]), utils.ConvertToFloat(readData[csId])
 	if cB+sB < SB_PARAM_WRITE_CHECK_AMOUNT {
 		cB -= SB_PARAM_WRITE_CHECK_AMOUNT + 1
 	} else {
 		cB -= SB_PARAM_WRITE_CHECK_AMOUNT
 	}
-	t.writeData[ccId] = utils.EncodeFloat64(cB)
+	t.writeData[ccId] = utils.ConvertFloatToString(cB)
 	if len(t.writeData) != 1 {
 		log.Fatalf("Incorrect write data size: %v", len(t.writeData))
 	}

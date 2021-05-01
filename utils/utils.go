@@ -22,6 +22,20 @@ func ConvertToInt(key string) int64 {
 	return i
 }
 
+func ConvertFloatToString(val float64) string {
+	format := "%.2f"
+	return fmt.Sprintf(format, val)
+}
+
+func ConvertToFloat(key string) float64 {
+	var f float64
+	_, err := fmt.Sscan(key, &f)
+	if err != nil {
+		logrus.Fatalf("key %v invalid", key)
+	}
+	return f
+}
+
 func HandleError(err error) (int, bool) {
 	st, ok := status.FromError(err)
 	if !ok {
