@@ -28,8 +28,9 @@ type KeyInfo struct {
 
 func newKeyInfoWithPriorityQueue(value string) *KeyInfo {
 	k := &KeyInfo{
-		Value:            value,
-		Version:          uint64(utils.ConvertToInt(value)),
+		Value: value,
+		//Version:          uint64(utils.ConvertToInt(value)),
+		Version:          0,
 		WaitingQueue:     NewPQueue(),
 		PreparedTxnRead:  make(map[string]bool),
 		PreparedTxnWrite: make(map[string]bool),
@@ -40,8 +41,9 @@ func newKeyInfoWithPriorityQueue(value string) *KeyInfo {
 
 func newKeyInfoWithQueue(value string) *KeyInfo {
 	k := &KeyInfo{
-		Value:            value,
-		Version:          uint64(utils.ConvertToInt(value)),
+		Value: value,
+		//Version:          uint64(utils.ConvertToInt(value)),
+		Version:          0,
 		WaitingQueue:     NewQueue(),
 		PreparedTxnRead:  make(map[string]bool),
 		PreparedTxnWrite: make(map[string]bool),
