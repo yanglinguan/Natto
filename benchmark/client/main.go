@@ -93,6 +93,7 @@ func main() {
 	}
 
 	// all client start around the same time
+	c.Start()
 	d := time.Duration(startTime - time.Now().UnixNano())
 	if d > 0 {
 		logrus.Warnf("client wait %v to start", d)

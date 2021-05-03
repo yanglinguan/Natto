@@ -52,7 +52,7 @@ func nextTxnWaitTime(client *client.Client) time.Duration {
 // client keep sending txn within the experiment duration specified in config file ("duration")
 // or when the number of txn reaches the total txn specified in config file ("totalTxn")
 func (o *OpenLoopExperiment) Execute() {
-	o.client.Start()
+	//o.client.Start()
 	// transaction sending rate (txn/s)
 	//txnRate := o.client.Config.GetTxnRate()
 	// waiting time between sending two transactions
@@ -146,7 +146,7 @@ func NewCloseLoopExperiment(client *client.Client, workload workload.Workload) *
 }
 
 func (e *CloseLoopExperiment) Execute() {
-	e.client.Start()
+	//e.client.Start()
 	expDuration := e.client.Config.GetExpDuration()
 	totalTxn := e.client.Config.GetTotalTxn()
 	s := time.Now()
