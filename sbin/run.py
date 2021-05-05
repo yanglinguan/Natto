@@ -410,6 +410,7 @@ def main():
     start_time = time.time()
     parse_server_machine()
     parse_client_machine()
+    parse_network_measure_machine()
     end_deploy = start_time
     deploy_use = 0
     build_use = 0
