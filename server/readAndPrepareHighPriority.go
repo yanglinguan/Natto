@@ -91,6 +91,9 @@ func (o *ReadAndPrepareHighPriority) executeFromQueue(storage *Storage) bool {
 
 		if available && len(reorderTxn) == 0 {
 			storage.setReadResult(o, -1, false)
+			if storage.server.config.ForwardReadToCoord() {
+				storage.dependGraph.AddNode(o.txnId, o.keyMap)
+			}
 			storage.prepare(o)
 		} else if available {
 			storage.setReadResult(o, -1, false)
