@@ -30,6 +30,7 @@ type LatencyManager struct {
 	allHist          []int // All of the probing latencies since the beginning.
 	all95th          int   //The 95th  latency (in ms) of all of the probing latencies
 	isAll95thUpdated bool  // true if need to recalculate the 95th latency
+	wdw99th          int64
 }
 
 func NewLatencyManager(windowLen time.Duration, windowSize int) *LatencyManager {
@@ -86,6 +87,14 @@ func (lm *LatencyManager) GetWindow95th() int64 {
 		lm.isWdwUpdated = false
 	}
 	return lm.wdw95th
+}
+
+func (lm *LatencyManager) GetWindow99th() int64 {
+	if lm.isWdwUpdated {
+		lm.wdw99th = lm.GetWindowP(0.99)
+		lm.isWdwUpdated = false
+	}
+	return lm.wdw99th
 }
 
 // Returns the specific percentile latency (in ms) of the current window

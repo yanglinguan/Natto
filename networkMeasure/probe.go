@@ -1,4 +1,4 @@
-package client
+package main
 
 import (
 	"Carousel-GTS/latencyPredictor"
@@ -18,7 +18,7 @@ type LatTimeInfo struct {
 	timeOffset time.Duration // time offset between the clock time of sending (on client) and processing (on server)
 }
 
-func (c *Client) processProbe() {
+func (c *NetworkMeasure) processProbe() {
 	for {
 		latInfo := <-c.probeC
 		oneWayLat := (latInfo.rt + latInfo.qDelay) / 2
@@ -29,7 +29,7 @@ func (c *Client) processProbe() {
 	}
 }
 
-func (c *Client) processProbeTime() {
+func (c *NetworkMeasure) processProbeTime() {
 	for {
 		latTimeInfo := <-c.probeTimeC
 		c.latencyPredictor.AddProbeRet(&latencyPredictor.ProbeRet{
@@ -39,7 +39,7 @@ func (c *Client) processProbeTime() {
 	}
 }
 
-func (c *Client) probing() {
+func (c *NetworkMeasure) probing() {
 	probeTimer := time.NewTimer(c.Config.GetProbeInterval())
 	for {
 		<-probeTimer.C
@@ -48,7 +48,7 @@ func (c *Client) probing() {
 	}
 }
 
-func (c *Client) probingTime() {
+func (c *NetworkMeasure) probingTime() {
 	probeTimer := time.NewTimer(c.Config.GetProbeInterval())
 	for {
 		<-probeTimer.C
@@ -57,7 +57,7 @@ func (c *Client) probingTime() {
 	}
 }
 
-func (c *Client) probe() {
+func (c *NetworkMeasure) probe() {
 	var wg sync.WaitGroup
 	for sId := range c.connections {
 		wg.Add(1)
@@ -80,7 +80,7 @@ func (c *Client) probe() {
 	}
 }
 
-func (c *Client) probeTime() {
+func (c *NetworkMeasure) probeTime() {
 	var wg sync.WaitGroup
 	for sId := range c.connections {
 		wg.Add(1)
@@ -103,24 +103,12 @@ func (c *Client) probeTime() {
 	}
 }
 
-func (c *Client) predictOneWayLatency(serverList []int) int64 {
-	var max int64 = 0
-	for _, sId := range serverList {
+func (c *NetworkMeasure) estimateArrivalTime(per int32) []int64 {
+	result := make([]int64, c.Config.GetServerNum())
+	for sId := 0; sId < c.Config.GetServerNum(); sId++ {
 		addr := c.Config.GetServerAddressByServerId(sId)
-		lat := c.latencyPredictor.PredictLat(addr)
-		if lat > max {
-			max = lat
-		}
-	}
-	return max
-}
-
-func (c *Client) estimateArrivalTime(serverList []int) []int64 {
-	result := make([]int64, len(serverList))
-	for i, sId := range serverList {
-		addr := c.Config.GetServerAddressByServerId(sId)
-		lat := c.latencyPredictor.PredictLat(addr)
-		result[i] = lat
+		lat := c.latencyPredictor.PredictLat(addr, int(per))
+		result[sId] = lat
 	}
 
 	return result

@@ -37,7 +37,9 @@ def config_client(nums):
     for n in nums:
         client_config = {
             "nums": n,
-            "machines": config_option["client_machines"]
+            "machines": config_option["client_machines"],
+            "networkMeasurePortBase": config_option["networkMeasurePortBase"],
+            "networkMeasureMachines": config_option["networkMeasureMachines"]
         }
         client_list.append(client_config)
     return client_list

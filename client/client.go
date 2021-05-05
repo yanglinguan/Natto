@@ -3,7 +3,6 @@ package client
 import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/connection"
-	"Carousel-GTS/latencyPredictor"
 	"Carousel-GTS/rpc"
 	"Carousel-GTS/utils"
 	"fmt"
@@ -35,9 +34,10 @@ type Client struct {
 	timeLeg        time.Duration
 	durationPerTxn time.Duration
 
-	latencyPredictor *latencyPredictor.LatencyPredictor
-	probeC           chan *LatInfo
-	probeTimeC       chan *LatTimeInfo
+	networkMeasureConnection connection.Connection
+
+	lock   sync.Mutex
+	delays []int64
 }
 
 func NewClient(clientId int, configFile string) *Client {
@@ -69,17 +69,7 @@ func NewClient(clientId int, configFile string) *Client {
 		}
 	}
 
-	if c.Config.IsDynamicLatency() {
-		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
-			c.Config.GetServerAddress(),
-			c.Config.GetProbeWindowLen(),
-			c.Config.GetProbeWindowMinSize())
-		if c.Config.IsProbeTime() {
-			c.probeTimeC = make(chan *LatTimeInfo, queueLen)
-		} else {
-			c.probeC = make(chan *LatInfo, queueLen)
-		}
-	}
+	c.networkMeasureConnection = connection.NewSingleConnect(config.GetNetworkMeasureAddr(c.clientDataCenterId))
 
 	if c.Config.ForwardReadToCoord() {
 		c.createReadResultFromCoordinatorStream()
@@ -110,35 +100,6 @@ func (c *Client) createReadResultFromCoordinatorStream() {
 		c.readResultFromCoordinatorStream[i] = stream
 	}
 }
-
-//func (c *Client) createReadAndPrepareRequestStream() {
-//	for sId, addr := range c.Config.GetServerAddress() {
-//		conn := connection.NewSingleConnect(addr)
-//		client := rpc.NewCarouselClient(conn.GetConn())
-//		stream, err := client.ReadAndPrepare(context.Background())
-//		if err != nil {
-//			log.Fatalf("open stream error %v", err)
-//		}
-//		c.readAndPrepareRequestStream[sId] = stream
-//	}
-//}
-//
-//func (c *Client) receiveReadAndPrepareStream(i int) {
-//	for {
-//		resp, err := c.readAndPrepareRequestStream[i].Recv()
-//		if err == io.EOF {
-//			return
-//		}
-//
-//		if err != nil {
-//			logrus.Fatalf("cannot receive %v", err)
-//		}
-//		execCount := c.getExecutionCountByTxnId(resp.TxnId)
-//		txnId := c.getTxnIdByServerTxnId(resp.TxnId)
-//		op := NewReadAndPrepareReplyOp(txnId, execCount, resp)
-//		c.AddOperation(op)
-//	}
-//}
 
 func (c *Client) getTxnIdByServerTxnId(txnId string) string {
 	items := strings.Split(txnId, "-")
@@ -176,18 +137,7 @@ func (c *Client) receiveReadResultFromCoordinatorStream(i int) {
 func (c *Client) Start() {
 	// create stream to coordinators
 	// receiving result from coordinators
-
 	go c.processOperation()
-
-	if c.Config.UseNetworkTimestamp() && c.Config.IsDynamicLatency() {
-		if c.Config.IsProbeTime() {
-			go c.probingTime()
-			go c.processProbeTime()
-		} else {
-			go c.probing()
-			go c.processProbe()
-		}
-	}
 }
 
 func (c *Client) processOperation() {
@@ -251,6 +201,26 @@ func (c *Client) getExecutionCountByTxnId(txnId string) int64 {
 
 func (c *Client) getTxn(txnId string) *Transaction {
 	return c.txnStore[txnId]
+}
+
+func (c *Client) predictDelay() {
+	netClient := rpc.NewNetworkMeasureClient(c.networkMeasureConnection.GetConn())
+	request := &rpc.LatencyRequest{
+		Per: int32(c.Config.GetPredictDelayPercentile()),
+	}
+	updateInterval := c.Config.GetUpdateInterval()
+	for {
+		reply, err := netClient.PredictLatency(context.Background(), request)
+		if err != nil {
+			logrus.Fatalf("cannot get predict delay")
+		}
+		c.lock.Lock()
+		for i, d := range reply.Delays {
+			c.delays[i] = d
+		}
+		c.lock.Unlock()
+		time.Sleep(updateInterval)
+	}
 }
 
 func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64 {
@@ -571,4 +541,27 @@ func (c *Client) reSendWriteData(serverTxnId string, data []*rpc.KeyValueVersion
 	coordinatorId := c.Config.GetLeaderIdByPartitionId(execution.coordinatorPartitionId)
 	sender := NewWriteDataSender(request, coordinatorId, c)
 	go sender.Send()
+}
+
+func (c *Client) predictOneWayLatency(serverList []int) int64 {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	var max int64 = 0
+	for _, sId := range serverList {
+		if c.delays[sId] > max {
+			max = c.delays[sId]
+		}
+	}
+
+	return max
+}
+
+func (c *Client) estimateArrivalTime(serverList []int) []int64 {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	result := make([]int64, c.Config.GetServerNum())
+	for _, sId := range serverList {
+		result[sId] = c.delays[sId]
+	}
+	return result
 }

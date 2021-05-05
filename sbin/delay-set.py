@@ -59,6 +59,16 @@ for ip in machines:
     if ip not in dc_ip_map[dcId]:
         dc_ip_map[dcId].append(ip)
 
+machines = config["clients"]["networkMeasureMachines"]
+mId = 0
+for ip in machines:
+    dcId = mId % dcNum
+    mId = mId + 1
+    if dcId not in dc_ip_map:
+        dc_ip_map[dcId] = []
+    if ip not in dc_ip_map[dcId]:
+        dc_ip_map[dcId].append(ip)
+
 print(dc_ip_map)
 
 dc_delay_map = {}

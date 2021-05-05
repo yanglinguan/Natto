@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package rpc;
+
+service NetworkMeasure {
+    rpc PredictLatency(LatencyRequest) returns (LatencyReply) {}
+}
+
+message LatencyRequest {
+    int32 per = 1;
+}
+
+message LatencyReply {
+    repeated int64 delays = 1;
+}

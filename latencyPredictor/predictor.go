@@ -29,6 +29,12 @@ func (l *syncLatencyManager) GetWindow95th() int64 {
 	return l.lm.GetWindow95th()
 }
 
+func (l *syncLatencyManager) GetWindow99th() int64 {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	return l.lm.GetWindow99th()
+}
+
 type LatencyPredictor struct {
 	dstTable map[string]*syncLatencyManager
 }
@@ -59,7 +65,14 @@ func (pm *LatencyPredictor) AddProbeRet(pr *ProbeRet) {
 }
 
 // Returns the predicted roundtrip latency in ms
-func (pm *LatencyPredictor) PredictLat(addr string) int64 {
+func (pm *LatencyPredictor) PredictLat(addr string, per int) int64 {
 	l := pm.getLatMgr(addr)
-	return l.GetWindow95th()
+	if per == 95 {
+		return l.GetWindow95th()
+	}
+	if per == 99 {
+		return l.GetWindow99th()
+	}
+
+	return 0
 }

@@ -37,6 +37,7 @@ server_cmd = "./carousel-server "
 client_cmd = "./client "
 check_server_status_cmd = binPath + "/checkServerStatus "
 enforce_leader_cmd = binPath + "/enforce-leader "
+network_measure_cmd = "./networkMeasure "
 
 if args.debug:
     server_cmd = server_cmd + "-d "
@@ -51,6 +52,7 @@ rpc_path = src_path + "rpc/"
 tool_path = src_path + "tools/"
 check_server_status_path = tool_path + "checkServerStatus/"
 enforce_leader_path = tool_path + "enforce-leader/"
+network_measure_path = src_path + "networkMeasure/"
 
 if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0:
     path = config["experiment"]["runDir"]
@@ -68,6 +70,17 @@ class Machine:
 machines_client = {}
 
 machines_server = {}
+
+machines_network_measure = {}
+
+
+def parse_network_measure_machine():
+    machines = config["clients"]["networkMeasureMachines"]
+    dcId = 0
+    for ip in machines:
+        machines_network_measure[ip] = Machine(ip)
+        machines_network_measure[ip].add_id(str(dcId))
+        dcId += 1
 
 
 def parse_client_machine():
@@ -174,6 +187,14 @@ def scp_client_exec(ssh, scp, ip):
     print("deploy config and client at " + ip)
 
 
+def scp_network_measure_exec(ssh, scp, ip):
+    network_measure_dir = config["experiment"]["runDir"] + "/networkMeasure"
+    ssh.exec_command("mkdir -p " + network_measure_dir)
+    scp.put(os.getcwd() + "/" + args.config, network_measure_dir)
+    scp.put(binPath + "networkMeasure", network_measure_dir)
+    print("deploy config and network measure at " + ip)
+
+
 def deploy():
     if "runDir" not in config["experiment"] or len(config["experiment"]["runDir"]) == 0:
         return
@@ -199,6 +220,15 @@ def deploy():
         ssh.connect(ip)
         scp = SCPClient(ssh.get_transport())
         thread = threading.Thread(target=scp_client_exec, args=(ssh, scp, ip))
+        threads.append(thread)
+        thread.start()
+
+    for ip, machine in machines_network_measure.items():
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        scp = SCPClient(ssh.get_transport())
+        thread = threading.Thread(target=scp_network_measure_exec, args=(ssh, scp, ip))
         threads.append(thread)
         thread.start()
 
@@ -242,6 +272,27 @@ def start_servers():
         thread.join()
 
 
+def start_network_measure():
+    threads = list()
+    for ip, machine in machines_network_measure.items():
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        cmd = "ulimit -c unlimited;"
+        cmd += "ulimit -n 100000;"
+        exe = "cd " + path + "/networkMeasure " + \
+              network_measure_cmd + "-i $id -c " + args.config + " > " + "networkMeasure-$id.log " + "2>&1 &"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
+        cmd += loop
+        print(cmd + " # at " + ip)
+        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+
 def start_clients():
     threads = list()
 
@@ -256,7 +307,7 @@ def start_clients():
         cmd += "ulimit -n 100000;"
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
         exe = "sleep 0.01; cd " + path + "/client;" + \
-                client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
+              client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
@@ -325,6 +376,8 @@ def build():
         subprocess.call("cd " + check_server_status_path + "; go install", shell=True)
         print("build tool enforce leader at " + enforce_leader_path)
         subprocess.call("cd " + enforce_leader_path + "; go install", shell=True)
+        print("build network measure at " + network_measure_path)
+        subprocess.call("cd " + network_measure_path + "; go install", shell=True)
         subprocess.call("cd " + os.getcwd(), shell=True)
     except subprocess.CalledProcessError:
         print("build error")
@@ -355,6 +408,10 @@ def main():
     end_select_leader = time.time()
     select_leader_use = end_select_leader - end_start_server
     print("select leader used %.5fs" % select_leader_use)
+    start_network_measure()
+    end_start_network_measure = time.time()
+    start_network_measure_use = end_start_network_measure - end_select_leader
+    print("start network measure used %.5fs" % start_network_measure_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
     start_clients()
@@ -363,7 +420,7 @@ def main():
     print("clients finish used %.5fs" % client_use)
     dir_name = collect_client_log()
     if args.debug:
-    # dir_name = collect_client_log()
+        # dir_name = collect_client_log()
         print_server_status(dir_name)
         end_server = time.time()
         server_use = end_server - end_client

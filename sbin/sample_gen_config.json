@@ -52,6 +52,10 @@
         "10.0.1.14",
         "10.0.1.15"
   ],
+  "networkMeasureMachines": [
+
+  ],
+  "networkMeasurePortBase": 30000,
   "latency": {
         "variance": "off",
         "distribution": "pareto",
@@ -79,7 +83,8 @@
       "probeWindowMinSize": 10,
       "probeInterval": "10ms",
       "blocking": false,
-      "probeTime": true
+      "probeTime": true,
+      "updateInterval": "100ms"
     },
     "workload": {
       "type": "ycsbt",

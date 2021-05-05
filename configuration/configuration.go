@@ -62,6 +62,7 @@ type Configuration interface {
 	GetTimeWindow() time.Duration
 	UsePoissonProcessBetweenArrivals() bool
 	IsFastCommit() bool
+	GetServerNum() int
 
 	GetServerMode() ServerMode
 	GetKeyListByPartitionId(partitionId int) []string
@@ -141,6 +142,11 @@ type Configuration interface {
 	Popular() int64
 
 	GetSinglePartitionRate() int
+
+	GetNetworkMeasureAddr(dcId int) string
+	GetDCNum() int
+	GetPredictDelayPercentile() int
+	GetUpdateInterval() time.Duration
 }
 
 type FileConfiguration struct {
@@ -173,6 +179,9 @@ type FileConfiguration struct {
 
 	// clientId -> dataCenterId
 	clientToDataCenterId []int
+
+	// dcId -> network measurement machine addr
+	dcIdToNetworkMeasurementMachineAddr []string
 
 	delay         time.Duration
 	poolSize      int
@@ -251,7 +260,9 @@ type FileConfiguration struct {
 	forwardReadToCoord        bool
 	popular                   int64
 
-	randycsbtSingle int
+	randycsbtSingle        int
+	predictDelayPercentile int
+	updateInterval         time.Duration
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -342,12 +353,22 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 
 func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 	f.clients = int(config["nums"].(float64))
-	machines := config["machines"].([]interface{})
+	machinesNum := len(config["machines"].([]interface{}))
 	f.clientToDataCenterId = make([]int, f.clients)
 	for id := 0; id < f.clients; id++ {
-		idx := id % len(machines)
+		idx := id % machinesNum
 		dcId := idx % f.dcNum
 		f.clientToDataCenterId[id] = dcId
+	}
+	networkMeasureMachines := config["networkMeasureMachine"].([]interface{})
+	f.dcIdToNetworkMeasurementMachineAddr = make([]string, f.dcNum)
+	portBase := int(config["networkMeasurePortBase"].(float64))
+	if len(networkMeasureMachines) != f.dcNum {
+		log.Fatalf("there should be one machine per dc to measure network delay")
+	}
+	for dcId, ip := range networkMeasureMachines {
+		port := strconv.Itoa(portBase + dcId)
+		f.dcIdToNetworkMeasurementMachineAddr[dcId] = ip.(string) + ":" + port
 	}
 }
 
@@ -517,6 +538,11 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			}
 			f.probeBlocking = items["blocking"].(bool)
 			f.probeTime = items["probeTime"].(bool)
+			f.predictDelayPercentile = int(items["percentile"].(float64))
+			f.updateInterval, err = time.ParseDuration(items["updateInterval"].(string))
+			if err != nil {
+				log.Fatalf("updateInterval %v is invalid", v)
+			}
 		} else if key == "conditionalPrepare" {
 			f.conditionalPrepare = v.(bool)
 		} else if key == "optimisticReorder" {
@@ -580,6 +606,10 @@ func (f *FileConfiguration) GetServerIdListByPartitionId(partitionId int) []int 
 	} else {
 		return []int{f.GetLeaderIdByPartitionId(partitionId)}
 	}
+}
+
+func (f *FileConfiguration) GetServerNum() int {
+	return len(f.servers)
 }
 
 func (f *FileConfiguration) GetServerAddress() []string {
@@ -1001,4 +1031,20 @@ func (f *FileConfiguration) ForwardReadToCoord() bool {
 
 func (f *FileConfiguration) Popular() int64 {
 	return f.popular
+}
+
+func (f *FileConfiguration) GetNetworkMeasureAddr(dcId int) string {
+	return f.dcIdToNetworkMeasurementMachineAddr[dcId]
+}
+
+func (f *FileConfiguration) GetDCNum() int {
+	return f.dcNum
+}
+
+func (f *FileConfiguration) GetPredictDelayPercentile() int {
+	return f.predictDelayPercentile
+}
+
+func (f *FileConfiguration) GetUpdateInterval() time.Duration {
+	return f.updateInterval
 }

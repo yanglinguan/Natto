@@ -14,7 +14,11 @@
   },
   "clients": {
     "nums": 16,
+    "networkMeasurePortBase": 30000,
     "machines": [
+      "localhost"
+    ],
+    "networkMeasureMachines": [
       "localhost"
     ]
   },
@@ -46,7 +50,9 @@
       "probeWindowMinSize": 10,
       "probeInterval": "10ms",
       "blocking": false,
-      "probeTime": false
+      "probeTime": false,
+      "percentile": 95,
+      "updateInterval": "100ms"
     },
     "workload": {
       "type": "ycsbt",
