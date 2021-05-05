@@ -166,7 +166,7 @@ func TestGraph_AddNodeWithKeys(t *testing.T) {
 	path := graph.GetConflictTxn("d")
 	parent := graph.GetParent("d")
 
-	expectPath := []string{"a", "c", "b", "d"}
+	expectPath := []string{"a", "b", "c", "d"}
 
 	expectParent := map[string]bool{"b": true, "c": true}
 	if len(expectParent) != len(parent) {
