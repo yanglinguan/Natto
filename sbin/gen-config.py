@@ -112,6 +112,9 @@ def main():
                     if not var_client:
                         assign_value(ev, x_name, val)
                     ev["varExp"] += "-" + x_name + "-"
+                    if x_name == "zipfAlpha":
+                        val *= 100
+                        val = int(val)
                     ev["varExp"] += str(val)
                     final_exp_list.append(ev)
             config_list.append(final_exp_list)

@@ -31,6 +31,8 @@ arg_parser.add_argument('-n', '--num', dest="num", nargs='?',
 
 arg_parser.add_argument('-f', '--force',
                         help="force exp to run n times", action='store_true')
+arg_parser.add_argument('-v', '--variance',
+                        help="network variance", action='store_true')
 
 args = arg_parser.parse_args()
 
@@ -41,6 +43,8 @@ n = 1
 if args.num is not None:
     n = int(args.num)
 
+def set_network_delay(f): 
+    subprocess.call([bin_path + "delay-set.py", "-c", f])
 
 def getNextRunCount(f):
     prefix = f.split(".")[0]
@@ -123,6 +127,45 @@ def getRunIdx(f):
         return -1
     return exp_run_num
 
+def getSortkey(f):
+    key = (f[0].split(".")[0]).split("-")[-1]
+    return int(key)
+
+def sort_run_list(run_list):
+    exp_list = ["client_nums", "workload_highPriority", "zipfAlpha", "txnSize"]
+    result_map = {}
+    not_found = []
+    for rc in run_list:
+        f = rc[0].split("-")[1]
+        found = False
+        for e in exp_list:
+            if f.startswith(e):
+                if e not in result_map:
+                    result_map[e] = []
+                result_map[e].append(rc)
+                found = True
+                break
+        if not found:
+            not_found.append(rc)
+    result_list = []
+    for e in exp_list:
+        if e in result_map:
+            result_map[e].sort(key=getSortkey)
+            result_list.append(result_map[e])
+    if len(not_found) != 0:
+        result_list.append(not_found)
+    return result_list
+
+def sort_variance_run_list(run_list):
+    run_list.sort(key=getSortkey)
+    result_list = []
+    for i in range(len(run_list)):
+        if i == 0 or getSortkey(run_list[i]) != getSortkey(run_list[i-1]):
+            result_list.append([run_list[i]])
+            continue
+        result_list[-1].append(run_list[i])
+    return result_list
+
 
 def main():
     finishes = 0
@@ -153,17 +196,27 @@ def main():
                 print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
     errorRun = []
-    print(run_list)
-    for i in range(n):
-        finish, succ, failed = run_exp(i, run_list)
-        if succ:
-            finishes += finish
-        else:
-            for f in failed:
-                errorRun.append(f)
-            error = ",".join(failed)
-            notification("need to rerun config " + error + " exp failed")
-            # return
+    if args.variance:
+        run_list = sort_variance_run_list(run_list)
+    else:
+        run_list = sort_run_list(run_list)
+    for rlist in run_list:
+        print(rlist)
+        if len(rlist) == 0: 
+            continue
+        if args.variance:
+            print("set varince", rlist[0][0])
+            set_network_delay(rlist[0][0])
+        for i in range(n):
+            finish, succ, failed = run_exp(i, rlist)
+            if succ:
+                finishes += finish
+            else:
+                for f in failed:
+                    errorRun.append(f)
+                error = ",".join(failed)
+                notification("need to rerun config " + error + " exp failed")
+                # return
 
     # if finishes > 1 or len(errorRun) > 0:
     error = ",".join(errorRun)

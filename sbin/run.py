@@ -245,7 +245,7 @@ def start_servers():
 def start_clients():
     threads = list()
 
-    start_time = str(int((time.time() + 5) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 25) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -361,13 +361,14 @@ def main():
     end_client = time.time()
     client_use = end_client - end_select_leader
     print("clients finish used %.5fs" % client_use)
-    collect_client_log()
+    dir_name = collect_client_log()
+    if args.debug:
     # dir_name = collect_client_log()
-    # print_server_status(dir_name)
-    # end_server = time.time()
-    # server_use = end_server - end_client
-    # print("server finish used %.5fs" % server_use)
-    # collect_server_log(dir_name)
+        print_server_status(dir_name)
+        end_server = time.time()
+        server_use = end_server - end_client
+        print("server finish used %.5fs" % server_use)
+        collect_server_log(dir_name)
     end_collect = time.time()
     collect_use = end_collect - end_client
     print("collect log used %.5fs" % collect_use)

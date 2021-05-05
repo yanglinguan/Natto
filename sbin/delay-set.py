@@ -112,7 +112,7 @@ for dc_id in dc_ip_list:
             shell_cmd += "%s 1:1 classid 1:%d htb rate %s;" % \
                          (class_cmd, handle, bandwidth)
             if variance != "off":
-                var = str(delay * variance) + "ms"
+                var = str(float(delay[:-2]) * variance) + "ms"
                 shell_cmd += "%s %d: parent 1:%d netem delay %s %s distribution %s;" % \
                              (delay_cmd, handle, handle, delay, var, distribution)
             else:

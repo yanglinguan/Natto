@@ -4,6 +4,7 @@ import json
 import os
 import argparse
 import sys
+import shutil
 import numpy
 
 arg_parser = argparse.ArgumentParser(description="analyse.")
@@ -13,6 +14,8 @@ arg_parser.add_argument('-d', '--resultDir', dest='resultDir', nargs='*',
                         help='result dir', required=False)
 arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='*',
                         help='configuration file', required=False)
+arg_parser.add_argument('-f', '--force', dest='force',
+                        help="force to analyse", action='store_true', required=False)
 
 args = arg_parser.parse_args()
 
@@ -265,12 +268,14 @@ def analyse_latency(txn_map):
     result["p10_high"] = p10
     result["avg_high"] = avg
     # result["latency_high"] = latency_high
-    # print("10 per (ms) high: " + str(p10))
-    # print("median (ms) high: " + str(median))
-    # print("90 per (ms) high: " + str(p90))
-    # print("95 per (ms) high: " + str(p95))
-    # print("99 per (ms) high: " + str(p99))
-    # print("avg (ms) high: " + str(avg))
+
+    if args.resultDir is not None:
+        print("10 per (ms) high: " + str(p10))
+        print("median (ms) high: " + str(median))
+        print("90 per (ms) high: " + str(p90))
+        print("95 per (ms) high: " + str(p95))
+        print("99 per (ms) high: " + str(p99))
+        print("avg (ms) high: " + str(avg))
 
     median = numpy.percentile(latency_low, 50)
     p90 = numpy.percentile(latency_low, 90)
@@ -286,12 +291,13 @@ def analyse_latency(txn_map):
     result["p10_low"] = p10
     result["avg_low"] = avg
     # result["latency_low"] = latency_low
-    # print("10 per (ms) low: " + str(p10))
-    # print("median (ms) low: " + str(median))
-    # print("90 per (ms) low: " + str(p90))
-    # print("95 per (ms) low: " + str(p95))
-    # print("99 per (ms) low: " + str(p99))
-    # print("avg (ms) low: " + str(avg))
+    if args.resultDir is not None:
+        print("10 per (ms) low: " + str(p10))
+        print("median (ms) low: " + str(median))
+        print("90 per (ms) low: " + str(p90))
+        print("95 per (ms) low: " + str(p95))
+        print("99 per (ms) low: " + str(p99))
+        print("avg (ms) low: " + str(avg))
 
     return result
 
@@ -305,7 +311,7 @@ def analyse_retry(txn_map):
         if value["priority"]:
             high_retry.append(value["exeCount"])
         else:
-            low_retry.append(value["execCount"])
+            low_retry.append(value["exeCount"])
 
     median = numpy.percentile(low_retry, 50)
     p90 = numpy.percentile(low_retry, 90)
@@ -314,6 +320,14 @@ def analyse_retry(txn_map):
     p10 = numpy.percentile(low_retry, 10)
     avg = numpy.average(low_retry)
 
+    if args.resultDir is not None:
+        print("retry 10 per (ms) low: " + str(p10))
+        print("retry median (ms) low: " + str(median))
+        print("retry 90 per (ms) low: " + str(p90))
+        print("retry 95 per (ms) low: " + str(p95))
+        print("retry 99 per (ms) low: " + str(p99))
+        print("retry avg (ms) low: " + str(avg))
+    
     result = {
         "retry_median_low": median,
         "retry_p90_low": p90,
@@ -328,6 +342,14 @@ def analyse_retry(txn_map):
     p99 = numpy.percentile(high_retry, 99)
     p10 = numpy.percentile(high_retry, 10)
     avg = numpy.average(high_retry)
+    
+    if args.resultDir is not None:
+        print("retry 10 per (ms) high: " + str(p10))
+        print("retry median (ms) high: " + str(median))
+        print("retry 90 per (ms) high: " + str(p90))
+        print("retry 95 per (ms) high: " + str(p95))
+        print("retry 99 per (ms) high: " + str(p99))
+        print("retry avg (ms) high: " + str(avg))
 
     result["retry_median_high"] = median
     result["retry_p90_high"] = p90
@@ -375,8 +397,9 @@ def analyse_throughput(txn_map):
 
     throughput_high = float(count_high * 1000000000) / (max_time - min_time)
     throughput_low = float(count_low * 1000000000) / (max_time - min_time)
-    # print("commit throughput high (txn/s): " + str(throughput_high))
-    # print("commit throughput low (txn/s): " + str(throughput_low))
+    if args.resultDir is not None:
+        print("commit throughput high (txn/s): " + str(throughput_high))
+        print("commit throughput low (txn/s): " + str(throughput_low))
     return throughput, throughput_low, throughput_high
 
 
@@ -412,8 +435,9 @@ def analyse_abort_rate(txn_map):
 
     abort_high_rate = 1 - float(commit_high) / count_high
     abort_low_rate = 1 - float(commit_low) / count_low
-    # print("Abort rate high: " + str(abort_high_rate))
-    # print("Abort rate low: " + str(abort_low_rate))
+    if args.resultDir is not None:
+        print("Abort rate high: " + str(abort_high_rate))
+        print("Abort rate low: " + str(abort_low_rate))
     return abort_rate, abort_low_rate, abort_high_rate
 
 
@@ -459,6 +483,7 @@ def analyse(dir_name):
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
     #    return
     if n == 0:
+        shutil.rmtree(dir_name)
         return
     # print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
@@ -537,6 +562,12 @@ def error_bar(path, prefix):
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
 
+def result_file_exist(dr):
+    result_file = dr + ".result"
+    if os.path.exists(result_file):
+        return True
+    return False
+
 
 def analyse_file():
     path = os.getcwd()
@@ -546,6 +577,8 @@ def analyse_file():
         prefix = f.split(".")[0] + "-"
         dLists = [d for d in lists if d.startswith(prefix) and os.path.isdir(os.path.join(path, d))]
         for d in dLists:
+            if not args.force and result_file_exist(d):
+                continue
             analyse(d)
         error_bar(path, prefix)
 
@@ -553,6 +586,8 @@ def analyse_file():
 def main():
     if args.resultDir is not None:
         for dr in args.resultDir:
+            if not args.force and result_file_exist(dr):
+                continue
             analyse(dr)
         return
     if args.configFile is not None:
@@ -563,6 +598,8 @@ def main():
     lists = os.listdir(path)
     for f in lists:
         if os.path.isdir(os.path.join(path, f)):
+            if not args.force and result_file_exist(f):
+                continue
             analyse(f)
 
     for f in lists:

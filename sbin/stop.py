@@ -24,6 +24,7 @@ def stop_servers():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         server_dir = config["experiment"]["runDir"] + "/server-" + str(server_id)
+        #cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*; rm -rf *.log"
         cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*"
         print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
@@ -37,6 +38,8 @@ def stop_clients():
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
+        client_dir = config["experiment"]["runDir"] + "/client"
+        #cmd = "killall -9 client; cd " + client_dir + "; rm -rf *.log; rm -rf *.statistic"
         cmd = "killall -9 client"
         print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
