@@ -261,3 +261,28 @@ func TestGraph_RemoveNodeWithKeys(t *testing.T) {
 	}
 
 }
+
+func TestGraph_RemoveNodeWithKeys2(t *testing.T) {
+	graph := NewDependencyGraph()
+
+	graph.AddNode("a", map[string]bool{"1": true})
+
+	graph.AddNode("b", map[string]bool{"1": true})
+
+	graph.RemoveNode("b", map[string]bool{"1": true})
+
+	graph.AddNode("c", map[string]bool{"1": true})
+	path := graph.GetConflictTxn("c")
+
+	expectPath := []string{"a", "c"}
+
+	if len(path) != len(expectPath) {
+		t.Errorf("error: path %v", path)
+	} else {
+		for i, txnId := range expectPath {
+			if path[i] != txnId {
+				t.Errorf("txn %v not in order", txnId)
+			}
+		}
+	}
+}

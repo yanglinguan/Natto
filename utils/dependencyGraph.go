@@ -54,7 +54,7 @@ func (g *Graph) AddNode(txnId string, keys map[string]bool) bool {
 		for txn := range g.keyToTxn[key] {
 			if g.outDegree[txn] == 0 {
 				g.addEdge(txn, txnId)
-				g.outDegree[txn]++
+				//g.outDegree[txn]++
 			}
 		}
 		g.keyToTxn[key][txnId] = true
