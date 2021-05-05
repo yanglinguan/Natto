@@ -39,6 +39,11 @@ check_server_status_cmd = binPath + "/checkServerStatus "
 enforce_leader_cmd = binPath + "/enforce-leader "
 network_measure_cmd = "./networkMeasure "
 
+dynamic_latency = config["experiment"]["dynamicLatency"]["mode"]
+use_timestamp = config["experiment"]["networkTimestamp"]
+
+turn_on_network_measure = dynamic_latency and use_timestamp
+
 if args.debug:
     server_cmd = server_cmd + "-d "
     client_cmd = client_cmd + "-d "
@@ -223,14 +228,15 @@ def deploy():
         threads.append(thread)
         thread.start()
 
-    for ip, machine in machines_network_measure.items():
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip)
-        scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_network_measure_exec, args=(ssh, scp, ip))
-        threads.append(thread)
-        thread.start()
+    if turn_on_network_measure:
+        for ip, machine in machines_network_measure.items():
+            ssh = SSHClient()
+            ssh.set_missing_host_key_policy(AutoAddPolicy())
+            ssh.connect(ip)
+            scp = SCPClient(ssh.get_transport())
+            thread = threading.Thread(target=scp_network_measure_exec, args=(ssh, scp, ip))
+            threads.append(thread)
+            thread.start()
 
     for thread in threads:
         thread.join()
@@ -349,6 +355,22 @@ def stop_servers():
         thread.join()
 
 
+def stop_network_measure():
+    threads = list()
+    for ip in config["clients"]["networkMeasureMachines"]:
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        cmd = "killall -9 networkMeasure"
+        print(cmd + " # at " + ip)
+        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+
 def stop_clients():
     threads = list()
     for ip in config["clients"]["machines"]:
@@ -376,8 +398,9 @@ def build():
         subprocess.call("cd " + check_server_status_path + "; go install", shell=True)
         print("build tool enforce leader at " + enforce_leader_path)
         subprocess.call("cd " + enforce_leader_path + "; go install", shell=True)
-        print("build network measure at " + network_measure_path)
-        subprocess.call("cd " + network_measure_path + "; go install", shell=True)
+        if turn_on_network_measure:
+            print("build network measure at " + network_measure_path)
+            subprocess.call("cd " + network_measure_path + "; go install", shell=True)
         subprocess.call("cd " + os.getcwd(), shell=True)
     except subprocess.CalledProcessError:
         print("build error")
@@ -408,15 +431,17 @@ def main():
     end_select_leader = time.time()
     select_leader_use = end_select_leader - end_start_server
     print("select leader used %.5fs" % select_leader_use)
-    start_network_measure()
     end_start_network_measure = time.time()
-    start_network_measure_use = end_start_network_measure - end_select_leader
-    print("start network measure used %.5fs" % start_network_measure_use)
+    if turn_on_network_measure:
+        start_network_measure()
+        end_start_network_measure = time.time()
+        start_network_measure_use = end_start_network_measure - end_select_leader
+        print("start network measure used %.5fs" % start_network_measure_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
     start_clients()
     end_client = time.time()
-    client_use = end_client - end_select_leader
+    client_use = end_client - end_start_network_measure
     print("clients finish used %.5fs" % client_use)
     dir_name = collect_client_log()
     if args.debug:
@@ -430,6 +455,8 @@ def main():
     collect_use = end_collect - end_client
     print("collect log used %.5fs" % collect_use)
     # stop_clients()
+    if turn_on_network_measure:
+        stop_network_measure()
     stop_servers()
     end_time = time.time()
     stop_server_use = end_time - end_collect

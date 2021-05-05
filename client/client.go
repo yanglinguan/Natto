@@ -78,6 +78,10 @@ func NewClient(clientId int, configFile string) *Client {
 		}
 	}
 
+	if c.Config.IsDynamicLatency() && c.Config.UseNetworkTimestamp() {
+		go c.predictDelay()
+	}
+
 	return c
 }
 

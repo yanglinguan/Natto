@@ -16,6 +16,10 @@ config_file = open(args.config, "r")
 config = json.load(config_file)
 config_file.close()
 
+dynamic_latency = config["experiment"]["dynamicLatency"]["mode"]
+use_timestamp = config["experiment"]["networkTimestamp"]
+turn_on_network_measure = dynamic_latency and use_timestamp
+
 
 def stop_servers():
     server_id = 0
@@ -24,7 +28,7 @@ def stop_servers():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         server_dir = config["experiment"]["runDir"] + "/server-" + str(server_id)
-        #cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*; rm -rf *.log"
+        # cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*; rm -rf *.log"
         cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*"
         print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
@@ -39,8 +43,22 @@ def stop_clients():
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip)
         client_dir = config["experiment"]["runDir"] + "/client"
-        #cmd = "killall -9 client; cd " + client_dir + "; rm -rf *.log; rm -rf *.statistic"
+        # cmd = "killall -9 client; cd " + client_dir + "; rm -rf *.log; rm -rf *.statistic"
         cmd = "killall -9 client"
+        print(cmd + " # at " + ip)
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        print(stdout.read())
+        print(stderr.read())
+
+
+def stop_networkMeasure():
+    for ip in config["clients"]["networkMeasureMachines"]:
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        client_dir = config["experiment"]["runDir"] + "/client"
+        # cmd = "killall -9 client; cd " + client_dir + "; rm -rf *.log; rm -rf *.statistic"
+        cmd = "killall -9 networkMeasure"
         print(cmd + " # at " + ip)
         stdin, stdout, stderr = ssh.exec_command(cmd)
         print(stdout.read())
@@ -49,6 +67,8 @@ def stop_clients():
 
 def main():
     stop_clients()
+    if turn_on_network_measure:
+        stop_networkMeasure()
     stop_servers()
 
 
