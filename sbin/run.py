@@ -49,6 +49,7 @@ if args.debug:
     client_cmd = client_cmd + "-d "
     check_server_status_cmd = check_server_status_cmd + "-d "
     enforce_leader_cmd = enforce_leader_cmd + "-d "
+    networkTimestamp += "-d "
 
 src_path = "$HOME/Projects/go/src/Carousel-GTS/"
 server_path = src_path + "carousel-server/"
@@ -145,6 +146,33 @@ def collect_client_log():
         thread.join()
 
     return new_dir
+
+
+def scp_networkMeasure_log_exec(new_dir, ssh, scp, ip):
+    client_dir = config["experiment"]["runDir"] + "/networkMeasure"
+    stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log")
+    log_files = stdout.read().split()
+    for log in log_files:
+        scp.get(log, new_dir)
+    ssh.exec_command("rm " + client_dir + "/*.log")
+    print("collect network measure log from " + ip)
+
+
+def collect_networkMeasure_log(new_dir):
+    threads = list()
+    for ip, machine in machines_network_measure.items():
+        if len(machine.ids) == 0:
+            continue
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip)
+        scp = SCPClient(ssh.get_transport())
+        thread = threading.Thread(target=scp_networkMeasure_log_exec, args=(new_dir, ssh, scp, ip))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
 
 def scp_server_log_exec(new_dir, ssh, scp, s_id, ip):
@@ -410,6 +438,7 @@ def main():
     start_time = time.time()
     parse_server_machine()
     parse_client_machine()
+    parse_network_measure_machine()
     end_deploy = start_time
     deploy_use = 0
     build_use = 0
@@ -427,23 +456,26 @@ def main():
     end_start_server = time.time()
     start_server_use = end_start_server - end_deploy
     print("start server use (+15s) %.5fs" % start_server_use)
-    enforce_leader()
-    end_select_leader = time.time()
-    select_leader_use = end_select_leader - end_start_server
-    print("select leader used %.5fs" % select_leader_use)
     end_start_network_measure = time.time()
     if turn_on_network_measure:
         start_network_measure()
+        time.sleep(10)
         end_start_network_measure = time.time()
-        start_network_measure_use = end_start_network_measure - end_select_leader
+        start_network_measure_use = end_start_network_measure - end_start_server
         print("start network measure used %.5fs" % start_network_measure_use)
+    enforce_leader()
+    end_select_leader = time.time()
+    select_leader_use = end_select_leader - end_start_network_measure
+    print("select leader used %.5fs" % select_leader_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
     start_clients()
     end_client = time.time()
-    client_use = end_client - end_start_network_measure
+    client_use = end_client - end_select_leader
     print("clients finish used %.5fs" % client_use)
     dir_name = collect_client_log()
+    if turn_on_network_measure:
+        collect_networkMeasure_log(dir_name)
     if args.debug:
         # dir_name = collect_client_log()
         print_server_status(dir_name)
