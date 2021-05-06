@@ -26,6 +26,12 @@ func parseArgs() {
 		false,
 		"debug mode",
 	)
+	flag.IntVar(
+		&dcId,
+		"i",
+		-1,
+		"datacenter Id",
+	)
 	flag.StringVar(
 		&configFile,
 		"c",
@@ -34,6 +40,10 @@ func parseArgs() {
 	)
 
 	flag.Parse()
+	if dcId == -1 {
+		flag.Usage()
+		logrus.Fatalf("Invalid dcId")
+	}
 	if configFile == "" {
 		flag.Usage()
 		logrus.Fatal("Invalid configuration file.")
