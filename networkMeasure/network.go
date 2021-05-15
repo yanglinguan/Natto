@@ -31,6 +31,7 @@ func NewNetworkMeasure(dcId int, configFile string) *NetworkMeasure {
 	c := &NetworkMeasure{
 		Config:      config,
 		connections: make([]connection.Connection, len(config.GetServerAddress())),
+		gRPCServer:  grpc.NewServer(),
 	}
 
 	if c.Config.IsDynamicLatency() && c.Config.UseNetworkTimestamp() {

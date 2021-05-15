@@ -200,7 +200,7 @@ def load_statistic(dir_name):
                 print(f + " dose not have txn")
     avg = numpy.average(num_txn)
     std = numpy.std(num_txn)
-    # print("num client: " + str(client_num))
+    print(dir_name, num_txn, avg, std)
     # print("avg txn num: " + str(avg) + " error: " + str(std))
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
@@ -232,6 +232,14 @@ def analyse_latency(txn_map):
     p99 = numpy.percentile(latency, 99)
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
+    
+    if args.resultDir is not None:
+        print("10 per (ms) high: " + str(p10))
+        print("median (ms) high: " + str(median))
+        print("90 per (ms) high: " + str(p90))
+        print("95 per (ms) high: " + str(p95))
+        print("99 per (ms) high: " + str(p99))
+        print("avg (ms) high: " + str(avg))
 
     # print("10 per (ms): " + str(p10))
     # print("median (ms): " + str(median))

@@ -157,7 +157,7 @@ func (server *Server) handleReadResultFromCoordinatorRequest() {
 	for {
 		request := <-server.readResultFromCoordinatorChan
 		if _, exist := server.coordinator.clientReadRequestChan[request.clientId]; !exist {
-			server.coordinator.clientReadRequestChan[request.clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+			server.coordinator.clientReadRequestChan[request.clientId] = make(chan *rpc.ReadReplyFromCoordinator, server.config.GetQueueLen())
 		}
 		request.replyChan = server.coordinator.clientReadRequestChan[request.clientId]
 		request.wait <- true

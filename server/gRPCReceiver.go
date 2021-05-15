@@ -337,11 +337,13 @@ func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordi
 
 	for {
 		result := <-req.replyChan
+		logrus.Debugf("coordResult send result txn %v to client %v", result.TxnId, request.ClientId)
 		err := srv.Send(result)
 		if err != nil {
 			log.Fatalf("stream cannot send to client %v txn %v error %v",
 				request.ClientId, result.TxnId, err)
 		}
+		logrus.Debugf("coordResult result txn %v to client %v sent", result.TxnId, request.ClientId)
 	}
 	//op := NewReadRequestFromCoordinator(request, srv)
 	//server.coordinator.AddOperation(op)

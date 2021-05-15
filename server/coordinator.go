@@ -65,7 +65,7 @@ type forwardReadWaiting struct {
 }
 
 func (c *Coordinator) sendReadResultToClient(info *TwoPCInfo, txnId string, clientId string, keys []string) {
-	log.Debugf("txn %v 's coord %v send txn %v read keys %v to client %v",
+	log.Debugf("coordResult txn %v 's coord %v send txn %v read keys %v to client %v",
 		info.txnId, c.server.serverId, txnId, keys, clientId)
 	//stream := c.clientReadRequestToCoordinator[clientId]
 	readResult := &rpc.ReadReplyFromCoordinator{
@@ -82,6 +82,7 @@ func (c *Coordinator) sendReadResultToClient(info *TwoPCInfo, txnId string, clie
 		readResult.KeyValVerList = append(readResult.KeyValVerList, r)
 	}
 	c.clientReadRequestChan[clientId] <- readResult
+	log.Debugf("coordResult txn %v to client %v add to queue", txnId, clientId)
 	//err := stream.Send(readResult)
 	//if err != nil {
 	//	log.Fatalf("stream send read result error %v txn %v to client %v", err, txnId, clientId)
@@ -104,7 +105,7 @@ type Coordinator struct {
 
 func (c *Coordinator) sendForwardResult(clientId string, srv rpc.Carousel_ReadResultFromCoordinatorServer) {
 	if _, exist := c.clientReadRequestChan[clientId]; !exist {
-		c.clientReadRequestChan[clientId] = make(chan *rpc.ReadReplyFromCoordinator, 102400)
+		c.clientReadRequestChan[clientId] = make(chan *rpc.ReadReplyFromCoordinator, c.server.config.GetQueueLen())
 	}
 	clientChan := c.clientReadRequestChan[clientId]
 	ack := &rpc.ReadReplyFromCoordinator{

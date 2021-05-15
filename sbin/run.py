@@ -49,7 +49,7 @@ if args.debug:
     client_cmd = client_cmd + "-d "
     check_server_status_cmd = check_server_status_cmd + "-d "
     enforce_leader_cmd = enforce_leader_cmd + "-d "
-    networkTimestamp += "-d "
+    network_measure_cmd += "-d "
 
 src_path = "$HOME/Projects/go/src/Carousel-GTS/"
 server_path = src_path + "carousel-server/"
@@ -314,9 +314,9 @@ def start_network_measure():
         ssh.connect(ip)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        exe = "cd " + path + "/networkMeasure " + \
+        exe = "cd " + path + "/networkMeasure; " + \
               network_measure_cmd + "-i $id -c " + args.config + " > " + "networkMeasure-$id.log " + "2>&1 &"
-        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
+        loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done;"
         cmd += loop
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
@@ -330,7 +330,7 @@ def start_network_measure():
 def start_clients():
     threads = list()
 
-    start_time = str(int((time.time() + 25) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 10) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -463,20 +463,20 @@ def main():
         end_start_network_measure = time.time()
         start_network_measure_use = end_start_network_measure - end_start_server
         print("start network measure used %.5fs" % start_network_measure_use)
-    enforce_leader()
-    end_select_leader = time.time()
-    select_leader_use = end_select_leader - end_start_network_measure
-    print("select leader used %.5fs" % select_leader_use)
+    #enforce_leader()
+    #end_select_leader = time.time()
+    #select_leader_use = end_select_leader - end_start_network_measure
+    #print("select leader used %.5fs" % select_leader_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
     start_clients()
     end_client = time.time()
-    client_use = end_client - end_select_leader
+    client_use = end_client - end_start_network_measure
     print("clients finish used %.5fs" % client_use)
     dir_name = collect_client_log()
-    if turn_on_network_measure:
-        collect_networkMeasure_log(dir_name)
     if args.debug:
+        if turn_on_network_measure:
+            collect_networkMeasure_log(dir_name)
         # dir_name = collect_client_log()
         print_server_status(dir_name)
         end_server = time.time()
@@ -498,7 +498,7 @@ def main():
     print("build use %.5fs" % build_use)
     print("deploy use %.5fs" % deploy_use)
     print("start server use (+15s) %.5fs" % start_server_use)
-    print("select leader used %.5fs" % select_leader_use)
+    #print("select leader used %.5fs" % select_leader_use)
     print("run clients used %.5fs" % client_use)
     # print("server finish used %.5fs" % server_use)
     # print("collect log used %.5fs" % collect_use)

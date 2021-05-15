@@ -38,7 +38,7 @@ args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
-timeout = 10 * 60
+timeout = 300 * 60
 n = 1
 if args.num is not None:
     n = int(args.num)
@@ -57,7 +57,7 @@ def getNextRunCount(f):
 
 
 def getRunExpNum(f):
-    prefix = f.split(".")[0]
+    prefix = f.split(".")[0] + "-"
     i = 0
     for d in os.listdir(path):
         if os.path.isdir(d) and d.startswith(prefix):
@@ -132,7 +132,7 @@ def getSortkey(f):
     return int(key)
 
 def sort_run_list(run_list):
-    exp_list = ["client_nums", "workload_highPriority", "zipfAlpha", "txnSize"]
+    exp_list = ["client_nums", "workload_highPriority", "zipfAlpha", "txnSize", "txnRate"]
     result_map = {}
     not_found = []
     for rc in run_list:
@@ -201,12 +201,12 @@ def main():
     else:
         run_list = sort_run_list(run_list)
     for rlist in run_list:
-        print(rlist)
         if len(rlist) == 0: 
             continue
         if args.variance:
             print("set varince", rlist[0][0])
             set_network_delay(rlist[0][0])
+        print(rlist)
         for i in range(n):
             finish, succ, failed = run_exp(i, rlist)
             if succ:

@@ -360,7 +360,7 @@ func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 		dcId := idx % f.dcNum
 		f.clientToDataCenterId[id] = dcId
 	}
-	networkMeasureMachines := config["networkMeasureMachine"].([]interface{})
+	networkMeasureMachines := config["networkMeasureMachines"].([]interface{})
 	f.dcIdToNetworkMeasurementMachineAddr = make([]string, f.dcNum)
 	portBase := int(config["networkMeasurePortBase"].(float64))
 	if len(networkMeasureMachines) != f.dcNum {

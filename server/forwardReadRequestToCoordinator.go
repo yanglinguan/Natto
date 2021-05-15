@@ -31,7 +31,7 @@ func (r *ForwardReadRequestToCoordinator) Execute(c *Coordinator) {
 		twoPCInfo.notifyTxns[r.request.TxnId] = int(r.request.CoorId)
 		if twoPCInfo.status == COMMIT || twoPCInfo.status.IsAbort() {
 			logrus.Debugf("txn %v already commit/abort send result %v to server %v for txn %v ",
-				twoPCInfo.txnId, twoPCInfo.status, r.request.TxnId)
+				twoPCInfo.txnId, twoPCInfo.status, r.request.CoorId, r.request.TxnId)
 			c.sendResultToCoordinatorId(twoPCInfo, int(r.request.CoorId))
 		}
 		if twoPCInfo.writeDataReceived {

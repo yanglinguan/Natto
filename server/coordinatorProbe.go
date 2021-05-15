@@ -113,7 +113,7 @@ func (c *Coordinator) predictOneWayLatency(serverList []int) int64 {
 	var max int64 = 0
 	for _, sId := range serverList {
 		addr := c.server.config.GetServerAddressByServerId(sId)
-		lat := c.latencyPredictor.PredictLat(addr)
+		lat := c.latencyPredictor.PredictLat(addr, 95)
 		if lat > max {
 			max = lat
 		}

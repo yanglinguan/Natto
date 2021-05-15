@@ -71,17 +71,6 @@ func NewClient(clientId int, configFile string) *Client {
 
 	c.networkMeasureConnection = connection.NewSingleConnect(config.GetNetworkMeasureAddr(c.clientDataCenterId))
 
-	if c.Config.ForwardReadToCoord() {
-		c.createReadResultFromCoordinatorStream()
-		for i := range c.readResultFromCoordinatorStream {
-			go c.receiveReadResultFromCoordinatorStream(i)
-		}
-	}
-
-	if c.Config.IsDynamicLatency() && c.Config.UseNetworkTimestamp() {
-		go c.predictDelay()
-	}
-
 	return c
 }
 
@@ -97,6 +86,7 @@ func (c *Client) createReadResultFromCoordinatorStream() {
 		in := &rpc.ReadRequestToCoordinator{
 			ClientId: strconv.Itoa(c.clientId),
 		}
+		logrus.Debugf("send read result from coord to server %v, client %v", sId, in.ClientId)
 		stream, err := client.ReadResultFromCoordinator(context.Background(), in)
 		if err != nil {
 			logrus.Fatalf("open stream error %v", err)
@@ -142,6 +132,17 @@ func (c *Client) Start() {
 	// create stream to coordinators
 	// receiving result from coordinators
 	go c.processOperation()
+	if c.Config.ForwardReadToCoord() {
+		c.createReadResultFromCoordinatorStream()
+		for i := range c.readResultFromCoordinatorStream {
+			go c.receiveReadResultFromCoordinatorStream(i)
+		}
+	}
+
+	if c.Config.IsDynamicLatency() && c.Config.UseNetworkTimestamp() {
+		c.delays = make([]int64, c.Config.GetServerNum())
+		go c.predictDelay()
+	}
 }
 
 func (c *Client) processOperation() {
@@ -216,8 +217,9 @@ func (c *Client) predictDelay() {
 	for {
 		reply, err := netClient.PredictLatency(context.Background(), request)
 		if err != nil {
-			logrus.Fatalf("cannot get predict delay")
+			logrus.Fatalf("cannot get predict delay %v", err)
 		}
+		logrus.Debugf("delay %v", reply.Delays)
 		c.lock.Lock()
 		for i, d := range reply.Delays {
 			c.delays[i] = d
@@ -247,11 +249,15 @@ func (c *Client) getMaxDelay(serverIdList []int, serverDcIds map[int]bool) int64
 
 func (c *Client) getEstimateArrivalTime(participantPartitions []int32) []int64 {
 	serverList := make([]int, len(participantPartitions))
+	var result []int64
+	if !c.Config.UseNetworkTimestamp() {
+		//maxDelay = time.Now().UnixNano()
+		return result
+	}
 	for i, pId := range participantPartitions {
 		leaderId := c.Config.GetLeaderIdByPartitionId(int(pId))
 		serverList[i] = leaderId
 	}
-	var result []int64
 	if c.Config.IsDynamicLatency() {
 		result = c.estimateArrivalTime(serverList)
 	} else {
