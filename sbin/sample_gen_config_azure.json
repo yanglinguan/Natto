@@ -8,52 +8,41 @@
     "rpcPortBase": 10000
   },
   "server_machines": [
-        "10.0.2.6",
-        "10.0.4.2",
-        "10.0.4.3",
-        "10.0.4.4",
-        "10.0.4.5",
-        "10.0.4.6",
-        "10.0.4.7",
-        "10.0.4.8",
-        "10.0.4.9",
-        "10.0.4.10",
-        "10.0.4.11",
-        "10.0.4.12",
-        "10.0.4.13",
-        "10.0.4.14",
-        "10.0.4.15"
+        "vm1-eastus2",
+        "vm2-eastus2",
+        "vm3-eastus2",
+        "vm1-westus2",
+        "vm2-westus2",
+        "vm3-westus2",
+        "vm1-francecentral",
+        "vm2-francecentral",
+        "vm3-francecentral",
+        "vm1-australiaeast",
+        "vm2-australiaeast",
+        "vm3-australiaeast",
+        "vm1-southeastasia",
+        "vm2-southeastasia",
+        "vm3-southeastasia"
   ],
   "client_nums": 5,
   "client_machines": [
-        "10.0.2.4",
-        "10.0.2.5",
-        "10.0.2.9",
-        "10.0.2.7",
-        "10.0.2.8",
-        "10.0.2.10",
-        "10.0.3.1",
-        "10.0.3.2",
-        "10.0.3.3",
-        "10.0.3.4",
-        "10.0.3.5",
-        "10.0.3.11",
-        "10.0.3.12",
-        "10.0.1.2",
-        "10.0.1.4",
-        "10.0.1.5",
-        "10.0.1.6",
-        "10.0.1.7",
-        "10.0.1.8",
-        "10.0.1.9",
-        "10.0.1.10",
-        "10.0.1.11",
-        "10.0.1.13",
-        "10.0.1.14",
-        "10.0.1.15"
+        "vm4-eastus2",
+        "vm4-westus2",
+        "vm4-francecentral",
+        "vm4-australiaeast",
+        "vm4-southeastasia",
+        "vm5-eastus2",
+        "vm5-westus2",
+        "vm5-francecentral",
+        "vm5-australiaeast",
+        "vm5-southeastasia"
   ],
   "networkMeasureMachines": [
-
+        "vm6-eastus2",
+        "vm6-westus2",
+        "vm6-francecentral",
+        "vm6-australiaeast",
+        "vm6-southeastasia"
   ],
   "networkMeasurePortBase": 30000,
   "latency": {
@@ -126,7 +115,7 @@
       "username": "",
       "identity": ""
     },
-    "runDir": "/ssd1/carousel-gts/",
+    "runDir": "~/carousel-gts/",
     "waitToStart": 0,
     "poissonProcess":true,
     "highTxnOnly": false,
@@ -182,7 +171,7 @@
     }
   },
   "x_axis": {
-    "client_nums": [100],
-    "txnRate": [100]
+    "client_nums": [100, 200, 300],
+    "txnRate": [100, 200, 300]
   }
 }

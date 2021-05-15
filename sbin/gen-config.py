@@ -14,6 +14,9 @@ arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
 arg_parser.add_argument('-d', '--directory', dest='directory', nargs='?',
                         help='directory for storing config file', required=True)
 
+arg_parser.add_argument('-a', '--azureIps', dest='azureIps', nargs='?',
+                        help='azure servers public and private ips file', required=False)
+
 args = arg_parser.parse_args()
 
 if not os.path.exists(args.directory):
@@ -25,21 +28,63 @@ config_option = json.load(config_file)
 config_file.close()
 config_name = ["servers", "clients", "experiment"]
 
+azure_machine_name_ips = {}
+
+
+def parse_azure_ips():
+    ip_file = open(args.azureIps, 'r')
+    all_lines = ip_file.readlines()
+    ip_file.close()
+
+    for line in all_lines:
+        if line.startswith("#"):
+            continue
+        if line.startswith("--------"):
+            continue
+
+        ip_list = line.rstrip('\n').split()
+        vm_name, ip_pub, ip_pri = ip_list[0], ip_list[1], ip_list[2]
+        if vm_name not in azure_machine_name_ips:
+            azure_machine_name_ips[vm_name] = {"public": "", "private": ""}
+        azure_machine_name_ips[vm_name]["public"] = ip_pub
+        azure_machine_name_ips[vm_name]["private"] = ip_pri
+
 
 def config_server():
     server = config_option["server"]
-    server["machines"] = config_option["server_machines"]
+    if args.azureIps is not None:
+        server["machines"] = []
+        server["machines_pub"] = []
+        for m_name in config_option["server_machines"]:
+            server["machines"].append(azure_machine_name_ips[m_name]["private"])
+            server["machines_pub"].append(azure_machine_name_ips[m_name]["public"])
+    else:
+        server["machines"] = config_option["server_machines"]
+        server["machines_pub"] = config_option["server_machines"]
     return server
 
 
 def config_client(nums):
     client_list = []
+    azure_client_machines_pri = []
+    azure_client_machines_pub = []
+    azure_networkMeasure_machines_pri = []
+    azure_networkMeasure_machines_pub = []
+    if args.azureIps is not None:
+        for m_name in config_option["client_machines"]:
+            azure_client_machines_pri.append(azure_machine_name_ips[m_name]["private"])
+            azure_client_machines_pub.append(azure_machine_name_ips[m_name]["public"])
+        for m_name in config_option["networkMeasureMachines"]:
+            azure_networkMeasure_machines_pri.append(azure_machine_name_ips[m_name]["private"])
+            azure_networkMeasure_machines_pub.append(azure_machine_name_ips[m_name]["public"])
     for n in nums:
         client_config = {
             "nums": n,
-            "machines": config_option["client_machines"],
+            "machines": config_option["client_machines"] if args.azureIps is None else azure_client_machines_pri,
+            "machines_pub": config_option["client_machines"] if args.azureIps is None else azure_client_machines_pub,
             "networkMeasurePortBase": config_option["networkMeasurePortBase"],
-            "networkMeasureMachines": config_option["networkMeasureMachines"]
+            "networkMeasureMachines": config_option["networkMeasureMachines"] if args.azureIps is None else azure_networkMeasure_machines_pri,
+            "networkMeasureMachines_pub": config_option["networkMeasureMachines"] if args.azureIps is None else azure_networkMeasure_machines_pub,
         }
         client_list.append(client_config)
     return client_list
@@ -92,6 +137,8 @@ def output(config_list, var_client):
 
 
 def main():
+    if args.azureIps:
+        parse_azure_ips()
     x_axis = config_option["x_axis"]
     server = config_server()
     for x_name in x_axis:

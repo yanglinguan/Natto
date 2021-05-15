@@ -43,8 +43,10 @@ n = 1
 if args.num is not None:
     n = int(args.num)
 
-def set_network_delay(f): 
+
+def set_network_delay(f):
     subprocess.call([bin_path + "delay-set.py", "-c", f])
+
 
 def getNextRunCount(f):
     prefix = f.split(".")[0]
@@ -127,9 +129,11 @@ def getRunIdx(f):
         return -1
     return exp_run_num
 
+
 def getSortkey(f):
     key = (f[0].split(".")[0]).split("-")[-1]
     return int(key)
+
 
 def sort_run_list(run_list):
     exp_list = ["client_nums", "workload_highPriority", "zipfAlpha", "txnSize", "txnRate"]
@@ -156,11 +160,12 @@ def sort_run_list(run_list):
         result_list.append(not_found)
     return result_list
 
+
 def sort_variance_run_list(run_list):
     run_list.sort(key=getSortkey)
     result_list = []
     for i in range(len(run_list)):
-        if i == 0 or getSortkey(run_list[i]) != getSortkey(run_list[i-1]):
+        if i == 0 or getSortkey(run_list[i]) != getSortkey(run_list[i - 1]):
             result_list.append([run_list[i]])
             continue
         result_list[-1].append(run_list[i])
@@ -201,7 +206,7 @@ def main():
     else:
         run_list = sort_run_list(run_list)
     for rlist in run_list:
-        if len(rlist) == 0: 
+        if len(rlist) == 0:
             continue
         if args.variance:
             print("set varince", rlist[0][0])
