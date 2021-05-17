@@ -122,7 +122,7 @@ def deploy_network_measure(config, run_list, threads):
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip, username=ssh_username)
         scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, network_measure_dir, network_measure_dir))
+        thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, network_measure_dir, network_measure_scp_files))
         threads.append(thread)
         thread.start()
 
@@ -290,9 +290,10 @@ def main():
                 # (fname, num of exp already run)
                 print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
-    if args.noBuildDeploy is None:
+    if not args.noBuildDeploy:
+        print("build")
         build()
-        deploy(run_list)
+        deploy([rl[0] for rl in run_list])
     errorRun = []
     if args.variance:
         run_list = sort_variance_run_list(run_list)

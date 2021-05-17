@@ -131,6 +131,7 @@ def output(config_list, var_client):
             exp["varExp"] += "-client_nums-" + str(config["clients"]["nums"])
             config["experiment"] = exp
 
+        #f = config["experiment"]["workload"]["type"]+ "_" + config["experiment"]["varExp"] + ".json"
         f = config["experiment"]["varExp"] + ".json"
         with open(os.path.join(args.directory, f), "w") as fp:
             json.dump(config, fp, indent=4, sort_keys=True)
