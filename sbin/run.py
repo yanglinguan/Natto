@@ -1,12 +1,11 @@
 #!/usr/bin/python
 import argparse
 import datetime
-import json
 import time
 import threading
 import os
 import subprocess
-# from termcolor import colored
+import utils
 
 from paramiko import SSHClient, AutoAddPolicy
 from scp import SCPClient
@@ -20,29 +19,21 @@ arg_parser.add_argument('-d', '--debug', help="turn on debug",
                         action='store_true')
 arg_parser.add_argument('-r', '--runCount', dest='runCount', nargs='?',
                         help='runCount', required=True)
-arg_parser.add_argument('-b', '--buildDeploy', help="build and deploy",
-                        action='store_true')
 
 args = arg_parser.parse_args()
 
 # Reads configurations
-config_file = open(args.config, "r")
-config = json.load(config_file)
-config_file.close()
+config = utils.load_config(args.config)
 
-path = os.getcwd()
-binPath = "/home/l69yang/Projects/go/bin/"
+path = utils.get_run_dir(config)
+
+turn_on_network_measure = utils.is_network_measure(config)
 
 server_cmd = "./carousel-server "
 client_cmd = "./client "
-check_server_status_cmd = binPath + "/checkServerStatus "
-enforce_leader_cmd = binPath + "/enforce-leader "
+check_server_status_cmd = utils.binPath + "/checkServerStatus "
+enforce_leader_cmd = utils.binPath + "/enforce-leader "
 network_measure_cmd = "./networkMeasure "
-
-dynamic_latency = config["experiment"]["dynamicLatency"]["mode"]
-use_timestamp = config["experiment"]["networkTimestamp"]
-
-turn_on_network_measure = dynamic_latency and use_timestamp
 
 if args.debug:
     server_cmd = server_cmd + "-d "
@@ -51,66 +42,13 @@ if args.debug:
     enforce_leader_cmd = enforce_leader_cmd + "-d "
     network_measure_cmd += "-d "
 
-src_path = "$HOME/Projects/go/src/Carousel-GTS/"
-server_path = src_path + "carousel-server/"
-client_path = src_path + "benchmark/client/"
-rpc_path = src_path + "rpc/"
-tool_path = src_path + "tools/"
-check_server_status_path = tool_path + "checkServerStatus/"
-enforce_leader_path = tool_path + "enforce-leader/"
-network_measure_path = src_path + "networkMeasure/"
+ssh_username = utils.get_ssh_username(config)
 
-ssh_username = config["experiment"]["ssh"]["username"]
+machines_client = utils.parse_client_machine(config)
 
-if "runDir" in config["experiment"] and len(config["experiment"]["runDir"]) != 0:
-    path = config["experiment"]["runDir"]
+machines_server = utils.parse_server_machine(config)
 
-
-class Machine:
-    def __init__(self, machine_ip):
-        self.machine_ip = machine_ip
-        self.ids = []
-
-    def add_id(self, server_id):
-        self.ids.append(server_id)
-
-
-machines_client = {}
-
-machines_server = {}
-
-machines_network_measure = {}
-
-
-def parse_network_measure_machine():
-    machines = config["clients"]["networkMeasureMachines_pub"]
-    dcId = 0
-    for ip in machines:
-        machines_network_measure[ip] = Machine(ip)
-        machines_network_measure[ip].add_id(str(dcId))
-        dcId += 1
-
-
-def parse_client_machine():
-    client_nums = config["clients"]["nums"]
-    machines = config["clients"]["machines_pub"]
-    for ip in machines:
-        machines_client[ip] = Machine(ip)
-    for clientId in range(client_nums):
-        idx = clientId % len(machines)
-        ip = machines[idx]
-        machines_client[ip].add_id(str(clientId))
-
-
-def parse_server_machine():
-    server_nums = int(config["servers"]["nums"])
-    machines = config["servers"]["machines_pub"]
-    for ip in machines:
-        machines_server[ip] = Machine(ip)
-    for server_id in range(server_nums):
-        idx = server_id % len(machines)
-        ip = machines[idx]
-        machines_server[ip].add_id(str(server_id))
+machines_network_measure = utils.parse_network_measure_machine(config)
 
 
 def scp_client_log_exec(new_dir, ssh, scp, ip):
@@ -199,72 +137,6 @@ def collect_server_log(new_dir):
         scp = SCPClient(ssh.get_transport())
         for sId in machine.ids:
             thread = threading.Thread(target=scp_server_log_exec, args=(new_dir, ssh, scp, sId, ip))
-            threads.append(thread)
-            thread.start()
-
-    for thread in threads:
-        thread.join()
-
-
-def scp_server_exec(ssh, scp, s_id, ip):
-    server_dir = config["experiment"]["runDir"] + "/server-" + str(s_id)
-    ssh.exec_command("mkdir -p " + server_dir)
-    scp.put(os.getcwd() + "/" + args.config, server_dir)
-    scp.put(binPath + "carousel-server", server_dir)
-    print("deploy config and server " + str(s_id) + " at " + ip)
-
-
-def scp_client_exec(ssh, scp, ip):
-    client_dir = config["experiment"]["runDir"] + "/client"
-    ssh.exec_command("mkdir -p " + client_dir)
-    scp.put(os.getcwd() + "/" + args.config, client_dir)
-    scp.put(binPath + "client", client_dir)
-    print("deploy config and client at " + ip)
-
-
-def scp_network_measure_exec(ssh, scp, ip):
-    network_measure_dir = config["experiment"]["runDir"] + "/networkMeasure"
-    ssh.exec_command("mkdir -p " + network_measure_dir)
-    scp.put(os.getcwd() + "/" + args.config, network_measure_dir)
-    scp.put(binPath + "networkMeasure", network_measure_dir)
-    print("deploy config and network measure at " + ip)
-
-
-def deploy():
-    if "runDir" not in config["experiment"] or len(config["experiment"]["runDir"]) == 0:
-        return
-
-    threads = []
-    for ip, machine in machines_server.items():
-        if len(machine.ids) == 0:
-            continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
-        for sId in machine.ids:
-            thread = threading.Thread(target=scp_server_exec, args=(ssh, scp, sId, ip))
-            threads.append(thread)
-            thread.start()
-
-    for ip, machine in machines_client.items():
-        if len(machine.ids) == 0:
-            continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_client_exec, args=(ssh, scp, ip))
-        threads.append(thread)
-        thread.start()
-
-    if turn_on_network_measure:
-        for ip, machine in machines_network_measure.items():
-            ssh = SSHClient()
-            ssh.set_missing_host_key_policy(AutoAddPolicy())
-            ssh.connect(ip, username=ssh_username)
-            scp = SCPClient(ssh.get_transport())
-            thread = threading.Thread(target=scp_network_measure_exec, args=(ssh, scp, ip))
             threads.append(thread)
             thread.start()
 
@@ -387,7 +259,7 @@ def stop_servers():
 
 def stop_network_measure():
     threads = list()
-    for ip in config["clients"]["networkMeasureMachines"]:
+    for ip in machines_network_measure:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip, username=ssh_username)
@@ -403,7 +275,7 @@ def stop_network_measure():
 
 def stop_clients():
     threads = list()
-    for ip in config["clients"]["machines"]:
+    for ip in machines_client:
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(ip, username=ssh_username)
@@ -417,46 +289,12 @@ def stop_clients():
         thread.join()
 
 
-def build():
-    try:
-        print("build server at " + server_path)
-        subprocess.call("cd " + rpc_path + "; protoc --go_out=plugins=grpc:. *.proto", shell=True)
-        subprocess.call("cd " + server_path + "; go install", shell=True)
-        print("build client at " + client_path)
-        subprocess.call("cd " + client_path + "; go install", shell=True)
-        print("build tool check server status at " + check_server_status_path)
-        subprocess.call("cd " + check_server_status_path + "; go install", shell=True)
-        print("build tool enforce leader at " + enforce_leader_path)
-        subprocess.call("cd " + enforce_leader_path + "; go install", shell=True)
-        if turn_on_network_measure:
-            print("build network measure at " + network_measure_path)
-            subprocess.call("cd " + network_measure_path + "; go install", shell=True)
-        subprocess.call("cd " + os.getcwd(), shell=True)
-    except subprocess.CalledProcessError:
-        print("build error")
-
-
 def main():
     start_time = time.time()
-    parse_server_machine()
-    parse_client_machine()
-    parse_network_measure_machine()
-    end_deploy = start_time
-    deploy_use = 0
-    build_use = 0
-    if args.buildDeploy:
-        build()
-        end_build = time.time()
-        build_use = end_build - start_time
-        print("build use %.5fs" % build_use)
-        deploy()
-        end_deploy = time.time()
-        deploy_use = end_deploy - end_build
-        print("deploy use %.5fs" % deploy_use)
     start_servers()
     time.sleep(15)
     end_start_server = time.time()
-    start_server_use = end_start_server - end_deploy
+    start_server_use = end_start_server - start_time
     print("start server use (+15s) %.5fs" % start_server_use)
     end_start_network_measure = time.time()
     if turn_on_network_measure:
@@ -465,10 +303,6 @@ def main():
         end_start_network_measure = time.time()
         start_network_measure_use = end_start_network_measure - end_start_server
         print("start network measure used %.5fs" % start_network_measure_use)
-    #enforce_leader()
-    #end_select_leader = time.time()
-    #select_leader_use = end_select_leader - end_start_network_measure
-    #print("select leader used %.5fs" % select_leader_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
     start_clients()
@@ -479,7 +313,6 @@ def main():
     if args.debug:
         if turn_on_network_measure:
             collect_networkMeasure_log(dir_name)
-        # dir_name = collect_client_log()
         print_server_status(dir_name)
         end_server = time.time()
         server_use = end_server - end_client
@@ -488,7 +321,6 @@ def main():
     end_collect = time.time()
     collect_use = end_collect - end_client
     print("collect log used %.5fs" % collect_use)
-    # stop_clients()
     if turn_on_network_measure:
         stop_network_measure()
     stop_servers()
@@ -497,10 +329,7 @@ def main():
     print("stop client and server use %.5f" % stop_server_use)
     print("-----")
     print("entire exp use %.5fs" % (end_time - start_time))
-    print("build use %.5fs" % build_use)
-    print("deploy use %.5fs" % deploy_use)
     print("start server use (+15s) %.5fs" % start_server_use)
-    #print("select leader used %.5fs" % select_leader_use)
     print("run clients used %.5fs" % client_use)
     # print("server finish used %.5fs" % server_use)
     # print("collect log used %.5fs" % collect_use)

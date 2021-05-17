@@ -5,6 +5,12 @@ import smtplib
 import subprocess
 import os
 import argparse
+import threading
+
+from paramiko import SSHClient, AutoAddPolicy
+from scp import SCPClient
+
+import utils
 
 path = os.getcwd()
 
@@ -15,24 +21,22 @@ arg_parser.add_argument('-c', '--config', dest='config', nargs='*',
                         help='configuration file', required=False)
 arg_parser.add_argument('-d', '--debug', help="turn on debug",
                         action='store_true')
+arg_parser.add_argument('-n', '--num', dest="num", nargs='?',
+                        help='number of run', required=False)
+arg_parser.add_argument('-f', '--force',
+                        help="force exp to run n times", action='store_true')
+arg_parser.add_argument('-v', '--variance',
+                        help="network variance", action='store_true')
+arg_parser.add_argument('-N', '--noBuildDeploy', help="run without build and deploy",
+                        action='store_true')
+
+# for email notification
 arg_parser.add_argument('-e', '--senderEmail', dest="senderEmail", nargs='?',
                         help='sender email address', required=False)
 arg_parser.add_argument('-p', '--password', dest="password", nargs='?',
                         help='sender email password', required=False)
 arg_parser.add_argument('-r', '--receiverEmail', dest="receiverEmail", nargs='?',
                         help='receive email address', required=False)
-
-arg_parser.add_argument('-m', '--machines', dest="machines", nargs='?',
-                        help='machines config file', required=False)
-arg_parser.add_argument('-dir', '--directory', dest="directory", nargs='?',
-                        help='config file directory', required=False)
-arg_parser.add_argument('-n', '--num', dest="num", nargs='?',
-                        help='number of run', required=False)
-
-arg_parser.add_argument('-f', '--force',
-                        help="force exp to run n times", action='store_true')
-arg_parser.add_argument('-v', '--variance',
-                        help="network variance", action='store_true')
 
 args = arg_parser.parse_args()
 
@@ -42,6 +46,98 @@ timeout = 300 * 60
 n = 1
 if args.num is not None:
     n = int(args.num)
+
+
+def build():
+    try:
+        print("build server at " + utils.server_path)
+        subprocess.call("cd " + utils.rpc_path + "; protoc --go_out=plugins=grpc:. *.proto", shell=True)
+        subprocess.call("cd " + utils.server_path + "; go install", shell=True)
+        print("build client at " + utils.client_path)
+        subprocess.call("cd " + utils.client_path + "; go install", shell=True)
+        print("build tool check server status at " + utils.check_server_status_path)
+        subprocess.call("cd " + utils.check_server_status_path + "; go install", shell=True)
+        print("build network measure at " + utils.network_measure_path)
+        subprocess.call("cd " + utils.network_measure_path + "; go install", shell=True)
+        subprocess.call("cd " + os.getcwd(), shell=True)
+    except subprocess.CalledProcessError:
+        print("build error")
+
+
+def scp_exec(ssh, scp, ip, run_dir, scp_files):
+    ssh.exec_command("mkdir -p " + run_dir)
+    scp.put(scp_files, run_dir)
+    print("deploy config and server ", scp_files, " at ", ip)
+
+
+def deploy_servers(config, run_list, threads):
+    server_scp_files = [os.getcwd() + "/" + f for f in run_list]
+    server_scp_files.append(utils.binPath + "carousel-server")
+    machines_server = utils.parse_server_machine(config)
+    ssh_username = utils.get_ssh_username(config)
+    run_dir = utils.get_run_dir(config)
+
+    for ip, machine in machines_server.items():
+        if len(machine.ids) == 0:
+            continue
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip, username=ssh_username)
+        scp = SCPClient(ssh.get_transport())
+        for sId in machine.ids:
+            server_dir = run_dir + "/server-" + str(sId)
+            thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, server_dir, server_scp_files))
+            threads.append(thread)
+            thread.start()
+
+
+def deploy_client(config, run_list, threads):
+    machines_client = utils.parse_client_machine(config)
+    ssh_username = utils.get_ssh_username(config)
+    run_dir = utils.get_run_dir(config)
+    client_scp_files = [os.getcwd() + "/" + f for f in run_list]
+    client_scp_files.append(utils.binPath + "client")
+    client_dir = run_dir + "/client"
+    for ip, machine in machines_client.items():
+        if len(machine.ids) == 0:
+            continue
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip, username=ssh_username)
+        scp = SCPClient(ssh.get_transport())
+        thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, client_dir, client_scp_files))
+        threads.append(thread)
+        thread.start()
+
+
+def deploy_network_measure(config, run_list, threads):
+    machines_network_measure = utils.parse_network_measure_machine(config)
+    ssh_username = utils.get_ssh_username(config)
+    run_dir = utils.get_run_dir(config)
+    network_measure_scp_files = [os.getcwd() + "/" + f for f in run_list]
+    network_measure_scp_files.append(utils.binPath + "networkMeasure")
+    network_measure_dir = run_dir + "/networkMeasure"
+    for ip, machine in machines_network_measure.items():
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(ip, username=ssh_username)
+        scp = SCPClient(ssh.get_transport())
+        thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, network_measure_dir, network_measure_dir))
+        threads.append(thread)
+        thread.start()
+
+
+def deploy(run_list):
+    config = utils.load_config(run_list[0])
+    turn_on_network_measure = utils.is_network_measure(config)
+    threads = []
+    deploy_servers(config, run_list, threads)
+    deploy_client(config, run_list, threads)
+    if turn_on_network_measure:
+        deploy_network_measure(config, run_list, threads)
+
+    for thread in threads:
+        thread.join()
 
 
 def set_network_delay(f):
@@ -77,7 +173,7 @@ def run_exp(i, run_list):
             print(f + " already run " + str(x) + " times skip this time " + str(i))
             continue
         nextRun = getNextRunCount(f)
-        p = multiprocessing.Process(target=run, name="run", args=(nextRun, f, i == x))
+        p = multiprocessing.Process(target=run, name="run", args=(nextRun, f))
         p.start()
         p.join(timeout)
         if p.is_alive():
@@ -92,13 +188,11 @@ def run_exp(i, run_list):
     return finishes, True, errorRun
 
 
-def run(i, f, b):
+def run(i, f):
     # print("run " + f + " " + str(i))
     run_args = [bin_path + "run.py", "-c", f, "-r", str(i)]
     if args.debug:
         run_args.append("-d")
-    if b:
-        run_args.append("-b")
     subprocess.call(run_args)
 
 
@@ -175,10 +269,6 @@ def sort_variance_run_list(run_list):
 def main():
     finishes = 0
 
-    if args.machines is not None and args.directory is not None:
-        subprocess.call([bin_path + "gen_config.py", "-m", args.machines, "-d", args.directory])
-        subprocess.call(["cd", args.directory])
-
     run_list = []
     if args.config is not None:
         for c in args.config:
@@ -200,11 +290,15 @@ def main():
                 # (fname, num of exp already run)
                 print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
+    if args.noBuildDeploy is None:
+        build()
+        deploy(run_list)
     errorRun = []
     if args.variance:
         run_list = sort_variance_run_list(run_list)
     else:
         run_list = sort_run_list(run_list)
+
     for rlist in run_list:
         if len(rlist) == 0:
             continue
