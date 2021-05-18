@@ -7,9 +7,6 @@ import os
 import subprocess
 import utils
 
-from paramiko import SSHClient, AutoAddPolicy
-from scp import SCPClient
-
 arg_parser = argparse.ArgumentParser(description="run exp.")
 
 # Cluster configuration file
@@ -42,8 +39,6 @@ if args.debug:
     enforce_leader_cmd = enforce_leader_cmd + "-d "
     network_measure_cmd += "-d "
 
-ssh_username = utils.get_ssh_username(config)
-
 machines_client = utils.parse_client_machine(config)
 
 machines_server = utils.parse_server_machine(config)
@@ -74,11 +69,7 @@ def collect_client_log():
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_client_log_exec, args=(new_dir, ssh, scp, ip))
+        thread = threading.Thread(target=scp_client_log_exec, args=(new_dir, machine.ssh_client, machine.scp_client, ip))
         threads.append(thread)
         thread.start()
 
@@ -103,11 +94,7 @@ def collect_networkMeasure_log(new_dir):
     for ip, machine in machines_network_measure.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_networkMeasure_log_exec, args=(new_dir, ssh, scp, ip))
+        thread = threading.Thread(target=scp_networkMeasure_log_exec, args=(new_dir, machine.ssh_client, machine.scp_client, ip))
         threads.append(thread)
         thread.start()
 
@@ -131,12 +118,8 @@ def collect_server_log(new_dir):
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
         for sId in machine.ids:
-            thread = threading.Thread(target=scp_server_log_exec, args=(new_dir, ssh, scp, sId, ip))
+            thread = threading.Thread(target=scp_server_log_exec, args=(new_dir, machine.ssh_client, machine.scp_client, sId, ip))
             threads.append(thread)
             thread.start()
 
@@ -161,9 +144,6 @@ def start_servers():
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         # cmd += "cd " + path + ";"
@@ -172,7 +152,7 @@ def start_servers():
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, machine.ids))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, machine.ids))
         threads.append(thread)
         thread.start()
 
@@ -183,9 +163,6 @@ def start_servers():
 def start_network_measure():
     threads = list()
     for ip, machine in machines_network_measure.items():
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         exe = "cd " + path + "/networkMeasure; " + \
@@ -193,7 +170,7 @@ def start_network_measure():
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done;"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip))
         threads.append(thread)
         thread.start()
 
@@ -208,18 +185,15 @@ def start_clients():
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
-        exe = "sleep 0.01; cd " + path + "/client;" + \
+        exe = "cd " + path + "/client;" + \
               client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip))
         threads.append(thread)
         thread.start()
 
@@ -241,15 +215,12 @@ def enforce_leader():
 def stop_servers():
     threads = list()
     for ip, machine in machines_server.items():
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
         server_dir = path + "/server-$id"
         exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd = "killall -9 carousel-server; " + loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, ip, True))
         threads.append(thread)
         thread.start()
 
@@ -259,13 +230,10 @@ def stop_servers():
 
 def stop_network_measure():
     threads = list()
-    for ip in machines_network_measure:
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
+    for ip, machine in machines_network_measure.items():
         cmd = "killall -9 networkMeasure"
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, ip, True))
         threads.append(thread)
         thread.start()
 
@@ -275,13 +243,10 @@ def stop_network_measure():
 
 def stop_clients():
     threads = list()
-    for ip in machines_client:
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
+    for ip, machine in machines_client.items():
         cmd = "killall -9 client"
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(ssh, cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, ip, True))
         threads.append(thread)
         thread.start()
 

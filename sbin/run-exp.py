@@ -7,9 +7,6 @@ import os
 import argparse
 import threading
 
-from paramiko import SSHClient, AutoAddPolicy
-from scp import SCPClient
-
 import utils
 
 path = os.getcwd()
@@ -80,20 +77,15 @@ def deploy_servers(config, run_list, threads):
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
         for sId in machine.ids:
             server_dir = run_dir + "/server-" + str(sId)
-            thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, server_dir, server_scp_files))
+            thread = threading.Thread(target=scp_exec, args=(machine.ssh_client, machine.scp_client, ip, server_dir, server_scp_files))
             threads.append(thread)
             thread.start()
 
 
 def deploy_client(config, run_list, threads):
     machines_client = utils.parse_client_machine(config)
-    ssh_username = utils.get_ssh_username(config)
     run_dir = utils.get_run_dir(config)
     client_scp_files = [os.getcwd() + "/" + f for f in run_list]
     client_scp_files.append(utils.binPath + "client")
@@ -101,11 +93,7 @@ def deploy_client(config, run_list, threads):
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, client_dir, client_scp_files))
+        thread = threading.Thread(target=scp_exec, args=(machine.ssh_client, machine.scp_client, ip, client_dir, client_scp_files))
         threads.append(thread)
         thread.start()
 
@@ -118,11 +106,7 @@ def deploy_network_measure(config, run_list, threads):
     network_measure_scp_files.append(utils.binPath + "networkMeasure")
     network_measure_dir = run_dir + "/networkMeasure"
     for ip, machine in machines_network_measure.items():
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        ssh.connect(ip, username=ssh_username)
-        scp = SCPClient(ssh.get_transport())
-        thread = threading.Thread(target=scp_exec, args=(ssh, scp, ip, network_measure_dir, network_measure_scp_files))
+        thread = threading.Thread(target=scp_exec, args=(machine.ssh_client, machine.scp_client, ip, network_measure_dir, network_measure_scp_files))
         threads.append(thread)
         thread.start()
 
@@ -230,7 +214,7 @@ def getSortkey(f):
 
 
 def sort_run_list(run_list):
-    exp_list = ["client_nums", "workload_highPriority", "zipfAlpha", "txnSize", "txnRate"]
+    exp_list = ["txnRate", "workload_highPriority"]
     result_map = {}
     not_found = []
     for rc in run_list:
