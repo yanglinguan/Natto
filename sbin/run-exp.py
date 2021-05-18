@@ -6,6 +6,7 @@ import subprocess
 import os
 import argparse
 import threading
+import time
 
 import utils
 
@@ -71,7 +72,6 @@ def deploy_servers(config, run_list, threads):
     server_scp_files = [os.getcwd() + "/" + f for f in run_list]
     server_scp_files.append(utils.binPath + "carousel-server")
     machines_server = utils.parse_server_machine(config)
-    ssh_username = utils.get_ssh_username(config)
     run_dir = utils.get_run_dir(config)
 
     for ip, machine in machines_server.items():
@@ -79,9 +79,11 @@ def deploy_servers(config, run_list, threads):
             continue
         for sId in machine.ids:
             server_dir = run_dir + "/server-" + str(sId)
-            thread = threading.Thread(target=scp_exec, args=(machine.ssh_client, machine.scp_client, ip, server_dir, server_scp_files))
+            thread = threading.Thread(target=scp_exec,
+                                      args=(machine.ssh_client, machine.scp_client, ip, server_dir, server_scp_files))
             threads.append(thread)
-            thread.start()
+            # thread.start()
+    print("deploy servers threads started")
 
 
 def deploy_client(config, run_list, threads):
@@ -93,22 +95,25 @@ def deploy_client(config, run_list, threads):
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
-        thread = threading.Thread(target=scp_exec, args=(machine.ssh_client, machine.scp_client, ip, client_dir, client_scp_files))
+        thread = threading.Thread(target=scp_exec,
+                                  args=(machine.ssh_client, machine.scp_client, ip, client_dir, client_scp_files))
         threads.append(thread)
-        thread.start()
+        # thread.start()
+    print("deploy clients threads started")
 
 
 def deploy_network_measure(config, run_list, threads):
     machines_network_measure = utils.parse_network_measure_machine(config)
-    ssh_username = utils.get_ssh_username(config)
     run_dir = utils.get_run_dir(config)
     network_measure_scp_files = [os.getcwd() + "/" + f for f in run_list]
     network_measure_scp_files.append(utils.binPath + "networkMeasure")
     network_measure_dir = run_dir + "/networkMeasure"
     for ip, machine in machines_network_measure.items():
-        thread = threading.Thread(target=scp_exec, args=(machine.ssh_client, machine.scp_client, ip, network_measure_dir, network_measure_scp_files))
+        thread = threading.Thread(target=scp_exec, args=(
+            machine.ssh_client, machine.scp_client, ip, network_measure_dir, network_measure_scp_files))
         threads.append(thread)
-        thread.start()
+        # thread.start()
+    print("deploy network measure threads started")
 
 
 def deploy(run_list):
@@ -121,6 +126,7 @@ def deploy(run_list):
         deploy_network_measure(config, run_list, threads)
 
     for thread in threads:
+        thread.start()
         thread.join()
 
 
@@ -275,9 +281,16 @@ def main():
                 print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
     if not args.noBuildDeploy:
-        print("build")
+        start_build = time.time()
         build()
+        end_build = time.time()
+        build_used = end_build - start_build
+        print("build used %.5fs" % build_used)
+        start_deploy = time.time()
         deploy([rl[0] for rl in run_list])
+        end_deploy = time.time()
+        deploy_used = end_deploy - start_deploy
+        print("deploy used %.5fs" % deploy_used)
     errorRun = []
     if args.variance:
         run_list = sort_variance_run_list(run_list)
