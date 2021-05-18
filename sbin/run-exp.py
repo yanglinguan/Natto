@@ -82,7 +82,7 @@ def deploy_servers(config, run_list, threads):
             thread = threading.Thread(target=scp_exec,
                                       args=(machine.ssh_client, machine.scp_client, ip, server_dir, server_scp_files))
             threads.append(thread)
-            # thread.start()
+            thread.start()
     print("deploy servers threads started")
 
 
@@ -98,7 +98,7 @@ def deploy_client(config, run_list, threads):
         thread = threading.Thread(target=scp_exec,
                                   args=(machine.ssh_client, machine.scp_client, ip, client_dir, client_scp_files))
         threads.append(thread)
-        # thread.start()
+        thread.start()
     print("deploy clients threads started")
 
 
@@ -112,7 +112,7 @@ def deploy_network_measure(config, run_list, threads):
         thread = threading.Thread(target=scp_exec, args=(
             machine.ssh_client, machine.scp_client, ip, network_measure_dir, network_measure_scp_files))
         threads.append(thread)
-        # thread.start()
+        thread.start()
     print("deploy network measure threads started")
 
 
@@ -126,7 +126,6 @@ def deploy(run_list):
         deploy_network_measure(config, run_list, threads)
 
     for thread in threads:
-        thread.start()
         thread.join()
 
 
