@@ -13,6 +13,36 @@ network_measure_path = src_path + "networkMeasure/"
 
 binPath = "/home/l69yang/Projects/go/bin/"
 
+server_cmd = "./carousel-server "
+client_cmd = "./client "
+check_server_status_cmd = binPath + "/checkServerStatus "
+enforce_leader_cmd = binPath + "/enforce-leader "
+network_measure_cmd = "./networkMeasure "
+
+
+def get_server_cmd(debug):
+    if debug:
+        return server_cmd + "-d"
+    return server_cmd
+
+
+def get_client_cmd(debug):
+    if debug:
+        return client_cmd + "-d"
+    return client_cmd
+
+
+def get_network_measure_cmd(debug):
+    if debug:
+        return network_measure_cmd + "-d"
+    return network_measure_cmd
+
+
+def get_check_server_status_cmd(debug):
+    if debug:
+        return check_server_status_cmd + "-d"
+    return check_server_status_cmd
+
 
 def load_config(config_file_name):
     config_file = open(config_file_name, "r")

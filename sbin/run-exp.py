@@ -9,6 +9,7 @@ import threading
 import time
 
 import utils
+import runone
 
 path = os.getcwd()
 
@@ -68,12 +69,9 @@ def scp_exec(ssh, scp, ip, run_dir, scp_files):
     print("deploy config and server ", scp_files, " at ", ip)
 
 
-def deploy_servers(config, run_list, threads):
+def deploy_servers(run_list, threads, run_dir, machines_server):
     server_scp_files = [os.getcwd() + "/" + f for f in run_list]
     server_scp_files.append(utils.binPath + "carousel-server")
-    machines_server = utils.parse_server_machine(config)
-    run_dir = utils.get_run_dir(config)
-
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
@@ -86,9 +84,7 @@ def deploy_servers(config, run_list, threads):
     print("deploy servers threads started")
 
 
-def deploy_client(config, run_list, threads):
-    machines_client = utils.parse_client_machine(config)
-    run_dir = utils.get_run_dir(config)
+def deploy_client(run_list, threads, run_dir, machines_client):
     client_scp_files = [os.getcwd() + "/" + f for f in run_list]
     client_scp_files.append(utils.binPath + "client")
     client_dir = run_dir + "/client"
@@ -102,9 +98,7 @@ def deploy_client(config, run_list, threads):
     print("deploy clients threads started")
 
 
-def deploy_network_measure(config, run_list, threads):
-    machines_network_measure = utils.parse_network_measure_machine(config)
-    run_dir = utils.get_run_dir(config)
+def deploy_network_measure(run_list, threads, run_dir, machines_network_measure):
     network_measure_scp_files = [os.getcwd() + "/" + f for f in run_list]
     network_measure_scp_files.append(utils.binPath + "networkMeasure")
     network_measure_dir = run_dir + "/networkMeasure"
@@ -116,14 +110,11 @@ def deploy_network_measure(config, run_list, threads):
     print("deploy network measure threads started")
 
 
-def deploy(run_list):
-    config = utils.load_config(run_list[0])
-    turn_on_network_measure = utils.is_network_measure(config)
+def deploy(run_list, run_dir, machines_client, machines_server, machines_network_measure):
     threads = []
-    deploy_servers(config, run_list, threads)
-    deploy_client(config, run_list, threads)
-    if turn_on_network_measure:
-        deploy_network_measure(config, run_list, threads)
+    deploy_servers(run_list, threads, run_dir, machines_server)
+    deploy_client(run_list, threads, run_dir, machines_client)
+    deploy_network_measure(run_list, threads, run_dir, machines_network_measure)
 
     for thread in threads:
         thread.join()
@@ -152,7 +143,7 @@ def getRunExpNum(f):
     return i
 
 
-def run_exp(i, run_list):
+def run_exp(i, run_list, machines_client, machines_server, machines_network_measure):
     finishes = 0
     errorRun = []
     for item in run_list:
@@ -162,7 +153,9 @@ def run_exp(i, run_list):
             print(f + " already run " + str(x) + " times skip this time " + str(i))
             continue
         nextRun = getNextRunCount(f)
-        p = multiprocessing.Process(target=run, name="run", args=(nextRun, f))
+        p = multiprocessing.Process(
+            target=run, name="run",
+            args=(nextRun, f, machines_client, machines_server, machines_network_measure))
         p.start()
         p.join(timeout)
         if p.is_alive():
@@ -177,12 +170,14 @@ def run_exp(i, run_list):
     return finishes, True, errorRun
 
 
-def run(i, f):
+def run(i, f, machines_client, machines_server, machines_network_measure):
+    # config_file_name, debug, i, machines_client, machines_server, machines_network_measure
     # print("run " + f + " " + str(i))
-    run_args = [bin_path + "run.py", "-c", f, "-r", str(i)]
-    if args.debug:
-        run_args.append("-d")
-    subprocess.call(run_args)
+    runone.run_config(f, args.debug, i, machines_client, machines_server, machines_network_measure)
+    # run_args = [bin_path + "runone.py", "-c", f, "-r", str(i)]
+    # if args.debug:
+    #     run_args.append("-d")
+    # subprocess.call(run_args)
 
 
 def remove_log(dir_path):
@@ -279,6 +274,16 @@ def main():
                 # (fname, num of exp already run)
                 print(f + " needs to run " + str(n - idx) + " times. Already run " + str(idx) + " times")
                 run_list.append((f, idx))
+
+    if len(run_list) == 0:
+        return
+
+    config = utils.load_config(run_list[0])
+    run_dir = utils.get_run_dir(config)
+    machines_client = utils.parse_client_machine(config)
+    machines_network_measure = utils.parse_network_measure_machine(config)
+    machines_server = utils.parse_server_machine(config)
+
     if not args.noBuildDeploy:
         start_build = time.time()
         build()
@@ -286,7 +291,7 @@ def main():
         build_used = end_build - start_build
         print("build used %.5fs" % build_used)
         start_deploy = time.time()
-        deploy([rl[0] for rl in run_list])
+        deploy([rl[0] for rl in run_list], run_dir, machines_client, machines_server, machines_network_measure)
         end_deploy = time.time()
         deploy_used = end_deploy - start_deploy
         print("deploy used %.5fs" % deploy_used)

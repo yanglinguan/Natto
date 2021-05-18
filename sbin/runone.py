@@ -7,47 +7,47 @@ import os
 import subprocess
 import utils
 
-arg_parser = argparse.ArgumentParser(description="run exp.")
-
-# Cluster configuration file
-arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
-                        help='configuration file', required=True)
-arg_parser.add_argument('-d', '--debug', help="turn on debug",
-                        action='store_true')
-arg_parser.add_argument('-r', '--runCount', dest='runCount', nargs='?',
-                        help='runCount', required=True)
-
-args = arg_parser.parse_args()
+# arg_parser = argparse.ArgumentParser(description="run exp.")
+#
+# # Cluster configuration file
+# arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
+#                         help='configuration file', required=True)
+# arg_parser.add_argument('-d', '--debug', help="turn on debug",
+#                         action='store_true')
+# arg_parser.add_argument('-r', '--runCount', dest='runCount', nargs='?',
+#                         help='runCount', required=True)
+#
+# args = arg_parser.parse_args()
 
 # Reads configurations
-config = utils.load_config(args.config)
+# config = utils.load_config(args.config)
 
-path = utils.get_run_dir(config)
+# path = utils.get_run_dir(config)
 
-turn_on_network_measure = utils.is_network_measure(config)
+# turn_on_network_measure = utils.is_network_measure(config)
 
-server_cmd = "./carousel-server "
-client_cmd = "./client "
-check_server_status_cmd = utils.binPath + "/checkServerStatus "
-enforce_leader_cmd = utils.binPath + "/enforce-leader "
-network_measure_cmd = "./networkMeasure "
+# server_cmd = "./carousel-server "
+# client_cmd = "./client "
+# check_server_status_cmd = utils.binPath + "/checkServerStatus "
+# enforce_leader_cmd = utils.binPath + "/enforce-leader "
+# network_measure_cmd = "./networkMeasure "
 
-if args.debug:
-    server_cmd = server_cmd + "-d "
-    client_cmd = client_cmd + "-d "
-    check_server_status_cmd = check_server_status_cmd + "-d "
-    enforce_leader_cmd = enforce_leader_cmd + "-d "
-    network_measure_cmd += "-d "
+# if args.debug:
+#     server_cmd = server_cmd + "-d "
+#     client_cmd = client_cmd + "-d "
+#     check_server_status_cmd = check_server_status_cmd + "-d "
+#     enforce_leader_cmd = enforce_leader_cmd + "-d "
+#     network_measure_cmd += "-d "
 
-machines_client = utils.parse_client_machine(config)
+# machines_client = utils.parse_client_machine(config)
+#
+# machines_server = utils.parse_server_machine(config)
+#
+# machines_network_measure = utils.parse_network_measure_machine(config)
 
-machines_server = utils.parse_server_machine(config)
 
-machines_network_measure = utils.parse_network_measure_machine(config)
-
-
-def scp_client_log_exec(new_dir, ssh, scp, ip):
-    client_dir = config["experiment"]["runDir"] + "/client"
+def scp_client_log_exec(new_dir, ssh, scp, ip, client_dir):
+    # client_dir = config["experiment"]["runDir"] + "/client"
     stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
     log_files = stdout.read().split()
     for log in log_files:
@@ -57,19 +57,22 @@ def scp_client_log_exec(new_dir, ssh, scp, ip):
     print("collect client log from " + ip)
 
 
-def collect_client_log():
+def collect_client_log(machines_client, run_count, config_file_name, run_dir):
     threads = list()
-    dir_name = args.config.split('.')[0] + "-" + args.runCount
-    new_dir = os.path.join(os.getcwd(), dir_name)
+    dir_name = config_file_name.split('.')[0] + "-" + run_count
+    new_dir = os.path.join(run_dir, dir_name)
     if os.path.isdir(new_dir):
         subprocess.call("rm -r " + new_dir + "/*", shell=True)
     else:
         os.mkdir(new_dir)
 
+    client_dir = run_dir + "/client"
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
-        thread = threading.Thread(target=scp_client_log_exec, args=(new_dir, machine.ssh_client, machine.scp_client, ip))
+        thread = threading.Thread(
+            target=scp_client_log_exec,
+            args=(new_dir, machine.ssh_client, machine.scp_client, ip, client_dir))
         threads.append(thread)
         thread.start()
 
@@ -79,22 +82,25 @@ def collect_client_log():
     return new_dir
 
 
-def scp_networkMeasure_log_exec(new_dir, ssh, scp, ip):
-    client_dir = config["experiment"]["runDir"] + "/networkMeasure"
-    stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log")
+def scp_networkMeasure_log_exec(new_dir, ssh, scp, ip, network_measure_dir):
+    # client_dir = config["experiment"]["runDir"] + "/networkMeasure"
+    stdin, stdout, stderr = ssh.exec_command("ls " + network_measure_dir + "/*.log")
     log_files = stdout.read().split()
     for log in log_files:
         scp.get(log, new_dir)
-    ssh.exec_command("rm " + client_dir + "/*.log")
+    ssh.exec_command("rm " + network_measure_dir + "/*.log")
     print("collect network measure log from " + ip)
 
 
-def collect_networkMeasure_log(new_dir):
+def collect_networkMeasure_log(new_dir, machines_network_measure, run_dir):
+    network_measure_dir = run_dir + "/networkMeasure"
     threads = list()
     for ip, machine in machines_network_measure.items():
         if len(machine.ids) == 0:
             continue
-        thread = threading.Thread(target=scp_networkMeasure_log_exec, args=(new_dir, machine.ssh_client, machine.scp_client, ip))
+        thread = threading.Thread(
+            target=scp_networkMeasure_log_exec,
+            args=(new_dir, machine.ssh_client, machine.scp_client, ip, network_measure_dir))
         threads.append(thread)
         thread.start()
 
@@ -102,24 +108,27 @@ def collect_networkMeasure_log(new_dir):
         thread.join()
 
 
-def scp_server_log_exec(new_dir, ssh, scp, s_id, ip):
-    server_dir = config["experiment"]["runDir"] + "/server-" + str(s_id)
+def scp_server_log_exec(new_dir, ssh, scp, server_dir, ip):
+    # server_dir = config["experiment"]["runDir"] + "/server-" + str(s_id)
     stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
     log_files = stdout.read().split()
     for log in log_files:
         scp.get(log, new_dir)
     ssh.exec_command("rm -r " + server_dir + "/raft-*")
     ssh.exec_command("rm -r " + server_dir + "/*.log")
-    print("collect server log " + s_id + " from " + ip)
+    print("collect server log " + server_dir + " from " + ip)
 
 
-def collect_server_log(new_dir):
+def collect_server_log(new_dir, machines_server, run_dir):
     threads = list()
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
         for sId in machine.ids:
-            thread = threading.Thread(target=scp_server_log_exec, args=(new_dir, machine.ssh_client, machine.scp_client, sId, ip))
+            server_dir = run_dir + "/server-" + str(sId)
+            thread = threading.Thread(
+                target=scp_server_log_exec,
+                args=(new_dir, machine.ssh_client, machine.scp_client, server_dir, ip))
             threads.append(thread)
             thread.start()
 
@@ -139,16 +148,16 @@ def ssh_exec_thread(ssh_client, command, ip, servers=None, stop=False):
             print("server " + ' '.join(servers) + " starts on " + ip)
 
 
-def start_servers():
+def start_servers(machines_server, debug, config_file_name, run_dir):
     threads = list()
+    server_cmd = utils.get_server_cmd(debug)
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        # cmd += "cd " + path + ";"
-        exe = "cd " + path + "/server-$id; " + \
-              server_cmd + "-i $id" + " -c " + args.config + " > " + "server-$id.log " + "2>&1 &"
+        exe = "cd " + run_dir + "/server-$id; " + \
+              server_cmd + "-i $id" + " -c " + config_file_name + " > " + "server-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
@@ -160,13 +169,14 @@ def start_servers():
         thread.join()
 
 
-def start_network_measure():
+def start_network_measure(machines_network_measure, debug, config_file_name, run_dir):
     threads = list()
+    network_measure_cmd = utils.get_network_measure_cmd(debug)
     for ip, machine in machines_network_measure.items():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
-        exe = "cd " + path + "/networkMeasure; " + \
-              network_measure_cmd + "-i $id -c " + args.config + " > " + "networkMeasure-$id.log " + "2>&1 &"
+        exe = "cd " + run_dir + "/networkMeasure; " + \
+              network_measure_cmd + "-i $id -c " + config_file_name + " > " + "networkMeasure-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done;"
         cmd += loop
         print(cmd + " # at " + ip)
@@ -178,9 +188,9 @@ def start_network_measure():
         thread.join()
 
 
-def start_clients():
+def start_clients(machines_client, debug, config_file_name, run_dir):
     threads = list()
-
+    client_cmd = utils.get_client_cmd(debug)
     start_time = str(int((time.time() + 10) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
@@ -188,8 +198,8 @@ def start_clients():
         cmd = "ulimit -c unlimited;"
         cmd += "ulimit -n 100000;"
         # cmd += "cd " + path + "; mkdir -p client;" + " cp " + path + "/" + args.config + " " + path + "/client/; "
-        exe = "cd " + path + "/client;" + \
-              client_cmd + "-i $id" + " -c " + args.config + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
+        exe = "cd " + run_dir + "/client;" + \
+              client_cmd + "-i $id" + " -c " + config_file_name + " -t " + start_time + " > " + "client-$id.log " + "2>&1 &"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
@@ -201,21 +211,21 @@ def start_clients():
         thread.join()
 
 
-def print_server_status(dir_name):
-    cmd = check_server_status_cmd + "-c " + args.config + " -r " + dir_name
+def print_server_status(dir_name, debug, config_file_name):
+    cmd = utils.get_check_server_status_cmd(debug) + "-c " + config_file_name + " -r " + dir_name
     subprocess.call(cmd, shell=True)
 
 
-def enforce_leader():
-    if config["servers"]["replicationFactor"] > 1:
-        cmd = enforce_leader_cmd + "-c " + args.config
-        subprocess.call(cmd, shell=True)
+# def enforce_leader():
+#     if config["servers"]["replicationFactor"] > 1:
+#         cmd = enforce_leader_cmd + "-c " + args.config
+#         subprocess.call(cmd, shell=True)
 
 
-def stop_servers():
+def stop_servers(machines_server, run_dir):
     threads = list()
     for ip, machine in machines_server.items():
-        server_dir = path + "/server-$id"
+        server_dir = run_dir + "/server-$id"
         exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd = "killall -9 carousel-server; " + loop
@@ -228,7 +238,7 @@ def stop_servers():
         thread.join()
 
 
-def stop_network_measure():
+def stop_network_measure(machines_network_measure):
     threads = list()
     for ip, machine in machines_network_measure.items():
         cmd = "killall -9 networkMeasure"
@@ -241,7 +251,7 @@ def stop_network_measure():
         thread.join()
 
 
-def stop_clients():
+def stop_clients(machines_client):
     threads = list()
     for ip, machine in machines_client.items():
         cmd = "killall -9 client"
@@ -254,16 +264,20 @@ def stop_clients():
         thread.join()
 
 
-def main():
+def run_config(config_file_name, debug, i, machines_client, machines_server, machines_network_measure):
+    config = utils.load_config(config_file_name)
+    run_dir = utils.get_run_dir(config)
+    turn_on_network_measure = utils.is_network_measure(config)
+
     start_time = time.time()
-    start_servers()
+    start_servers(machines_client, debug, config_file_name, run_dir)
     time.sleep(15)
     end_start_server = time.time()
     start_server_use = end_start_server - start_time
     print("start server use (+15s) %.5fs" % start_server_use)
     end_start_network_measure = time.time()
-    if turn_on_network_measure:
-        start_network_measure()
+    if utils.is_network_measure(config):
+        start_network_measure(machines_network_measure, debug, config_file_name, run_dir)
         time.sleep(10)
         end_start_network_measure = time.time()
         start_network_measure_use = end_start_network_measure - end_start_server
@@ -274,21 +288,21 @@ def main():
     end_client = time.time()
     client_use = end_client - end_start_network_measure
     print("clients finish used %.5fs" % client_use)
-    dir_name = collect_client_log()
-    if args.debug:
+    dir_name = collect_client_log(machines_client, i, config_file_name, run_dir)
+    if debug:
         if turn_on_network_measure:
-            collect_networkMeasure_log(dir_name)
-        print_server_status(dir_name)
+            collect_networkMeasure_log(dir_name, machines_network_measure, run_dir)
+        print_server_status(dir_name, debug, config_file_name)
         end_server = time.time()
         server_use = end_server - end_client
         print("server finish used %.5fs" % server_use)
-        collect_server_log(dir_name)
+        collect_server_log(dir_name, machines_server, run_dir)
     end_collect = time.time()
     collect_use = end_collect - end_client
     print("collect log used %.5fs" % collect_use)
     if turn_on_network_measure:
-        stop_network_measure()
-    stop_servers()
+        stop_network_measure(machines_network_measure)
+    stop_servers(machines_server, run_dir)
     end_time = time.time()
     stop_server_use = end_time - end_collect
     print("stop client and server use %.5f" % stop_server_use)
@@ -301,5 +315,5 @@ def main():
     print("stop client and server use %.5f" % stop_server_use)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
