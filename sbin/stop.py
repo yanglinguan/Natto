@@ -19,14 +19,6 @@ config = utils.load_config(args.config)
 
 turn_on_network_measure = utils.is_network_measure(config)
 
-machines_client = utils.parse_client_machine(config)
-
-machines_server = utils.parse_server_machine(config)
-
-machines_network_measure = utils.parse_network_measure_machine(config)
-
-run_dir = utils.get_run_dir(config)
-
 
 def ssh_exec_thread(ssh_client, command):
     stdin, stdout, stderr = ssh_client.exec_command(command)
@@ -35,6 +27,8 @@ def ssh_exec_thread(ssh_client, command):
 
 
 def stop_servers(threads):
+    machines_server = utils.parse_server_machine(config)
+    run_dir = utils.get_run_dir(config)
     for ip, machine in machines_server.items():
         for server_id in machine.ids:
             server_dir = run_dir + "/server-" + str(server_id)
@@ -47,6 +41,7 @@ def stop_servers(threads):
 
 
 def stop_clients(threads):
+    machines_client = utils.parse_client_machine(config)
     for ip, machine in machines_client.items():
         cmd = "killall -9 client"
         print(cmd + " # at " + ip)
@@ -57,6 +52,7 @@ def stop_clients(threads):
 
 
 def stop_networkMeasure(threads):
+    machines_network_measure = utils.parse_network_measure_machine(config)
     for ip, machine in machines_network_measure.items():
         cmd = "killall -9 networkMeasure"
         print(cmd + " # at " + ip)
