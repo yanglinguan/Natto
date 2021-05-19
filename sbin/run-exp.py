@@ -78,7 +78,7 @@ def deploy_servers(run_list, threads, run_dir, machines_server):
         for sId in machine.ids:
             server_dir = run_dir + "/server-" + str(sId)
             thread = threading.Thread(target=scp_exec,
-                                      args=(machine.ssh_client, machine.scp_client, ip, server_dir, server_scp_files))
+                                      args=(machine.get_ssh_client(), machine.get_scp_client(), ip, server_dir, server_scp_files))
             threads.append(thread)
             thread.start()
     print("deploy servers threads started")
@@ -92,7 +92,7 @@ def deploy_client(run_list, threads, run_dir, machines_client):
         if len(machine.ids) == 0:
             continue
         thread = threading.Thread(target=scp_exec,
-                                  args=(machine.ssh_client, machine.scp_client, ip, client_dir, client_scp_files))
+                                  args=(machine.get_ssh_client(), machine.get_scp_client(), ip, client_dir, client_scp_files))
         threads.append(thread)
         thread.start()
     print("deploy clients threads started")
@@ -104,7 +104,7 @@ def deploy_network_measure(run_list, threads, run_dir, machines_network_measure)
     network_measure_dir = run_dir + "/networkMeasure"
     for ip, machine in machines_network_measure.items():
         thread = threading.Thread(target=scp_exec, args=(
-            machine.ssh_client, machine.scp_client, ip, network_measure_dir, network_measure_scp_files))
+            machine.get_ssh_client(), machine.get_scp_client(), ip, network_measure_dir, network_measure_scp_files))
         threads.append(thread)
         thread.start()
     print("deploy network measure threads started")

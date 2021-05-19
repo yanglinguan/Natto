@@ -86,6 +86,19 @@ class Machine:
         self.ssh_client.connect(self.machine_ip, username=self.ssh_username)
         self.scp_client = SCPClient(self.ssh_client.get_transport())
 
+    def get_ssh_client(self):
+        if self.ssh_client.get_transport().is_active():
+            print("ssh connection is not alive reconnect------------------------------------------")
+            self.ssh_client.connect(self.machine_ip, username=self.ssh_username)
+        return self.ssh_client
+
+    def get_scp_client(self):
+        if self.ssh_client.get_transport().is_active():
+            print("scp connection is not alive reconnect------------------------------------------")
+            self.ssh_client.connect(self.machine_ip, username=self.ssh_username)
+            self.scp_client = SCPClient(self.ssh_client.get_transport())
+        return self.scp_client
+
 
 def create_ssh_client(machines):
     threads = []

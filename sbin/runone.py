@@ -33,7 +33,7 @@ def collect_client_log(machines_client, run_count, config_file_name, run_dir):
             continue
         thread = threading.Thread(
             target=scp_client_log_exec,
-            args=(new_dir, machine.ssh_client, machine.scp_client, ip, client_dir))
+            args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), ip, client_dir))
         threads.append(thread)
         thread.start()
 
@@ -61,7 +61,7 @@ def collect_networkMeasure_log(new_dir, machines_network_measure, run_dir):
             continue
         thread = threading.Thread(
             target=scp_networkMeasure_log_exec,
-            args=(new_dir, machine.ssh_client, machine.scp_client, ip, network_measure_dir))
+            args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), ip, network_measure_dir))
         threads.append(thread)
         thread.start()
 
@@ -89,7 +89,7 @@ def collect_server_log(new_dir, machines_server, run_dir):
             server_dir = run_dir + "/server-" + str(sId)
             thread = threading.Thread(
                 target=scp_server_log_exec,
-                args=(new_dir, machine.ssh_client, machine.scp_client, server_dir, ip))
+                args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), server_dir, ip))
             threads.append(thread)
             thread.start()
 
@@ -122,7 +122,7 @@ def start_servers(machines_server, debug, config_file_name, run_dir):
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, machine.ids))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip, machine.ids))
         threads.append(thread)
         thread.start()
 
@@ -141,7 +141,7 @@ def start_network_measure(machines_network_measure, debug, config_file_name, run
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done;"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
         threads.append(thread)
         thread.start()
 
@@ -164,7 +164,7 @@ def start_clients(machines_client, debug, config_file_name, run_dir):
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
         threads.append(thread)
         thread.start()
 
@@ -191,7 +191,7 @@ def stop_servers(machines_server, run_dir):
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd = "killall -9 carousel-server; " + loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip, ip, True))
         threads.append(thread)
         thread.start()
 
@@ -204,7 +204,7 @@ def stop_network_measure(machines_network_measure):
     for ip, machine in machines_network_measure.items():
         cmd = "killall -9 networkMeasure"
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip, ip, True))
         threads.append(thread)
         thread.start()
 
@@ -217,7 +217,7 @@ def stop_clients(machines_client):
     for ip, machine in machines_client.items():
         cmd = "killall -9 client"
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.ssh_client, cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip, ip, True))
         threads.append(thread)
         thread.start()
 
