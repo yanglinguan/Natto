@@ -1,49 +1,10 @@
 #!/usr/bin/python
-import argparse
 import datetime
 import time
 import threading
 import os
 import subprocess
 import utils
-
-# arg_parser = argparse.ArgumentParser(description="run exp.")
-#
-# # Cluster configuration file
-# arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
-#                         help='configuration file', required=True)
-# arg_parser.add_argument('-d', '--debug', help="turn on debug",
-#                         action='store_true')
-# arg_parser.add_argument('-r', '--runCount', dest='runCount', nargs='?',
-#                         help='runCount', required=True)
-#
-# args = arg_parser.parse_args()
-
-# Reads configurations
-# config = utils.load_config(args.config)
-
-# path = utils.get_run_dir(config)
-
-# turn_on_network_measure = utils.is_network_measure(config)
-
-# server_cmd = "./carousel-server "
-# client_cmd = "./client "
-# check_server_status_cmd = utils.binPath + "/checkServerStatus "
-# enforce_leader_cmd = utils.binPath + "/enforce-leader "
-# network_measure_cmd = "./networkMeasure "
-
-# if args.debug:
-#     server_cmd = server_cmd + "-d "
-#     client_cmd = client_cmd + "-d "
-#     check_server_status_cmd = check_server_status_cmd + "-d "
-#     enforce_leader_cmd = enforce_leader_cmd + "-d "
-#     network_measure_cmd += "-d "
-
-# machines_client = utils.parse_client_machine(config)
-#
-# machines_server = utils.parse_server_machine(config)
-#
-# machines_network_measure = utils.parse_network_measure_machine(config)
 
 
 def scp_client_log_exec(new_dir, ssh, scp, ip, client_dir):
@@ -191,7 +152,7 @@ def start_network_measure(machines_network_measure, debug, config_file_name, run
 def start_clients(machines_client, debug, config_file_name, run_dir):
     threads = list()
     client_cmd = utils.get_client_cmd(debug)
-    start_time = str(int((time.time() + 10) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 3) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue
@@ -278,7 +239,7 @@ def run_config(config_file_name, debug, i, machines_client, machines_server, mac
     end_start_network_measure = time.time()
     if utils.is_network_measure(config):
         start_network_measure(machines_network_measure, debug, config_file_name, run_dir)
-        time.sleep(10)
+        time.sleep(5)
         end_start_network_measure = time.time()
         start_network_measure_use = end_start_network_measure - end_start_server
         print("start network measure used %.5fs" % start_network_measure_use)
