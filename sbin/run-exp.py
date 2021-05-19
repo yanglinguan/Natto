@@ -66,7 +66,8 @@ def build():
 def scp_exec(ssh, scp, ip, run_dir, scp_files):
     ssh.exec_command("mkdir -p " + run_dir)
     for f in scp_files:
-        scp.put(f, os.path.join(run_dir, f))
+        print(f, os.path.join(run_dir, os.path.basename(f)))
+        scp.put(f, os.path.join(run_dir, os.path.basename(f)))
     print("deploy config and server ", scp_files, " at ", ip)
 
 
