@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+
 from paramiko import SSHClient, AutoAddPolicy
 from scp import SCPClient
 
@@ -72,13 +74,29 @@ class Machine:
     def __init__(self, machine_ip, ssh_username):
         self.machine_ip = machine_ip
         self.ssh_client = SSHClient()
-        self.ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        self.ssh_client.connect(self.machine_ip, username=ssh_username)
-        self.scp_client = SCPClient(self.ssh_client.get_transport())
+        self.ssh_username = ssh_username
+        self.scp_client = None
         self.ids = []
 
     def add_id(self, server_id):
         self.ids.append(server_id)
+
+    def create_ssh_client(self):
+        self.ssh_client.set_missing_host_key_policy(AutoAddPolicy())
+        self.ssh_client.connect(self.machine_ip, username=self.ssh_username)
+        self.scp_client = SCPClient(self.ssh_client.get_transport())
+
+
+def create_ssh_client(machines):
+    threads = []
+    for machine in machines:
+        for ip, m in machine.items():
+            thread = threading.Thread(target=m.create_ssh_client)
+            thread.start()
+            threads.append(thread)
+
+    for t in threads:
+        t.join()
 
 
 def parse_network_measure_machine(config):

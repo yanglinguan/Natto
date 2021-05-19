@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import datetime
-import multiprocessing
+# import multiprocessing
 import smtplib
 import subprocess
 import os
@@ -153,31 +153,36 @@ def run_exp(i, run_list, machines_client, machines_server, machines_network_meas
             print(f + " already run " + str(x) + " times skip this time " + str(i))
             continue
         nextRun = getNextRunCount(f)
-        p = multiprocessing.Process(
-            target=run, name="run",
-            args=(nextRun, f, machines_client, machines_server, machines_network_measure))
-        p.start()
-        p.join(timeout)
-        if p.is_alive():
+        thread = threading.Thread(
+            target=runone.run_config,
+            args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
+        thread.start()
+        thread.join(timeout)
+        # p = multiprocessing.Process(
+        #     target=runone.run_config,
+        #     args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
+        # p.start()
+        # p.join(timeout)
+        if thread.is_alive():
             print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it at " +
                   datetime.datetime.now().strftime("%H:%M:%S"))
             subprocess.call([bin_path + "stop.py", "-c", f])
             # p.terminate()
-            p.join()
+            thread.join()
             errorRun.append(f.split(".")[0] + "-" + str(i))
             # return finishes, False, f
         finishes = finishes + 1
     return finishes, True, errorRun
 
 
-def run(i, f, machines_client, machines_server, machines_network_measure):
-    # config_file_name, debug, i, machines_client, machines_server, machines_network_measure
-    # print("run " + f + " " + str(i))
-    runone.run_config(f, args.debug, i, machines_client, machines_server, machines_network_measure)
-    # run_args = [bin_path + "runone.py", "-c", f, "-r", str(i)]
-    # if args.debug:
-    #     run_args.append("-d")
-    # subprocess.call(run_args)
+# def run(i, f, machines_client, machines_server, machines_network_measure):
+#     # config_file_name, debug, i, machines_client, machines_server, machines_network_measure
+#     # print("run " + f + " " + str(i))
+#     runone.run_config(f, args.debug, i, machines_client, machines_server, machines_network_measure)
+#     # run_args = [bin_path + "runone.py", "-c", f, "-r", str(i)]
+#     # if args.debug:
+#     #     run_args.append("-d")
+#     # subprocess.call(run_args)
 
 
 def remove_log(dir_path):
@@ -278,11 +283,13 @@ def main():
     if len(run_list) == 0:
         return
 
-    config = utils.load_config(run_list[0])
+    config = utils.load_config(run_list[0][0])
     run_dir = utils.get_run_dir(config)
     machines_client = utils.parse_client_machine(config)
     machines_network_measure = utils.parse_network_measure_machine(config)
     machines_server = utils.parse_server_machine(config)
+
+    utils.create_ssh_client([machines_client, machines_server, machines_network_measure])
 
     if not args.noBuildDeploy:
         start_build = time.time()

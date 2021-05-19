@@ -270,7 +270,7 @@ def run_config(config_file_name, debug, i, machines_client, machines_server, mac
     turn_on_network_measure = utils.is_network_measure(config)
 
     start_time = time.time()
-    start_servers(machines_client, debug, config_file_name, run_dir)
+    start_servers(machines_server, debug, config_file_name, run_dir)
     time.sleep(15)
     end_start_server = time.time()
     start_server_use = end_start_server - start_time
@@ -284,7 +284,7 @@ def run_config(config_file_name, debug, i, machines_client, machines_server, mac
         print("start network measure used %.5fs" % start_network_measure_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
-    start_clients()
+    start_clients(machines_client, debug, config_file_name, run_dir)
     end_client = time.time()
     client_use = end_client - end_start_network_measure
     print("clients finish used %.5fs" % client_use)
