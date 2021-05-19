@@ -256,6 +256,7 @@ def sort_variance_run_list(run_list):
 
 
 def main():
+    start = time.time()
     finishes = 0
 
     run_list = []
@@ -329,6 +330,8 @@ def main():
     # if finishes > 1 or len(errorRun) > 0:
     error = ",".join(errorRun)
     notification("experiment is finish. need to rerun config " + error)
+    end = time.time()
+    print("Total exp time %.5fs" % (end - start))
 
 
 if __name__ == "__main__":
