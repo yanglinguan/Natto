@@ -51,7 +51,7 @@ def scp_client_log_exec(new_dir, ssh, scp, ip, client_dir):
     stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
     log_files = stdout.read().split()
     for log in log_files:
-        scp.get(log, os.path.join(new_dir, os.path.basename(log)))
+        scp.get(log, new_dir)
     ssh.exec_command("rm " + client_dir + "/*.log")
     ssh.exec_command("rm " + client_dir + "/*.statistic")
     print("collect client log from " + ip)
@@ -87,7 +87,7 @@ def scp_networkMeasure_log_exec(new_dir, ssh, scp, ip, network_measure_dir):
     stdin, stdout, stderr = ssh.exec_command("ls " + network_measure_dir + "/*.log")
     log_files = stdout.read().split()
     for log in log_files:
-        scp.get(log, os.path.join(new_dir, os.path.basename(log)))
+        scp.get(log, new_dir)
     ssh.exec_command("rm " + network_measure_dir + "/*.log")
     print("collect network measure log from " + ip)
 
@@ -113,8 +113,7 @@ def scp_server_log_exec(new_dir, ssh, scp, server_dir, ip):
     stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
     log_files = stdout.read().split()
     for log in log_files:
-        print(log, os.path.join(new_dir, os.path.basename(log)))
-        scp.get(log, os.path.join(new_dir, os.path.basename(log)))
+        scp.get(log, new_dir)
     ssh.exec_command("rm -r " + server_dir + "/raft-*")
     ssh.exec_command("rm -r " + server_dir + "/*.log")
     print("collect server log " + server_dir + " from " + ip)

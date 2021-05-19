@@ -3,7 +3,7 @@ import os
 import threading
 
 from paramiko import SSHClient, AutoAddPolicy
-# from scp import SCPClient
+from scp import SCPClient
 
 src_path = "$HOME/Projects/go/src/Carousel-GTS/"
 server_path = src_path + "carousel-server/"
@@ -84,7 +84,7 @@ class Machine:
     def create_ssh_client(self):
         self.ssh_client.set_missing_host_key_policy(AutoAddPolicy())
         self.ssh_client.connect(self.machine_ip, username=self.ssh_username)
-        self.scp_client = self.ssh_client.open_sftp()
+        self.scp_client = SCPClient(self.ssh_client.get_transport())
 
 
 def create_ssh_client(machines):
