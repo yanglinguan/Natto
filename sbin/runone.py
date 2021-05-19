@@ -59,7 +59,7 @@ def scp_client_log_exec(new_dir, ssh, scp, ip, client_dir):
 
 def collect_client_log(machines_client, run_count, config_file_name, run_dir):
     threads = list()
-    dir_name = config_file_name.split('.')[0] + "-" + run_count
+    dir_name = config_file_name.split('.')[0] + "-" + str(run_count)
     new_dir = os.path.join(run_dir, dir_name)
     if os.path.isdir(new_dir):
         subprocess.call("rm -r " + new_dir + "/*", shell=True)

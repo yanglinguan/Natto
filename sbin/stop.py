@@ -1,11 +1,8 @@
 #!/usr/bin/python
 import argparse
-import json
 import threading
 
 import utils
-
-from paramiko import SSHClient, AutoAddPolicy
 
 arg_parser = argparse.ArgumentParser(description="stop exp.")
 
@@ -26,8 +23,7 @@ def ssh_exec_thread(ssh_client, command):
     print(stderr.read())
 
 
-def stop_servers(threads):
-    machines_server = utils.parse_server_machine(config)
+def stop_servers(threads, machines_server):
     run_dir = utils.get_run_dir(config)
     for ip, machine in machines_server.items():
         for server_id in machine.ids:
@@ -40,8 +36,7 @@ def stop_servers(threads):
             thread.start()
 
 
-def stop_clients(threads):
-    machines_client = utils.parse_client_machine(config)
+def stop_clients(threads, machines_client):
     for ip, machine in machines_client.items():
         cmd = "killall -9 client"
         print(cmd + " # at " + ip)
@@ -51,8 +46,7 @@ def stop_clients(threads):
         thread.start()
 
 
-def stop_networkMeasure(threads):
-    machines_network_measure = utils.parse_network_measure_machine(config)
+def stop_networkMeasure(threads, machines_network_measure):
     for ip, machine in machines_network_measure.items():
         cmd = "killall -9 networkMeasure"
         print(cmd + " # at " + ip)
@@ -64,10 +58,17 @@ def stop_networkMeasure(threads):
 
 def main():
     threads = []
-    stop_clients(threads)
+    machines_server = utils.parse_server_machine(config)
+    machines_client = utils.parse_client_machine(config)
+    m_list = [machines_server, machines_client]
     if turn_on_network_measure:
-        stop_networkMeasure(threads)
-    stop_servers(threads)
+        machines_network_measure = utils.parse_network_measure_machine(config)
+        m_list.append(machines_network_measure)
+    utils.create_ssh_client(m_list)
+    stop_clients(threads, m_list[1])
+    if turn_on_network_measure:
+        stop_networkMeasure(threads, m_list[2])
+    stop_servers(threads, m_list[0])
 
     for t in threads:
         t.join()
