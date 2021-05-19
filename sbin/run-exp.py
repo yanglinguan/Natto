@@ -316,7 +316,7 @@ def main():
             set_network_delay(rlist[0][0])
         print(rlist)
         for i in range(n):
-            finish, succ, failed = run_exp(i, rlist)
+            finish, succ, failed = run_exp(i, rlist, machines_client, machines_server, machines_network_measure)
             if succ:
                 finishes += finish
             else:
