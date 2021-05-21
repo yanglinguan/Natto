@@ -1,6 +1,9 @@
 package workload
 
-import "Carousel-GTS/utils"
+import (
+	"Carousel-GTS/utils"
+	"github.com/sirupsen/logrus"
+)
 
 type Txn interface {
 	GetTxnId() string
@@ -46,6 +49,7 @@ func (t *BaseTxn) SetPriority(p bool) {
 }
 
 func (t *BaseTxn) GenWriteData(readData map[string]string) {
+	logrus.Debugf("gen write data for txn %v", t.txnId)
 	for key := range t.writeData {
 		if value, exist := readData[key]; exist {
 			t.writeData[key] = utils.ConvertToString(len(value), utils.ConvertToInt(value)+1)

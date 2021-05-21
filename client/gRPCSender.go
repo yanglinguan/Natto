@@ -146,10 +146,11 @@ func (c *CommitRequestSender) Send() {
 	}
 
 	cli := rpc.NewCarouselClient(clientConn)
-	logrus.Infof("SEND Commit %v to %v", c.request.TxnId, conn.GetDstAddr())
+	logrus.Debugf("SEND Commit %v to %v", c.request.TxnId, conn.GetDstAddr())
 	reply, err := cli.Commit(context.Background(), c.request)
 	if err == nil {
-		logrus.Infof("RECEIVE CommitResult %v from %v", c.request.TxnId, conn.GetDstAddr())
+		logrus.Debugf("RECEIVE CommitResult %v from %v result %v",
+			c.request.TxnId, conn.GetDstAddr(), reply.Result)
 		op := NewCommitReplyOp(c.txnId, reply)
 		c.client.AddOperation(op)
 		//c.txn.commitReply <- reply

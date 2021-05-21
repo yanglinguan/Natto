@@ -54,6 +54,12 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 		logrus.Debugf("txn %v received %v expect %v",
 			op.reply.TxnId, len(execution.tmpReadResult), execution.readKeyNum)
 		return
+	} else {
+		if client.Config.GetFastPath() && execution.readAndPrepareOp.IsUnBlocked() {
+			logrus.Debugf("all ready receive all: txn %v received %v expect %v",
+				op.reply.TxnId, len(execution.tmpReadResult), execution.readKeyNum)
+			return
+		}
 	}
 
 	for key, kv := range execution.tmpReadResult {
