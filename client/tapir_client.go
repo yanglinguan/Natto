@@ -46,7 +46,6 @@ func (op *TapirTxnOp) Execute() {
 		op.txn.GetPriority(),
 		op.tapirClient.config)
 
-	txn := op.tapirClient.txnStore.getTxn(op.txnId)
 	readSet := make(map[int32][]string)
 	for _, k := range op.txn.GetReadKeys() {
 		pId := int32(op.tapirClient.config.GetPartitionIdByKey(k))
@@ -64,7 +63,9 @@ func (op *TapirTxnOp) Execute() {
 		writeSet[pId][k] = k
 	}
 	_, op.isCommitted, _, _ = op.tapirClient.lib.ExecTxn(readSet, writeSet)
+	op.tapirClient.txnStore.getCurrentExecution(op.txnId).endTime = time.Now()
 	if !op.isCommitted {
+		txn := op.tapirClient.txnStore.getTxn(op.txnId)
 		op.isRetry, op.waitTime = isRetryTxn(txn.execCount+1, op.tapirClient.config)
 	}
 	op.wait <- true
