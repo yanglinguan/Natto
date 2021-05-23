@@ -39,6 +39,24 @@ func NewTapirTxnOp(client *TapirClient, txn workload.Txn) *TapirTxnOp {
 	return t
 }
 
+func exec(
+	execCount int64,
+	execRecord *ExecutionRecord,
+	op *TapirTxnOp,
+	readSet map[int32][]string,
+	writeSet map[int32]map[string]string) {
+	_, op.isCommitted, _, _ = op.tapirClient.lib.ExecTxn(readSet, writeSet)
+	execRecord.endTime = time.Now()
+	logrus.Debugf("txn %v result %v", op.txnId, op.isCommitted)
+	if !op.isCommitted {
+		execRecord.commitResult = 0
+		op.isRetry, op.waitTime = isRetryTxn(execCount+1, op.tapirClient.config)
+	} else {
+		execRecord.commitResult = 1
+	}
+	op.wait <- true
+}
+
 func (op *TapirTxnOp) Execute() {
 	op.tapirClient.txnStore.addTxn(
 		nil,
@@ -63,18 +81,9 @@ func (op *TapirTxnOp) Execute() {
 		}
 		writeSet[pId][k] = k
 	}
-	_, op.isCommitted, _, _ = op.tapirClient.lib.ExecTxn(readSet, writeSet)
-	exec := op.tapirClient.txnStore.getCurrentExecution(op.txnId)
-	exec.endTime = time.Now()
-	logrus.Debugf("txn %v result %v", op.txnId, op.isCommitted)
-	if !op.isCommitted {
-		exec.commitResult = 0
-		txn := op.tapirClient.txnStore.getTxn(op.txnId)
-		op.isRetry, op.waitTime = isRetryTxn(txn.execCount+1, op.tapirClient.config)
-	} else {
-		exec.commitResult = 1
-	}
-	op.wait <- true
+	execRecord := op.tapirClient.txnStore.getCurrentExecution(op.txnId)
+	txn := op.tapirClient.txnStore.getTxn(op.txnId)
+	go exec(txn.execCount, execRecord, op, readSet, writeSet)
 }
 
 func NewTapirClient(clientId int, config configuration.Configuration) *TapirClient {
