@@ -198,8 +198,9 @@ func (c *IrClient) Shutdown() {
 func (c *IrClient) genReqId() string {
 	c.lock.Lock()
 	c.reqCount++
+	count := c.reqCount
 	c.lock.Unlock()
 
-	id := c.id + "-" + strconv.Itoa(c.reqCount)
+	id := c.id + "-" + strconv.Itoa(count)
 	return id
 }

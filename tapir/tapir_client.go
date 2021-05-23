@@ -401,9 +401,10 @@ func (c *TapirClient) doCommitPartition(
 func (c *TapirClient) genTxnId() string {
 	c.lock.Lock()
 	c.txnCount++
+	count := c.txnCount
 	c.lock.Unlock()
 
-	id := c.id + "-" + strconv.Itoa(c.txnCount)
+	id := c.id + "-" + strconv.Itoa(count)
 	return id
 }
 
