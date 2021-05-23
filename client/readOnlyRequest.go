@@ -29,7 +29,7 @@ func (op *ReadOnly) Execute(client *Client) {
 
 	client.addTxnIfNotExist(op)
 
-	txn := client.getTxn(op.txnId)
+	txn := client.txnStore.getTxn(op.txnId)
 
 	//_, execution := c.getTxnAndExecution(op.txnId)
 	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
@@ -49,7 +49,7 @@ func (op *ReadOnly) Execute(client *Client) {
 		// read-only txn only send to partition leader
 		partitionLeaderId := client.Config.GetLeaderIdByPartitionId(pId)
 
-		sender := NewReadOnlySender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, partitionLeaderId, client)
+		sender := NewReadOnlySender(request, client.txnStore.getCurrentExecutionCount(op.txnId), op.txnId, partitionLeaderId, client)
 		go sender.Send()
 	}
 }

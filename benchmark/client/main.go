@@ -20,71 +20,77 @@ func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
 
-	c := client.NewClient(clientId, configFile)
+	config := configuration.NewFileConfiguration(configFile)
+	var c client.IFClient
+	if config.GetServerMode() == configuration.TAPIR {
+		c = client.NewTapirClient(clientId, config)
+	} else {
+		c = client.NewClient(clientId, configFile)
+	}
 	baseWorkload := workload.NewAbstractWorkload(
-		c.Config.GetKeyNum(),
-		c.Config.GetZipfAlpha(),
-		c.Config.GetKeySize(),
-		c.Config.GetHighPriorityRate(),
-		c.Config.GetTotalPartition(),
+		config.GetKeyNum(),
+		config.GetZipfAlpha(),
+		config.GetKeySize(),
+		config.GetHighPriorityRate(),
+		config.GetTotalPartition(),
 	)
 	var expWorkload workload.Workload
 	var exp Experiment
-	switch c.Config.GetWorkLoad() {
+	switch config.GetWorkLoad() {
 	case configuration.YCSBT:
 		expWorkload = workload.NewYCSBTWorkload(
-			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+			baseWorkload, config.GetTxnSize(), config.GetTxnSize())
 		break
 	case configuration.ONETXN:
 		expWorkload = workload.NewOneTxnWorkload(
-			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize())
+			baseWorkload, config.GetTxnSize(), config.GetTxnSize())
 		break
 	case configuration.RETWIS:
 		expWorkload = workload.NewRetwisWorkload(
 			baseWorkload,
-			c.Config.GetAddUserRatio(),
-			c.Config.GetFollowUnfollowRatio(),
-			c.Config.GetPostTweetRatio(),
-			c.Config.GetLoadTimelineRatio())
+			config.GetAddUserRatio(),
+			config.GetFollowUnfollowRatio(),
+			config.GetPostTweetRatio(),
+			config.GetLoadTimelineRatio())
 		break
 	case configuration.SMALLBANK:
 		expWorkload = workload.NewSmallBankWorkload(
 			baseWorkload,
-			c.Config.GetSbIsHotSpotFixedSize(),
-			c.Config.GetSbHotSpotFixedSize(),
-			c.Config.GetSbHotSpotPercentage(),
-			c.Config.GetSbHotSpotTxnRatio(),
-			c.Config.GetSbAmalgamateRatio(),
-			c.Config.GetSbBalanceRatio(),
-			c.Config.GetSbDepositCheckingRatio(),
-			c.Config.GetSbSendPaymentRatio(),
-			c.Config.GetSbTransactSavingsRatio(),
-			c.Config.GetSbWriteCheckRatio(),
-			c.Config.GetSbCheckingAccountFlag(),
-			c.Config.GetSbSavingsAccountFlag(),
+			config.GetSbIsHotSpotFixedSize(),
+			config.GetSbHotSpotFixedSize(),
+			config.GetSbHotSpotPercentage(),
+			config.GetSbHotSpotTxnRatio(),
+			config.GetSbAmalgamateRatio(),
+			config.GetSbBalanceRatio(),
+			config.GetSbDepositCheckingRatio(),
+			config.GetSbSendPaymentRatio(),
+			config.GetSbTransactSavingsRatio(),
+			config.GetSbWriteCheckRatio(),
+			config.GetSbCheckingAccountFlag(),
+			config.GetSbSavingsAccountFlag(),
 		)
 		break
 	case configuration.REORDER:
-		clientDCId := c.Config.GetDataCenterIdByClientId(clientId)
-		leaderIdList := c.Config.GetLeaderIdListByDataCenterId(clientDCId)
+		clientDCId := config.GetDataCenterIdByClientId(clientId)
+		leaderIdList := config.GetLeaderIdListByDataCenterId(clientDCId)
 		// assume there is only one leader in a DC
-		localPartition := c.Config.GetPartitionIdByServerId(leaderIdList[0])
+		localPartition := config.GetPartitionIdByServerId(leaderIdList[0])
 		expWorkload = workload.NewReorderWorkload(
-			baseWorkload, c.Config.GetTotalPartition(), localPartition)
+			baseWorkload, config.GetTotalPartition(), localPartition)
 		break
 	case configuration.RANDYCSBT:
 		expWorkload = workload.NewRandSizeYcsbWorkload(
-			baseWorkload, c.Config.GetTxnSize(), c.Config.GetTxnSize(), c.Config.GetSinglePartitionRate())
+			baseWorkload, config.GetTxnSize(), config.GetTxnSize(), config.GetSinglePartitionRate())
 		break
 	default:
 		logrus.Fatalf("workload should be: ycsbt, oneTxn, retwis, smallbank, or reorder")
 		return
 	}
 
-	if c.Config.GetOpenLoop() {
-		exp = NewOpenLoopExperiment(c, expWorkload, c.Config.HighTxnOnly())
+	if config.GetOpenLoop() {
+		exp = NewOpenLoopExperiment(c, config, expWorkload, config.HighTxnOnly())
 	} else {
-		exp = NewCloseLoopExperiment(c, expWorkload)
+		exp = NewCloseLoopExperiment(c, config, expWorkload)
 	}
 
 	if exp == nil {
@@ -102,7 +108,7 @@ func main() {
 	logrus.Warnf("client %v start", clientId)
 	exp.Execute()
 
-	c.PrintTxnStatisticData()
+	c.Close()
 }
 
 func parseArgs() {

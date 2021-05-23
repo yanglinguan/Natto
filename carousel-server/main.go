@@ -1,10 +1,14 @@
 package main
 
 import (
+	"Carousel-GTS/configuration"
 	"Carousel-GTS/server"
+	"Carousel-GTS/tapir"
 	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
+	"strconv"
+	"strings"
 )
 
 var isDebug = false
@@ -15,9 +19,21 @@ func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
 
-	s := server.NewServer(serverId, configFile)
-
-	s.Start()
+	config := configuration.NewFileConfiguration(configFile)
+	if config.GetServerMode() == configuration.TAPIR {
+		s := tapir.NewServer(strconv.Itoa(serverId), config.GetQueueLen(), false, 0)
+		addr := config.GetServerAddressByServerId(serverId)
+		port := strings.Split(addr, ":")[1]
+		pId := config.GetPartitionIdByServerId(serverId)
+		s.InitData(
+			config.GetKeyListByPartitionId(pId),
+			utils.ConvertToString(config.GetKeySize(), 0),
+			config)
+		s.Start(port)
+	} else {
+		s := server.NewServer(serverId, configFile)
+		s.Start()
+	}
 }
 
 func parseArgs() {

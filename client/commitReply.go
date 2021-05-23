@@ -22,9 +22,9 @@ func NewCommitReplyOp(txnId string, reply *rpc.CommitReply) *CommitReply {
 
 func (op *CommitReply) Execute(client *Client) {
 	//result := <-ongoingTxn.commitReply
-	ongoingTxn := client.txnStore[op.txnId]
+	ongoingTxn := client.txnStore.getTxn(op.txnId)
 
-	execution := client.getCurrentExecution(op.txnId)
+	execution := client.txnStore.getCurrentExecution(op.txnId)
 	execution.endTime = time.Now()
 
 	latency := execution.endTime.Sub(ongoingTxn.startTime)
@@ -36,7 +36,7 @@ func (op *CommitReply) Execute(client *Client) {
 		//ongoingTxn.fastPrepare = result.FastPrepare
 	} else {
 		execution.commitResult = 0
-		isRetry, waitTime = client.isRetryTxn(ongoingTxn.execCount + 1)
+		isRetry, waitTime = isRetryTxn(ongoingTxn.execCount+1, client.Config)
 	}
 	//op.result = op.reply.Result
 	if client.Config.GetTargetRate() > 0 {

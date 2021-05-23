@@ -20,6 +20,7 @@ const (
 	PRIORITY
 	TwoPL
 	TO
+	TAPIR
 	//GtsDepGraph
 	//GTSReorder
 )
@@ -147,6 +148,8 @@ type Configuration interface {
 	GetDCNum() int
 	GetPredictDelayPercentile() int
 	GetUpdateInterval() time.Duration
+
+	GetPartitionInfo() [][]int
 }
 
 type FileConfiguration struct {
@@ -636,6 +639,10 @@ func (f *FileConfiguration) GetKeyListByPartitionId(partitionId int) []string {
 	}
 
 	return f.keys[partitionId]
+}
+
+func (f *FileConfiguration) GetPartitionInfo() [][]int {
+	return f.partitions
 }
 
 func (f *FileConfiguration) GetPartitionIdByKey(key string) int {

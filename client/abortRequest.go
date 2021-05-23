@@ -21,8 +21,8 @@ func NewAbortOp(txnId string) *Abort {
 }
 
 func (op *Abort) Execute(client *Client) {
-	execCount := client.txnStore[op.txnId].execCount
-	op.isRetry, op.waitTime = client.isRetryTxn(execCount + 1)
+	execCount := client.txnStore.getTxn(op.txnId).execCount
+	op.isRetry, op.waitTime = isRetryTxn(execCount+1, client.Config)
 	op.Unblock()
 	//return c.isRetryTxn(execCount + 1)
 }

@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package tapir;
+//option go_package = "dominodb/tapir";
+
+//import "google/protobuf/any.proto";
+
+service IrRpc {
+  // Unlogged operations, including TAPIR reads
+  rpc ProposeUnLogOp(UnLogReqMsg) returns (UnLogReplyMsg) {}
+
+  // RPCs for IR inconsistent operations, including TAPIR commit and abort
+  rpc ProposeIncOp(IncReqMsg) returns (ConfirmMsg) {}
+  rpc FinalizeIncOp(FinalIncReqMsg) returns (ConfirmMsg){}
+  
+  // RPCs for IR consensus operations,  including TAPIR prepare
+  rpc ProposeConOp(ConReqMsg) returns (ConReplyMsg) {}
+  rpc FinalizeConOp(FinalConReqMsg) returns (ConfirmMsg){}
+
+  // Latency probing
+  rpc Probe(ProbeReq) returns (ProbeReply){}
+
+  // Testing
+  rpc Test(TestMsg) returns (TestMsg) {}
+}
+
+message Request {
+  string id = 1; // IR request id
+  bytes op = 2;
+}
+
+message UnLogReqMsg {
+  bytes op = 1; // No need of IR request id
+}
+
+message UnLogReplyMsg {
+  bytes ret = 1; // result
+}
+
+message IncReqMsg {
+  Request req = 1;
+}
+
+message FinalIncReqMsg {
+  string id = 1; // IR request id
+}
+
+message ConfirmMsg {
+}
+
+message ConReqMsg {
+  Request req = 1;
+}
+
+message ConReplyMsg {
+  string ret = 1;
+}
+
+message FinalConReqMsg {
+  string id = 1; // IR request id
+  string ret = 2;
+}
+
+message ProbeReq {
+}
+
+message ProbeReply {
+  int64 t = 1; // processing time in ns
+}
+
+message TestMsg {
+}
+
+
+//// TAPIR-tailored RPCs
+//// NOTE: IR message definition are customized for TAPIR operations for now
+//message Timestamp {
+//  int64 id = 1; // client id
+//  int64 timestamp = 2; // clock time (client's local time)
+//}
+//
+//message Txn {
+//  string id = 1; // txn id
+//  map<string, Timestamp> readSet = 2; // <key, version>
+//  map<string, string> writeSet = 3; // <key, value>
+//}
+//
+//// IR inconsistent operations
+//message IncOp {
+//  string id = 1; // Txn id
+//  int32 type = 2; // Commit or Abort
+//  Timestamp time =3;
+//  //google.protobuf.Any Data = 3;
+//}
+//
+//// IR inconsistent proposal
+//message IrIncReq {
+//}

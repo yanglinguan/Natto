@@ -21,7 +21,7 @@ func NewReadAndPrepareReplyOp(txnId string, executionCount int64, reply *rpc.Rea
 }
 
 func (op *ReadAndPrepareReply) Execute(client *Client) {
-	if client.getCurrentExecutionCount(op.txnId) > op.executionCount {
+	if client.txnStore.getCurrentExecutionCount(op.txnId) > op.executionCount {
 		logrus.Debugf("txn %v current execution count > op execution count ignore", op.txnId)
 		return
 	}
@@ -30,7 +30,7 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 		return
 	}
 
-	execution := client.getExecution(op.txnId, op.executionCount)
+	execution := client.txnStore.getExecution(op.txnId, op.executionCount)
 
 	for _, kv := range op.reply.KeyValVerList {
 		// if one of the keys exist meaning the client

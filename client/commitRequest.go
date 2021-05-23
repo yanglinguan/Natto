@@ -34,11 +34,10 @@ func NewCommitOp(txnId string, writeKeyValue map[string]string) *Commit {
 func (op *Commit) Execute(client *Client) {
 	//ongoingTxn := client.txnStore[op.txnId]
 	logrus.Debugf("txn %v execute commit op", op.txnId)
-	execution := client.getCurrentExecution(op.txnId)
+	execution := client.txnStore.getCurrentExecution(op.txnId)
 	execution.setCommitOp(op)
-
-	if client.getTxn(op.txnId).isReadOnly() && client.Config.GetIsReadOnly() {
-		ongoingTxn := client.getTxn(op.txnId)
+	ongoingTxn := client.txnStore.getTxn(op.txnId)
+	if ongoingTxn.isReadOnly() && client.Config.GetIsReadOnly() {
 		execution.endTime = time.Now()
 		logrus.Debugf("read only txn %v commit", op.txnId)
 		execution.commitResult = 1
@@ -117,7 +116,7 @@ func (op *Commit) versionCheck(client *Client) bool {
 	case configuration.OCC:
 		return true
 	case configuration.PRIORITY:
-		return !client.txnStore[op.txnId].priority
+		return !client.txnStore.getTxn(op.txnId).priority
 	default:
 		logrus.Fatalf("unknow server mode %v", client.Config.GetServerMode())
 		return false

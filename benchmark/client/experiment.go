@@ -3,6 +3,7 @@ package main
 import (
 	"Carousel-GTS/benchmark/workload"
 	"Carousel-GTS/client"
+	"Carousel-GTS/configuration"
 	"math"
 	"math/rand"
 	"sync"
@@ -16,16 +17,23 @@ type Experiment interface {
 }
 
 type OpenLoopExperiment struct {
-	client      *client.Client
+	client client.IFClient
+	config configuration.Configuration
+	//client      *client.Client
 	workload    workload.Workload
 	wg          sync.WaitGroup
 	txnChan     chan *workload.Txn
 	highTxnOnly bool
 }
 
-func NewOpenLoopExperiment(client *client.Client, wl workload.Workload, highTxnOnly bool) *OpenLoopExperiment {
+func NewOpenLoopExperiment(
+	client client.IFClient,
+	config configuration.Configuration,
+	wl workload.Workload,
+	highTxnOnly bool) *OpenLoopExperiment {
 	e := &OpenLoopExperiment{
 		client:      client,
+		config:      config,
 		workload:    wl,
 		wg:          sync.WaitGroup{},
 		highTxnOnly: highTxnOnly,
@@ -34,11 +42,11 @@ func NewOpenLoopExperiment(client *client.Client, wl workload.Workload, highTxnO
 	return e
 }
 
-func nextTxnWaitTime(client *client.Client) time.Duration {
+func nextTxnWaitTime(config configuration.Configuration) time.Duration {
 	// transaction sending rate (txn/s)
-	txnRate := client.Config.GetTxnRate()
+	txnRate := config.GetTxnRate()
 	interval := float64(time.Second) / float64(txnRate)
-	if client.Config.UsePoissonProcessBetweenArrivals() {
+	if config.UsePoissonProcessBetweenArrivals() {
 		// poisson process between arrivals
 		u := rand.Float64()
 		w := -interval * math.Log(1-u)
@@ -58,8 +66,8 @@ func (o *OpenLoopExperiment) Execute() {
 	// waiting time between sending two transactions
 	//interval := time.Duration(int64(time.Second) / int64(txnRate))
 	// experiment duration (s)
-	expDuration := o.client.Config.GetExpDuration()
-	totalTxn := o.client.Config.GetTotalTxn()
+	expDuration := o.config.GetExpDuration()
+	totalTxn := o.config.GetTotalTxn()
 	s := time.Now()
 	d := time.Since(s)
 	c := 0
@@ -78,7 +86,7 @@ func (o *OpenLoopExperiment) Execute() {
 			c++
 		}
 
-		waitTime := nextTxnWaitTime(o.client)
+		waitTime := nextTxnWaitTime(o.config)
 		time.Sleep(waitTime)
 		d = time.Since(s)
 	}
@@ -97,7 +105,7 @@ func (o *OpenLoopExperiment) execTxn(txn workload.Txn) {
 // run txn
 // txn finishes when it commits or does not require retry
 func (o *OpenLoopExperiment) retry(txn workload.Txn) {
-	commit, retry, waitTime, _ := execTxn(o.client, txn)
+	commit, retry, waitTime, _ := o.client.ExecTxn(txn)
 	// txn finishes when it commits or does not require retry
 	if commit || !retry {
 		logrus.Debugf("txn %v commit result %v retry %v", txn.GetTxnId(), commit, retry)
@@ -110,36 +118,16 @@ func (o *OpenLoopExperiment) retry(txn workload.Txn) {
 	o.retry(txn)
 }
 
-func execTxn(client *client.Client, txn workload.Txn) (bool, bool, time.Duration, time.Duration) {
-	// call client lib ReadAndPrepare to send ReadAndPrepareRequest
-	// for read only txn, it will return if the txn commits
-	readResult, isAbort := client.ReadAndPrepare(txn.GetReadKeys(), txn.GetWriteKeys(), txn.GetTxnId(), txn.GetPriority())
-
-	if isAbort {
-		retry, waitTime := client.Abort(txn.GetTxnId())
-		return false, retry, waitTime, 0
-	}
-
-	txn.GenWriteData(readResult)
-
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-
-		for k, v := range txn.GetWriteData() {
-			logrus.Debugf("txn %v write key %v: %v", txn.GetTxnId(), k, v)
-		}
-	}
-
-	return client.Commit(txn.GetWriteData(), txn.GetTxnId())
-}
-
 type CloseLoopExperiment struct {
-	client   *client.Client
+	client   client.IFClient
+	config   configuration.Configuration
 	workload workload.Workload
 }
 
-func NewCloseLoopExperiment(client *client.Client, workload workload.Workload) *CloseLoopExperiment {
+func NewCloseLoopExperiment(client client.IFClient, config configuration.Configuration, workload workload.Workload) *CloseLoopExperiment {
 	e := &CloseLoopExperiment{
 		client:   client,
+		config:   config,
 		workload: workload,
 	}
 	return e
@@ -147,14 +135,14 @@ func NewCloseLoopExperiment(client *client.Client, workload workload.Workload) *
 
 func (e *CloseLoopExperiment) Execute() {
 	//e.client.Start()
-	expDuration := e.client.Config.GetExpDuration()
-	totalTxn := e.client.Config.GetTotalTxn()
+	expDuration := e.config.GetExpDuration()
+	totalTxn := e.config.GetTotalTxn()
 	s := time.Now()
 	d := time.Since(s)
 	c := 0
 	txn := e.workload.GenTxn()
 	for d < expDuration || (expDuration <= 0 && c < totalTxn) {
-		commit, retry, waitTime, expWait := execTxn(e.client, txn)
+		commit, retry, waitTime, expWait := e.client.ExecTxn(txn)
 		if !commit && retry {
 			logrus.Infof("RETRY txn %v wait time %v", txn.GetTxnId(), waitTime)
 			time.Sleep(waitTime)

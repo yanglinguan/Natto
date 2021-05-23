@@ -38,7 +38,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 
 	client.addTxnIfNotExist(op)
 
-	txn := client.getTxn(op.txnId)
+	txn := client.txnStore.getTxn(op.txnId)
 	coordinatorPartitionId := op.findCoordinatorPartitionId(txn.participants, client)
 	isCoordinatorPartition := true
 	if _, exist := txn.partitionSet[coordinatorPartitionId]; !exist {
@@ -46,7 +46,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 		txn.partitionSet[coordinatorPartitionId] = make([][]string, 2)
 	}
 
-	client.getCurrentExecution(op.txnId).setCoordinatorPartitionId(coordinatorPartitionId)
+	client.txnStore.getCurrentExecution(op.txnId).setCoordinatorPartitionId(coordinatorPartitionId)
 
 	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
 
@@ -69,12 +69,12 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 			!client.Config.GetFastPath() {
 			// only send to the leader of non-participant partition
 			sId := client.Config.GetLeaderIdByPartitionId(pId)
-			sender := NewReadAndPrepareSender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
+			sender := NewReadAndPrepareSender(request, client.txnStore.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
 			go sender.Send()
 		} else {
 			sIdList := client.Config.GetServerIdListByPartitionId(pId)
 			for _, sId := range sIdList {
-				sender := NewReadAndPrepareSender(request, client.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
+				sender := NewReadAndPrepareSender(request, client.txnStore.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
 				go sender.Send()
 			}
 		}
@@ -96,14 +96,14 @@ func (op *ReadAndPrepare) buildRequest(
 	client *Client) *rpc.ReadAndPrepareRequest {
 
 	txn := &rpc.Transaction{
-		TxnId:                    client.getCurrentExecutionTxnId(op.txnId),
+		TxnId:                    client.txnStore.getCurrentExecutionTxnId(op.txnId),
 		ReadKeyList:              keyLists[0],
 		WriteKeyList:             keyLists[1],
 		ParticipatedPartitionIds: participatedPartitions,
 		EstimateArrivalTimes:     estimateArrivalTime,
 		CoordPartitionId:         int32(coordinatorPartitionId),
-		ReadOnly:                 client.getTxn(op.txnId).isReadOnly(),
-		HighPriority:             client.getTxn(op.txnId).priority,
+		ReadOnly:                 client.txnStore.getTxn(op.txnId).isReadOnly(),
+		HighPriority:             client.txnStore.getTxn(op.txnId).priority,
 	}
 
 	request := &rpc.ReadAndPrepareRequest{

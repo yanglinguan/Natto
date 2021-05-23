@@ -22,12 +22,12 @@ func NewReadOnlyReplyOp(txnId string, executionCount int64, reply *rpc.ReadAndPr
 }
 
 func (op *ReadOnlyReply) Execute(client *Client) {
-	if client.getCurrentExecutionCount(op.txnId) > op.executionCount {
+	if client.txnStore.getCurrentExecutionCount(op.txnId) > op.executionCount {
 		logrus.Debugf("txn %v current execution count > op execution count ignore", op.txnId)
 		return
 	}
 
-	execution := client.getExecution(op.txnId, op.executionCount)
+	execution := client.txnStore.getExecution(op.txnId, op.executionCount)
 
 	if execution.isAbort || execution.receiveAllReadResult() {
 		logrus.Debugf("txn %v abort %v or receive all read result %v", op.txnId,
