@@ -63,10 +63,14 @@ func (op *TapirTxnOp) Execute() {
 		writeSet[pId][k] = k
 	}
 	_, op.isCommitted, _, _ = op.tapirClient.lib.ExecTxn(readSet, writeSet)
-	op.tapirClient.txnStore.getCurrentExecution(op.txnId).endTime = time.Now()
+	exec := op.tapirClient.txnStore.getCurrentExecution(op.txnId)
+	exec.endTime = time.Now()
 	if !op.isCommitted {
+		exec.commitResult = 0
 		txn := op.tapirClient.txnStore.getTxn(op.txnId)
 		op.isRetry, op.waitTime = isRetryTxn(txn.execCount+1, op.tapirClient.config)
+	} else {
+		exec.commitResult = 1
 	}
 	op.wait <- true
 }
