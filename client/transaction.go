@@ -37,6 +37,7 @@ func (t *TxnStore) addTxn(
 		logrus.Debugf("RETRY txn %v: %v", txnId, t.store[txnId].execCount)
 	} else {
 		// otherwise add new txn
+		logrus.Debugf("Add NEW txn %v", txnId)
 		t.store[txnId] = NewTransaction(
 			txnId, readKeyList, writeKeyList, priority, config)
 	}

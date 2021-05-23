@@ -4,6 +4,7 @@ import (
 	"Carousel-GTS/benchmark/workload"
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/tapir"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -65,6 +66,7 @@ func (op *TapirTxnOp) Execute() {
 	_, op.isCommitted, _, _ = op.tapirClient.lib.ExecTxn(readSet, writeSet)
 	exec := op.tapirClient.txnStore.getCurrentExecution(op.txnId)
 	exec.endTime = time.Now()
+	logrus.Debugf("txn %v result %v", op.txnId, op.isCommitted)
 	if !op.isCommitted {
 		exec.commitResult = 0
 		txn := op.tapirClient.txnStore.getTxn(op.txnId)
