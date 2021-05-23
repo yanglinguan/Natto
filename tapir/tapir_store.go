@@ -49,17 +49,6 @@ func (t *TapirStore) InitData(keyList []string, val string) {
 	}
 }
 
-func (t *TapirStore) InitSmallBankData(
-	keys []string, // customer/account IDs
-	cFlag, sFlag string, // flags for checking and savings accounts for each customer
-	cB, sB string, // initialized value for checkinga and savings accounts
-) {
-	for _, key := range keys {
-		t.store.Write(key+cFlag, cB, TAPIR_VERSION_INIT) // checking account
-		t.store.Write(key+sFlag, sB, TAPIR_VERSION_INIT) // savings account
-	}
-}
-
 func (t *TapirStore) ExecUnLog(op interface{}) interface{} {
 	switch op.(type) {
 	case *ReadOp:
@@ -178,6 +167,14 @@ func (t *TapirStore) Commit(
 	rSet map[string]int64, // read set
 ) {
 	logger.Debugf("Commit txnId = %s timestamp = %d wSet = %v", tId, timestamp, wSet)
+
+	if ts, ok := t.commitTable[tId]; ok {
+		logger.Fatalf("txnId = %s has been committed timestamp = %d", tId, ts)
+	}
+	if ts, ok := t.abortTable[tId]; ok {
+		logger.Fatalf("txnId = %s has been aborted timestamp = %d", tId, ts)
+	}
+
 	t.commitTable[tId] = timestamp
 	t.store.WriteMulti(wSet, timestamp) // Update data store
 	t.delPreparedTxn(tId, wSet, rSet)
@@ -190,6 +187,14 @@ func (t *TapirStore) Abort(
 	rSet map[string]int64, // read set
 ) {
 	logger.Debugf("Abort txnId = %s timestamp = %d", tId, timestamp)
+
+	if ts, ok := t.commitTable[tId]; ok {
+		logger.Fatalf("txnId = %s has been committed timestamp = %d", tId, ts)
+	}
+	if ts, ok := t.abortTable[tId]; ok {
+		logger.Fatalf("txnId = %s has been aborted timestamp = %d", tId, ts)
+	}
+
 	t.abortTable[tId] = timestamp
 	t.delPreparedTxn(tId, wSet, rSet)
 }
