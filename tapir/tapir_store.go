@@ -49,6 +49,17 @@ func (t *TapirStore) InitData(keyList []string, val string) {
 	}
 }
 
+func (t *TapirStore) InitSmallBankData(
+	keys []string, // customer/account IDs
+	cFlag, sFlag string, // flags for checking and savings accounts for each customer
+	cB, sB string, // initialized value for checkinga and savings accounts
+) {
+	for _, key := range keys {
+		t.store.Write(key+cFlag, cB, TAPIR_VERSION_INIT) // checking account
+		t.store.Write(key+sFlag, sB, TAPIR_VERSION_INIT) // savings account
+	}
+}
+
 func (t *TapirStore) ExecUnLog(op interface{}) interface{} {
 	switch op.(type) {
 	case *ReadOp:
