@@ -52,8 +52,8 @@ func NewIrClient(
 	f := c.replicaN >> 1
 	c.majority = f + 1
 	c.superMajority = (3*f)>>1 + f%2 + 1
-	logger.Debugf("Replica Info: replicaN = %d majority = %d supermajority = %d",
-		c.replicaN, c.majority, c.superMajority)
+	//logger.Debugf("Replica Info: replicaN = %d majority = %d supermajority = %d",
+	//c.replicaN, c.majority, c.superMajority)
 
 	return c
 }
@@ -69,14 +69,14 @@ func (c *IrClient) InvokeInconsistent(op []byte) {
 	reqId := c.genReqId()
 	retC := make(chan bool, len(c.replicaAddrList))
 
-	logger.Debugf("IR starts inconsistent request id = %s", reqId)
+	//logger.Debugf("IR starts inconsistent request id = %s", reqId)
 
 	// Propose
 	for _, addr := range c.replicaAddrList {
 		c.wg.Add(1)
 		go func(addr string) {
 			defer c.wg.Done()
-			logger.Debugf("IR proposes inconsistent request id = %s to addr = %s", reqId, addr)
+			//logger.Debugf("IR proposes inconsistent request id = %s to addr = %s", reqId, addr)
 			c.io.ProposeIncOp(addr, reqId, op)
 			retC <- true
 		}(addr)
@@ -99,7 +99,7 @@ func (c *IrClient) InvokeInconsistent(op []byte) {
 			c.wg.Add(1)
 			go func(addr string) {
 				defer c.wg.Done()
-				logger.Debugf("IR finalizes inconsistent request id = %s to addr = %s", reqId, addr)
+				//logger.Debugf("IR finalizes inconsistent request id = %s to addr = %s", reqId, addr)
 				c.io.FinalizeIncOp(addr, reqId)
 			}(addr)
 		}
@@ -133,8 +133,8 @@ func (c *IrClient) InvokeConsensus(op []byte) (string, bool) {
 		if logger.IsEnabledFor(logging.DEBUG) {
 			opRet := &PrepareOpRet{}
 			DecodeFromStr(reply.Ret, opRet)
-			logger.Debugf("IR consensus reqId = %s result = %s (%d %d) num = %d #ofDiffReresults = %d",
-				reqId, ret, opRet.State, opRet.T, resultSet[ret], len(resultSet))
+			//logger.Debugf("IR consensus reqId = %s result = %s (%d %d) num = %d #ofDiffReresults = %d",
+			//reqId, ret, opRet.State, opRet.T, resultSet[ret], len(resultSet))
 		}
 
 		if resultSet[ret] == c.superMajority {
@@ -144,7 +144,7 @@ func (c *IrClient) InvokeConsensus(op []byte) (string, bool) {
 				defer c.wg.Done()
 				c.finalizeConsensusOpRet(reqId, finalRet)
 			}(reply.Ret)
-			logger.Debugf("IR consensus fast path reqId = %s", reqId)
+			//logger.Debugf("IR consensus fast path reqId = %s", reqId)
 			return reply.Ret, true
 		}
 
@@ -165,7 +165,7 @@ func (c *IrClient) InvokeConsensus(op []byte) (string, bool) {
 	// Slow path
 	ret := c.app.Decide(resultSet)
 	c.finalizeConsensusOpRet(reqId, ret)
-	logger.Debugf("IR consensus slow path reqId = %s", reqId)
+	//logger.Debugf("IR consensus slow path reqId = %s", reqId)
 	return ret, false
 }
 

@@ -76,7 +76,7 @@ func (t *TapirStore) ExecConsensus(op interface{}) interface{} {
 	case *PrepareOp:
 		o := op.(*PrepareOp)
 		state, timestamp := t.Prepare(o.Id, o.T, o.Write, o.Read)
-		logger.Debugf("Prepare txnId = %s result = %d %d", o.Id, state, timestamp)
+		//logger.Debugf("Prepare txnId = %s result = %d %d", o.Id, state, timestamp)
 		return &PrepareOpRet{State: state, T: timestamp}
 	default:
 		logger.Fatalf("Unknown consensus operation: %v", op)
@@ -177,7 +177,7 @@ func (t *TapirStore) Commit(
 	wSet map[string]string, // write set
 	rSet map[string]int64, // read set
 ) {
-	logger.Debugf("Commit txnId = %s timestamp = %d wSet = %v", tId, timestamp, wSet)
+	//logger.Debugf("Commit txnId = %s timestamp = %d wSet = %v", tId, timestamp, wSet)
 
 	if ts, ok := t.commitTable[tId]; ok {
 		logger.Fatalf("txnId = %s has been committed timestamp = %d", tId, ts)
@@ -197,7 +197,7 @@ func (t *TapirStore) Abort(
 	wSet map[string]string, // write set
 	rSet map[string]int64, // read set
 ) {
-	logger.Debugf("Abort txnId = %s timestamp = %d", tId, timestamp)
+	//logger.Debugf("Abort txnId = %s timestamp = %d", tId, timestamp)
 
 	if ts, ok := t.commitTable[tId]; ok {
 		logger.Fatalf("txnId = %s has been committed timestamp = %d", tId, ts)
@@ -292,7 +292,7 @@ func (t *TapirStore) Test() {
 }
 
 func (t *TapirStore) logCommitTxn() {
-	logger.Infof("# of committed txns = %d", len(t.commitTable))
+	//logger.Infof("# of committed txns = %d", len(t.commitTable))
 	if len(t.commitTable) > 0 {
 		w, f := createLog("server-"+t.id+"-commit.log", t.id)
 		tIdList := getSortedTIdList(t.commitTable)
@@ -303,7 +303,7 @@ func (t *TapirStore) logCommitTxn() {
 }
 
 func (t *TapirStore) logAbortTxn() {
-	logger.Infof("# of abort txns = %d", len(t.abortTable))
+	//logger.Infof("# of abort txns = %d", len(t.abortTable))
 	if len(t.abortTable) > 0 {
 		w, f := createLog("server-"+t.id+"-abort.log", t.id)
 		tIdList := getSortedTIdList(t.abortTable)
@@ -314,7 +314,7 @@ func (t *TapirStore) logAbortTxn() {
 }
 
 func (t *TapirStore) logPreparedTxn() {
-	logger.Infof("# of prepared txns = %d", len(t.preparedTable))
+	//logger.Infof("# of prepared txns = %d", len(t.preparedTable))
 	if len(t.preparedTable) > 0 {
 		w, f := createLog("server-"+t.id+"-prepare.log", t.id)
 		tIdList := getSortedTIdList(t.preparedTable)
@@ -325,7 +325,7 @@ func (t *TapirStore) logPreparedTxn() {
 }
 
 func (t *TapirStore) logPreparedReadKeys() {
-	logger.Infof("# of prepared read keys = %d", len(t.preparedReadKeyTable))
+	//logger.Infof("# of prepared read keys = %d", len(t.preparedReadKeyTable))
 	if len(t.preparedReadKeyTable) > 0 {
 		w, f := createLog("server-"+t.id+"-prepareRead.log", t.id)
 		tIdList := getSortedKeyList(t.preparedReadKeyTable)
@@ -336,7 +336,7 @@ func (t *TapirStore) logPreparedReadKeys() {
 }
 
 func (t *TapirStore) logPreparedWriteKeys() {
-	logger.Infof("# of prepared write keys = %d", len(t.preparedWriteKeyTable))
+	//logger.Infof("# of prepared write keys = %d", len(t.preparedWriteKeyTable))
 	if len(t.preparedWriteKeyTable) > 0 {
 		w, f := createLog("server-"+t.id+"-prepareWrite.log", t.id)
 		tIdList := getSortedKeyList(t.preparedWriteKeyTable)
