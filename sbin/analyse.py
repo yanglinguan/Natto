@@ -6,6 +6,7 @@ import argparse
 import sys
 import shutil
 import numpy
+import math
 
 arg_parser = argparse.ArgumentParser(description="analyse.")
 
@@ -161,10 +162,12 @@ def load_statistic(dir_name):
     min_start = sys.maxsize
     num_txn = []
     client_num = 0
+    client_starts = []
     for f in lists:
         if f.endswith(".statistic"):
             client_num += 1
             txn_count = 0
+            first_start = sys.maxsize
             lines = open(os.path.join(path, f), "r").readlines()
             for line in lines:
                 line = line.strip()
@@ -187,6 +190,8 @@ def load_statistic(dir_name):
                     fast_prepare = items[9] == "true"
                 if start < min_start:
                     min_start = start
+                if start < first_start:
+                    first_start = start
                 txn_map[txn_id] = {"commit": commit,
                                    "latency": latency,
                                    "start": start,
@@ -196,17 +201,22 @@ def load_statistic(dir_name):
                                    "readOnly": read_only,
                                    "exeCount": exe_count}
             num_txn.append(txn_count)
+            client_starts.append(first_start)
             if txn_count == 0:
                 print(f + " dose not have txn")
     avg = numpy.average(num_txn)
     std = numpy.std(num_txn)
+    client_starts.sort()
+    diff = client_starts[-1] - client_starts[0]
+    if diff / 1000000000.0 > 10:
+        print(dir_name, "one client start 10s later than another client")
     print(dir_name, num_txn, avg, std)
     # print("avg txn num: " + str(avg) + " error: " + str(std))
     for txn_id, value in txn_map.items():
         value["start"] = value["start"] - min_start
         if value["start"] < low or value["start"] > high:
             del txn_map[txn_id]
-
+    print("total valid txn", len(txn_map))
     return txn_map
 
 
@@ -259,53 +269,51 @@ def analyse_latency(txn_map):
               # "latency": latency
               }
 
-    if len(latency_high) == 0 or len(latency_low) == 0:
-        return result
+    if len(latency_high) > 0:
+        median = numpy.percentile(latency_high, 50)
+        p90 = numpy.percentile(latency_high, 90)
+        p95 = numpy.percentile(latency_high, 95)
+        p99 = numpy.percentile(latency_high, 99)
+        p10 = numpy.percentile(latency_high, 10)
+        avg = numpy.average(latency_high)
+        latency_high.sort()
+        result["median_high"] = median
+        result["p90_high"] = p90
+        result["p95_high"] = p95
+        result["p99_high"] = p99
+        result["p10_high"] = p10
+        result["avg_high"] = avg
+        # result["latency_high"] = latency_high
 
-    median = numpy.percentile(latency_high, 50)
-    p90 = numpy.percentile(latency_high, 90)
-    p95 = numpy.percentile(latency_high, 95)
-    p99 = numpy.percentile(latency_high, 99)
-    p10 = numpy.percentile(latency_high, 10)
-    avg = numpy.average(latency_high)
-    latency_high.sort()
-    result["median_high"] = median
-    result["p90_high"] = p90
-    result["p95_high"] = p95
-    result["p99_high"] = p99
-    result["p10_high"] = p10
-    result["avg_high"] = avg
-    # result["latency_high"] = latency_high
-
-    if args.resultDir is not None:
-        print("10 per (ms) high: " + str(p10))
-        print("median (ms) high: " + str(median))
-        print("90 per (ms) high: " + str(p90))
-        print("95 per (ms) high: " + str(p95))
-        print("99 per (ms) high: " + str(p99))
-        print("avg (ms) high: " + str(avg))
-
-    median = numpy.percentile(latency_low, 50)
-    p90 = numpy.percentile(latency_low, 90)
-    p95 = numpy.percentile(latency_low, 95)
-    p99 = numpy.percentile(latency_low, 99)
-    p10 = numpy.percentile(latency_low, 10)
-    avg = numpy.average(latency_low)
-    latency_low.sort()
-    result["median_low"] = median
-    result["p90_low"] = p90
-    result["p95_low"] = p95
-    result["p99_low"] = p99
-    result["p10_low"] = p10
-    result["avg_low"] = avg
-    # result["latency_low"] = latency_low
-    if args.resultDir is not None:
-        print("10 per (ms) low: " + str(p10))
-        print("median (ms) low: " + str(median))
-        print("90 per (ms) low: " + str(p90))
-        print("95 per (ms) low: " + str(p95))
-        print("99 per (ms) low: " + str(p99))
-        print("avg (ms) low: " + str(avg))
+        if args.resultDir is not None:
+            print("10 per (ms) high: " + str(p10))
+            print("median (ms) high: " + str(median))
+            print("90 per (ms) high: " + str(p90))
+            print("95 per (ms) high: " + str(p95))
+            print("99 per (ms) high: " + str(p99))
+            print("avg (ms) high: " + str(avg))
+    if len(latency_low) > 0:
+        median = numpy.percentile(latency_low, 50)
+        p90 = numpy.percentile(latency_low, 90)
+        p95 = numpy.percentile(latency_low, 95)
+        p99 = numpy.percentile(latency_low, 99)
+        p10 = numpy.percentile(latency_low, 10)
+        avg = numpy.average(latency_low)
+        latency_low.sort()
+        result["median_low"] = median
+        result["p90_low"] = p90
+        result["p95_low"] = p95
+        result["p99_low"] = p99
+        result["p10_low"] = p10
+        result["avg_low"] = avg
+        # result["latency_low"] = latency_low
+        if args.resultDir is not None:
+            print("10 per (ms) low: " + str(p10))
+            print("median (ms) low: " + str(median))
+            print("90 per (ms) low: " + str(p90))
+            print("95 per (ms) low: " + str(p95))
+            print("99 per (ms) low: " + str(p99))
+            print("avg (ms) low: " + str(avg))
 
     return result
 
@@ -313,6 +321,7 @@ def analyse_latency(txn_map):
 def analyse_retry(txn_map):
     low_retry = []
     high_retry = []
+    result = {}
     for txn_id, value in txn_map.items():
         if not value["commit"]:
             continue
@@ -320,51 +329,52 @@ def analyse_retry(txn_map):
             high_retry.append(value["exeCount"])
         else:
             low_retry.append(value["exeCount"])
+    if len(low_retry) > 0:
+        median = numpy.percentile(low_retry, 50)
+        p90 = numpy.percentile(low_retry, 90)
+        p95 = numpy.percentile(low_retry, 95)
+        p99 = numpy.percentile(low_retry, 99)
+        p10 = numpy.percentile(low_retry, 10)
+        avg = numpy.average(low_retry)
 
-    median = numpy.percentile(low_retry, 50)
-    p90 = numpy.percentile(low_retry, 90)
-    p95 = numpy.percentile(low_retry, 95)
-    p99 = numpy.percentile(low_retry, 99)
-    p10 = numpy.percentile(low_retry, 10)
-    avg = numpy.average(low_retry)
-
-    if args.resultDir is not None:
-        print("retry 10 per (ms) low: " + str(p10))
-        print("retry median (ms) low: " + str(median))
-        print("retry 90 per (ms) low: " + str(p90))
-        print("retry 95 per (ms) low: " + str(p95))
-        print("retry 99 per (ms) low: " + str(p99))
-        print("retry avg (ms) low: " + str(avg))
+        if args.resultDir is not None:
+            print("retry 10 per (ms) low: " + str(p10))
+            print("retry median (ms) low: " + str(median))
+            print("retry 90 per (ms) low: " + str(p90))
+            print("retry 95 per (ms) low: " + str(p95))
+            print("retry 99 per (ms) low: " + str(p99))
+            print("retry avg (ms) low: " + str(avg))
     
-    result = {
-        "retry_median_low": median,
-        "retry_p90_low": p90,
-        "retry_p95_low": p95,
-        "retry_p99_low": p99,
-        "retry_p10_low": p10,
-        "retry_avg_low": avg,
-    }
-    median = numpy.percentile(high_retry, 50)
-    p90 = numpy.percentile(high_retry, 90)
-    p95 = numpy.percentile(high_retry, 95)
-    p99 = numpy.percentile(high_retry, 99)
-    p10 = numpy.percentile(high_retry, 10)
-    avg = numpy.average(high_retry)
-    
-    if args.resultDir is not None:
-        print("retry 10 per (ms) high: " + str(p10))
-        print("retry median (ms) high: " + str(median))
-        print("retry 90 per (ms) high: " + str(p90))
-        print("retry 95 per (ms) high: " + str(p95))
-        print("retry 99 per (ms) high: " + str(p99))
-        print("retry avg (ms) high: " + str(avg))
+        result = {
+            "retry_median_low": median,
+            "retry_p90_low": p90,
+            "retry_p95_low": p95,
+            "retry_p99_low": p99,
+            "retry_p10_low": p10,
+            "retry_avg_low": avg,
+        }
+    if len(high_retry) > 0:
+        median = numpy.percentile(high_retry, 50)
+        p90 = numpy.percentile(high_retry, 90)
+        p95 = numpy.percentile(high_retry, 95)
+        p99 = numpy.percentile(high_retry, 99)
+        p10 = numpy.percentile(high_retry, 10)
+        avg = numpy.average(high_retry)
+        
+        if args.resultDir is not None:
+            print("retry 10 per (ms) high: " + str(p10))
+            print("retry median (ms) high: " + str(median))
+            print("retry 90 per (ms) high: " + str(p90))
+            print("retry 95 per (ms) high: " + str(p95))
+            print("retry 99 per (ms) high: " + str(p99))
+            print("retry avg (ms) high: " + str(avg))
 
-    result["retry_median_high"] = median
-    result["retry_p90_high"] = p90
-    result["retry_p95_high"] = p95
-    result["retry_p99_high"] = p99
-    result["retry_p10_high"] = p10
-    result["retry_avg_high"] = avg
+        result["retry_median_high"] = median
+        result["retry_p90_high"] = p90
+        result["retry_p95_high"] = p95
+        result["retry_p99_high"] = p99
+        result["retry_p10_high"] = p10
+        result["retry_avg_high"] = avg
 
     return result
 
@@ -559,7 +569,7 @@ def error_bar(path, prefix):
             result[key] = list(itertools.chain(*result[key]))
             continue
         mean = numpy.average(value)
-        error = 2 * numpy.std(value)
+        error = 1.96 * (numpy.std(value) / math.sqrt(len(value)))
 
         result[key] = {"mean": mean, "error": error}
     # print_result(result, prefix)

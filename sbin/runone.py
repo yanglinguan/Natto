@@ -10,6 +10,7 @@ import utils
 def scp_client_log_exec(new_dir, ssh, scp, ip, client_dir):
     # client_dir = config["experiment"]["runDir"] + "/client"
     stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
+    #stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.statistic")
     log_files = stdout.read().split()
     for log in log_files:
         scp.get(log, new_dir)

@@ -143,35 +143,35 @@ def getRunExpNum(f):
     return i
 
 
-def run_exp(i, run_list, machines_client, machines_server, machines_network_measure):
+def run_exp(i, run_conf, machines_client, machines_server, machines_network_measure):
     finishes = 0
     errorRun = []
-    for item in run_list:
-        f = item[0]
-        x = item[1]
-        if i < x:
-            print(f + " already run " + str(x) + " times skip this time " + str(i))
-            continue
-        nextRun = getNextRunCount(f)
-        thread = threading.Thread(
-            target=runone.run_config,
-            args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
-        thread.start()
-        thread.join(timeout)
-        # p = multiprocessing.Process(
-        #     target=runone.run_config,
-        #     args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
-        # p.start()
-        # p.join(timeout)
-        if thread.is_alive():
-            print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it at " +
-                  datetime.datetime.now().strftime("%H:%M:%S"))
-            subprocess.call([bin_path + "stop.py", "-c", f])
-            # p.terminate()
-            thread.join()
-            errorRun.append(f.split(".")[0] + "-" + str(i))
-            # return finishes, False, f
-        finishes = finishes + 1
+    #for item in run_list:
+    f = run_conf[0]
+    x = run_conf[1]
+    if i < x:
+        print(f + " already run " + str(x) + " times skip this time " + str(i))
+        return
+    nextRun = getNextRunCount(f)
+    thread = threading.Thread(
+        target=runone.run_config,
+        args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
+    thread.start()
+    thread.join(timeout)
+    # p = multiprocessing.Process(
+    #     target=runone.run_config,
+    #     args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
+    # p.start()
+    # p.join(timeout)
+    if thread.is_alive():
+        print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it at " +
+              datetime.datetime.now().strftime("%H:%M:%S"))
+        subprocess.call([bin_path + "stop.py", "-c", f])
+        # p.terminate()
+        thread.join()
+        errorRun.append(f.split(".")[0] + "-" + str(i))
+        # return finishes, False, f
+    finishes = finishes + 1
     return finishes, True, errorRun
 
 
@@ -219,7 +219,7 @@ def getSortkey(f):
 
 
 def sort_run_list(run_list):
-    exp_list = ["txnRate", "workload_highPriority"]
+    exp_list = ["txnRate","zipfAlpha", "workload_highPriority"]
     result_map = {}
     not_found = []
     for rc in run_list:
@@ -316,16 +316,17 @@ def main():
             print("set varince", rlist[0][0])
             set_network_delay(rlist[0][0])
         print(rlist)
-        for i in range(n):
-            finish, succ, failed = run_exp(i, rlist, machines_client, machines_server, machines_network_measure)
-            if succ:
-                finishes += finish
-            else:
-                for f in failed:
-                    errorRun.append(f)
-                error = ",".join(failed)
-                notification("need to rerun config " + error + " exp failed")
-                # return
+        for run_conf in rlist:
+            for i in range(n):
+                run_exp(i, run_conf, machines_client, machines_server, machines_network_measure)
+                #if succ:
+                #    finishes += finish
+                #else:
+                #    for f in failed:
+                #        errorRun.append(f)
+                #    error = ",".join(failed)
+                #    notification("need to rerun config " + error + " exp failed")
+                    # return
 
     # if finishes > 1 or len(errorRun) > 0:
     error = ",".join(errorRun)
