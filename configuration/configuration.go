@@ -62,7 +62,6 @@ type Configuration interface {
 	GetCheckWaiting() bool
 	GetTimeWindow() time.Duration
 	UsePoissonProcessBetweenArrivals() bool
-	IsFastCommit() bool
 	GetServerNum() int
 
 	GetServerMode() ServerMode
@@ -1014,10 +1013,6 @@ func (f *FileConfiguration) UseNetworkTimestamp() bool {
 
 func (f *FileConfiguration) UsePoissonProcessBetweenArrivals() bool {
 	return f.poissonProcess
-}
-
-func (f *FileConfiguration) IsFastCommit() bool {
-	return f.fastCommit
 }
 
 func (f *FileConfiguration) HighTxnOnly() bool {

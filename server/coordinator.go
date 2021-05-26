@@ -137,30 +137,6 @@ func NewCoordinator(server *Server) *Coordinator {
 	return c
 }
 
-func (c *Coordinator) startProbe() {
-	if c.server.config.UseNetworkTimestamp() &&
-		c.server.config.GetFastPath() &&
-		c.server.config.IsFastCommit() {
-		queueLen := c.server.config.GetQueueLen()
-		c.latencyPredictor = latencyPredictor.NewLatencyPredictor(
-			c.server.config.GetServerAddress(),
-			c.server.config.GetProbeWindowLen(),
-			c.server.config.GetProbeWindowMinSize())
-		if c.server.config.IsProbeTime() {
-			c.probeTimeC = make(chan *LatTimeInfo, queueLen)
-		} else {
-			c.probeC = make(chan *LatInfo, queueLen)
-		}
-		if c.server.config.IsProbeTime() {
-			go c.probingTime()
-			go c.processProbeTime()
-		} else {
-			go c.probing()
-			go c.processProbe()
-		}
-	}
-}
-
 func (c *Coordinator) executeOperations() {
 	for {
 		op := <-c.operation
