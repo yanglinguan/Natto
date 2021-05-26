@@ -73,8 +73,9 @@ func NewClient(clientId int, configFile string) *Client {
 			c.connections[sId] = connection.NewPoolConnection(addr, c.Config.GetConnectionPoolSize())
 		}
 	}
-
-	c.networkMeasureConnection = connection.NewSingleConnect(config.GetNetworkMeasureAddr(c.clientDataCenterId))
+	if c.Config.IsDynamicLatency() && c.Config.UseNetworkTimestamp() {
+		c.networkMeasureConnection = connection.NewSingleConnect(config.GetNetworkMeasureAddr(c.clientDataCenterId))
+	}
 
 	return c
 }
