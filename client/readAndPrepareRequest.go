@@ -67,8 +67,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 
 		if request.IsNotParticipant ||
 			(request.Txn.ReadOnly && client.Config.GetIsReadOnly()) ||
-			!client.Config.GetFastPath() ||
-			curExecCount > 0 {
+			!client.Config.GetFastPath() {
 			// only send to the leader of non-participant partition
 
 			sId := client.Config.GetLeaderIdByPartitionId(pId)
