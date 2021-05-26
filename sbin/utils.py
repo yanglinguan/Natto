@@ -142,11 +142,24 @@ def parse_server_machine(config):
     machines_server = {}
     server_nums = config["servers"]["nums"]
     machines = config["servers"]["machines_pub"]
+    total_data_servers = config["servers"]["dataPartitions"] * config["server"]["replicationFactor"]
+    coord_machines = config["servers"]["coordMachines_pub"]
     ssh_username = get_ssh_username(config)
     for ip in machines:
-        machines_server[ip] = Machine(ip, ssh_username)
+        if ip not in machines_server:
+            machines_server[ip] = Machine(ip, ssh_username)
+    for ip in coord_machines:
+        if ip not in machines_server:
+            machines_server[ip] = Machine(ip, ssh_username)
+
     for server_id in range(server_nums):
-        idx = server_id % len(machines)
-        ip = machines[idx]
-        machines_server[ip].add_id(str(server_id))
+        if server_id < total_data_servers:
+            idx = server_id % len(machines)
+            ip = machines[idx]
+            machines_server[ip].add_id(str(server_id))
+        else:
+            idx = server_id % len(coord_machines)
+            ip = coord_machines[idx]
+            machines_server[ip].add_id(str(server_id))
+
     return machines_server

@@ -1,7 +1,9 @@
 {
   "server": {
-    "nums": 15,
-    "partitions": 5,
+    "nums": 30,
+    "partitions": 10,
+    "dataPartition": 5,
+    "dcNum": 5,
     "replicationFactor": 3,
     "failure": 1,
     "raftPortBase": 20000,
@@ -23,6 +25,9 @@
         "10.0.4.13",
         "10.0.4.14",
         "10.0.4.15"
+  ],
+  "coord_machines": [
+
   ],
   "client_nums": 5,
   "client_machines": [

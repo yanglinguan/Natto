@@ -1,8 +1,10 @@
 {
   "servers": {
-    "nums": 3,
-    "partitions": 3,
-    "replicationFactor": 1,
+    "nums": 30,
+    "partitions": 10,
+    "dataPartition": 5,
+    "dcNum": 5,
+    "replicationFactor": 3,
     "failure": 1,
     "raftPortBase": 20000,
     "rpcPortBase": 10000,
@@ -10,6 +12,9 @@
       "localhost",
       "localhost",
       "localhost"
+    ],
+    "coordMachines": [
+
     ]
   },
   "clients": {

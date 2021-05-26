@@ -156,6 +156,7 @@ type FileConfiguration struct {
 	servers                    []string
 	dcNum                      int
 	clients                    int
+	dataPartitions             int
 	partitions                 [][]int
 	raftPeers                  [][]string
 	raftToServerId             [][]int
@@ -294,17 +295,22 @@ func (f *FileConfiguration) loadFile(configFilePath string) {
 func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	partitionNum := int(config["partitions"].(float64))
 	serverNum := int(config["nums"].(float64))
+	f.dataPartitions = int(config["dataPartition"].(float64))
+
 	f.replicationFactor = int(config["replicationFactor"].(float64))
 	//f.isReplication = f.replicationFactor != 1
 	f.failure = config["failure"].(float64)
 	f.superMajority = int(math.Ceil(f.failure*1.5) + 1)
-	f.dcNum = serverNum / f.replicationFactor
+	f.dcNum = int(config["dcNum"].(float64))
 	if serverNum%f.replicationFactor != 0 {
 		log.Fatalf("the number of server %v and replication factor %v does not much", serverNum, f.replicationFactor)
 		return
 	}
+	dataServerNum := f.dataPartitions * f.replicationFactor
 	machines := config["machines"].([]interface{})
-	totalMachines := len(machines)
+	dataServerMachineNum := len(machines)
+	coordMachines := config["coordMachines"].([]interface{})
+	coordMachineNum := len(coordMachines)
 	rpcPortBase := int(config["rpcPortBase"].(float64))
 	raftPortBase := int(config["raftPortBase"].(float64))
 
@@ -321,10 +327,15 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	f.expectPartitionLeaders = make([]int, partitionNum)
 
 	for sId := 0; sId < serverNum; sId++ {
-		mId := sId % totalMachines
-		pId := sId % partitionNum
+		pId := sId / f.replicationFactor
+		mId := sId % dataServerMachineNum
 		ip := machines[mId].(string)
-		dcId := mId / f.replicationFactor
+		if sId >= dataServerNum {
+			mId = (sId - dataServerNum) % coordMachineNum
+			ip = coordMachines[mId].(string)
+		}
+
+		dcId := sId % f.dcNum
 		rpcPort := strconv.Itoa(rpcPortBase + sId)
 		raftPort := strconv.Itoa(raftPortBase + sId)
 
@@ -340,16 +351,15 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		f.serverToPartitionId[sId] = pId
 		f.serverToRaftPort[sId] = raftPort
 
-		leaderIdx := pId % f.replicationFactor
-		if leaderIdx == len(f.partitions[pId])-1 {
-			f.expectPartitionLeaders[pId] = f.partitions[pId][leaderIdx]
-			f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], f.partitions[pId][leaderIdx])
+		if sId%f.replicationFactor == 0 {
+			f.expectPartitionLeaders[pId] = sId
+			f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], sId)
 		}
 
 		f.dataCenterIdToServerIdList[dcId] = append(f.dataCenterIdToServerIdList[dcId], sId)
 
 		log.Infof("Server %v: addr %v, raftAddr %v, raftGroup %v, partitionId %v, dataCenterId %v, isLeader %v",
-			sId, rpcAddr, raftAddr, pId, pId, dcId, leaderIdx == len(f.partitions[pId])-1)
+			sId, rpcAddr, raftAddr, pId, pId, dcId, sId%f.replicationFactor == 0)
 	}
 }
 
@@ -581,7 +591,7 @@ func (f *FileConfiguration) loadKey() {
 	f.keys = make([][]string, totalPartition)
 	var key int64 = 0
 	for ; key < f.keyNum; key++ {
-		partitionId := key % int64(totalPartition)
+		partitionId := key % int64(f.dataPartitions)
 		f.keys[partitionId] = append(f.keys[partitionId], utils.ConvertToString(f.keySize, key))
 	}
 }

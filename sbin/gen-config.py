@@ -58,9 +58,17 @@ def config_server():
         for m_name in config_option["server_machines"]:
             server["machines"].append(azure_machine_name_ips[m_name]["private"])
             server["machines_pub"].append(azure_machine_name_ips[m_name]["public"])
+
+        server["coordMachines"] = []
+        server["coordMachines_pub"] = []
+        for m_name in config_option["coord_machines"]:
+            server["coordMachines"].append(azure_machine_name_ips[m_name]["private"])
+            server["coordMachines_pub"].append(azure_machine_name_ips[m_name]["public"])
     else:
         server["machines"] = config_option["server_machines"]
         server["machines_pub"] = config_option["server_machines"]
+        server["coordMachines"] = config_option["coord_machines"]
+        server["coordMachines_pub"] = config_option["coord_machines"]
     return server
 
 

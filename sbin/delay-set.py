@@ -36,13 +36,23 @@ dc_ip_map = {}
 machines = config["servers"]["machines"]
 replicationFactor = config["servers"]["replicationFactor"]
 serverNum = config["servers"]["nums"]
-dcNum = serverNum/replicationFactor
+dcNum = config["servers"]["dcNum"]
 if serverNum % replicationFactor != 0:
     print("the number of server %d and replication factor %d does not much", serverNum, replicationFactor)
     exit(1)
 mId = 0
 for ip in machines:
-    dcId = mId / replicationFactor
+    dcId = mId % dcNum
+    mId = mId + 1
+    if dcId not in dc_ip_map:
+        dc_ip_map[dcId] = []
+    if ip not in dc_ip_map[dcId]:
+        dc_ip_map[dcId].append(ip)
+
+machines = config["servers"]["coordMachines"]
+mId = 0
+for ip in machines:
+    dcId = mId % dcNum
     mId = mId + 1
     if dcId not in dc_ip_map:
         dc_ip_map[dcId] = []
