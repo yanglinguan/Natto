@@ -228,39 +228,6 @@ func (h *HeartBeatSender) Send() int {
 	return int(reply.LeaderId)
 }
 
-type StartProbeSender struct {
-	dstServerId int
-	client      *Client
-}
-
-func NewStartProbeSender(dstServerId int, client *Client) *StartProbeSender {
-	s := &StartProbeSender{
-		dstServerId: dstServerId,
-		client:      client,
-	}
-	return s
-}
-
-func (p *StartProbeSender) Send() {
-	conn := p.client.connections[p.dstServerId]
-	clientConn := conn.GetConn()
-	if conn.GetPoolSize() > 0 {
-		defer conn.Close(clientConn)
-	}
-
-	client := rpc.NewCarouselClient(clientConn)
-	_, err := client.StartProbe(context.Background(), &rpc.StartProbeReq{})
-	if err != nil {
-		if dstServerId, handled := utils.HandleError(err); handled {
-			logrus.Debugf("resend startProbe to %v", dstServerId)
-			p.dstServerId = dstServerId
-			p.Send()
-		} else {
-			logrus.Fatalf("cannot send startProbe server %v: %v", conn.GetDstAddr(), err)
-		}
-	}
-}
-
 type WriteDataSender struct {
 	request     *rpc.WriteDataRequest
 	dstServerId int

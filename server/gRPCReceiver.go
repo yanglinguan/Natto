@@ -291,16 +291,6 @@ func (server *Server) ProbeTime(cts context.Context, request *rpc.ProbeReq) (*rp
 	}, nil
 }
 
-func (server *Server) StartProbe(cts context.Context, request *rpc.StartProbeReq) (*rpc.Empty, error) {
-	if !server.IsLeader() {
-		logrus.Debugf("startProbe request server %v is not leader", server.serverAddress)
-		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
-	}
-
-	server.coordinator.startProbe()
-	return &rpc.Empty{}, nil
-}
-
 // client sends to coordinator
 func (server *Server) ReadResultFromCoordinator(request *rpc.ReadRequestToCoordinator, srv rpc.Carousel_ReadResultFromCoordinatorServer) error {
 	logrus.Debugf("server %v client send read result from coordinator from client %v", server.serverAddress, request.ClientId)

@@ -29,9 +29,6 @@ service Carousel {
     rpc Probe(ProbeReq) returns (ProbeReply){}
     rpc ProbeTime(ProbeReq) returns (ProbeTimeReply){}
 
-    // once expected leader is selected start to probe the latency
-    rpc StartProbe(StartProbeReq) returns (Empty) {}
-
     // stream rpc sending the read result from coordinator to client
     // client sends to coordinator
     rpc ReadResultFromCoordinator(ReadRequestToCoordinator) returns (stream ReadReplyFromCoordinator) {}
@@ -209,10 +206,6 @@ message ProbeReply {
 
 message ProbeTimeReply {
     int64 processTime = 1; // in ns
-}
-
-message StartProbeReq {
-
 }
 
 message WriteDataRequest {

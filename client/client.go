@@ -366,11 +366,6 @@ func (c *Client) HeartBeat(dstServerId int) int {
 	return sender.Send()
 }
 
-func (c *Client) StartProbe(dstServerId int) {
-	sender := NewStartProbeSender(dstServerId, c)
-	sender.Send()
-}
-
 func (c *Client) tryToMaintainTxnTargetRate(latency time.Duration) time.Duration {
 	if latency < c.durationPerTxn {
 		expectWait := c.durationPerTxn - latency
