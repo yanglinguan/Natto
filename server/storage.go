@@ -4,6 +4,7 @@ import (
 	"Carousel-GTS/rpc"
 	"Carousel-GTS/utils"
 	"reflect"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -257,8 +258,12 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 
 func (s *Storage) replicatePreparedResult(txnId string) {
 	if s.server.config.GetFastPath() {
-		op := NewFastPathPrepareResultReplication(txnId)
-		op.Execute(s)
+		txnIdList := strings.Split(txnId, "-")
+		isFirst := txnIdList[len(txnIdList)-1] == "0"
+		if isFirst {
+			op := NewFastPathPrepareResultReplication(txnId)
+			op.Execute(s)
+		}
 	}
 
 	if s.server.IsLeader() {

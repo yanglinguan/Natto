@@ -47,7 +47,7 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 	}
 
 	client.txnStore.getCurrentExecution(op.txnId).setCoordinatorPartitionId(coordinatorPartitionId)
-
+	curExecCount := client.txnStore.getCurrentExecutionCount(op.txnId)
 	maxDelay := client.getMaxDelay(txn.serverIdList, txn.serverDcIds) + time.Now().UnixNano()
 
 	estimateLat := client.getEstimateArrivalTime(txn.participatedPartitions)
@@ -65,16 +65,19 @@ func (op *ReadAndPrepare) Execute(client *Client) {
 			txn.participants[pId],
 			client)
 
-		if request.IsNotParticipant || (request.Txn.ReadOnly && client.Config.GetIsReadOnly()) ||
-			!client.Config.GetFastPath() {
+		if request.IsNotParticipant ||
+			(request.Txn.ReadOnly && client.Config.GetIsReadOnly()) ||
+			!client.Config.GetFastPath() ||
+			curExecCount > 0 {
 			// only send to the leader of non-participant partition
+
 			sId := client.Config.GetLeaderIdByPartitionId(pId)
-			sender := NewReadAndPrepareSender(request, client.txnStore.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
+			sender := NewReadAndPrepareSender(request, curExecCount, op.txnId, sId, client)
 			go sender.Send()
 		} else {
 			sIdList := client.Config.GetServerIdListByPartitionId(pId)
 			for _, sId := range sIdList {
-				sender := NewReadAndPrepareSender(request, client.txnStore.getCurrentExecutionCount(op.txnId), op.txnId, sId, client)
+				sender := NewReadAndPrepareSender(request, curExecCount, op.txnId, sId, client)
 				go sender.Send()
 			}
 		}
