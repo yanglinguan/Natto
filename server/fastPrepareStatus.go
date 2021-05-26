@@ -75,39 +75,40 @@ func (f *FastPrepareStatus) isFastPathSuccess() (bool, TxnStatus) {
 }
 
 func (f *FastPrepareStatus) isSameDecision() (bool, TxnStatus) {
-	num := len(f.upToDateResult)
-	for _, result := range f.upToDateResult {
-		if result.request.PrepareResult.PrepareStatus !=
-			f.leaderResult.request.PrepareResult.PrepareStatus {
-			num--
-			if num < f.quorum {
-				return false, INIT
-			}
-		}
+	if len(f.upToDateResult) < f.quorum {
+		return false, INIT
 	}
+	//for _, result := range f.upToDateResult {
+	//	if result.request.PrepareResult.PrepareStatus !=
+	//		f.leaderResult.request.PrepareResult.PrepareStatus {
+	//		num--
+	//		if num < f.quorum {
+	//			return false, INIT
+	//		}
+	//	}
+	//}
 
 	return true, TxnStatus(f.leaderResult.request.PrepareResult.PrepareStatus)
 }
 
 func (f *FastPrepareStatus) isUpToDate(result *FastPrepareRequestOp) bool {
-	for _, result := range f.fastResult {
-		if result.request.IsLeader {
-			continue
-		}
-		if result.request.RaftTerm != f.leaderResult.request.RaftTerm {
+	if result.request.PrepareResult.PrepareStatus !=
+		f.leaderResult.request.PrepareResult.PrepareStatus {
+		return false
+	}
+	if result.request.RaftTerm != f.leaderResult.request.RaftTerm {
+		return false
+	}
+
+	for _, kv := range result.request.PrepareResult.ReadKeyVerList {
+		if f.leaderKeyVersion[kv.Key] != kv.Version {
 			return false
 		}
+	}
 
-		for _, kv := range result.request.PrepareResult.ReadKeyVerList {
-			if f.leaderKeyVersion[kv.Key] != kv.Version {
-				return false
-			}
-		}
-
-		for _, kv := range result.request.PrepareResult.WriteKeyVerList {
-			if f.leaderKeyVersion[kv.Key] != kv.Version {
-				return false
-			}
+	for _, kv := range result.request.PrepareResult.WriteKeyVerList {
+		if f.leaderKeyVersion[kv.Key] != kv.Version {
+			return false
 		}
 	}
 
