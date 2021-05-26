@@ -58,16 +58,6 @@ func (p *FastPrepareRequestOp) Execute(coordinator *Coordinator) {
 	twoPCInfo.partitionPrepareResult[pId] = NewPartitionStatus(status, true, leaderPrepareRequest)
 	if status.IsAbort() {
 		twoPCInfo.status = status
-		coordinator.checkResult(twoPCInfo)
 	}
-	switch status {
-	case PREPARED:
-		coordinator.checkResult(twoPCInfo)
-	case CONDITIONAL_PREPARED:
-		coordinator.conditionalPrepare(leaderPrepareRequest)
-	case REVERSE_REORDER_PREPARED:
-		coordinator.reverserReorderPrepare(leaderPrepareRequest)
-	case REORDER_PREPARED:
-		coordinator.reorderPrepare(leaderPrepareRequest)
-	}
+	coordinator.checkResult(twoPCInfo)
 }

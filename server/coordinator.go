@@ -7,7 +7,6 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"time"
 )
 
 type TwoPCInfo struct {
@@ -342,28 +341,10 @@ func (c *Coordinator) sendAbort(info *TwoPCInfo) {
 	}
 
 	for _, pId := range info.readRequest.Txn.ParticipatedPartitionIds {
-		if c.server.config.GetFastPath() &&
-			c.server.config.UseNetworkTimestamp() &&
-			c.server.config.IsFastCommit() {
+		serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
+		sender := NewAbortRequestSender(request, serverId, c.server)
+		go sender.Send()
 
-			serverIdList := c.server.config.GetServerIdListByPartitionId(int(pId))
-			maxDelay := c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
-			maxDelay += c.server.config.GetDelay().Nanoseconds()
-			maxDelay += time.Now().UnixNano()
-
-			fastRequest := &rpc.FastAbortRequest{
-				AbortRequest: request,
-				Timestamp:    maxDelay,
-			}
-			for _, serverId := range serverIdList {
-				sender := NewFastAbortRequestSender(fastRequest, serverId, c.server)
-				go sender.Send()
-			}
-		} else {
-			serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
-			sender := NewAbortRequestSender(request, serverId, c.server)
-			go sender.Send()
-		}
 	}
 
 	c.sendResultToCoordinator(info)
@@ -435,28 +416,10 @@ func (c *Coordinator) sendCommit(info *TwoPCInfo) {
 		}
 
 		log.Debugf("send to commit to pId %v, txn %v", pId, request.TxnId)
+		serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
+		sender := NewCommitRequestSender(request, serverId, c.server)
+		go sender.Send()
 
-		if c.server.config.GetFastPath() && c.server.config.UseNetworkTimestamp() &&
-			c.server.config.IsFastCommit() {
-			// fast commit
-			serverIdList := c.server.config.GetServerIdListByPartitionId(int(pId))
-			maxDelay := c.predictOneWayLatency(serverIdList) * 1000000 // change to nanoseconds
-			maxDelay += c.server.config.GetDelay().Nanoseconds()
-			maxDelay += time.Now().UnixNano()
-
-			fastRequest := &rpc.FastCommitRequest{
-				CommitRequest: request,
-				Timestamp:     maxDelay,
-			}
-			for _, serverId := range serverIdList {
-				sender := NewFastCommitRequestSender(fastRequest, serverId, c.server)
-				go sender.Send()
-			}
-		} else {
-			serverId := c.server.config.GetLeaderIdByPartitionId(int(pId))
-			sender := NewCommitRequestSender(request, serverId, c.server)
-			go sender.Send()
-		}
 	}
 
 	c.sendResultToCoordinator(info)

@@ -157,26 +157,6 @@ func (server *Server) Commit(ctx context.Context,
 	}
 }
 
-func (server *Server) FastCommit(
-	cts context.Context,
-	request *rpc.FastCommitRequest) (*rpc.FastCommitReply, error) {
-	op := NewFastCommitOp(request)
-	server.commitScheduler.AddOperation(op)
-	return &rpc.FastCommitReply{
-		LeaderId: 0,
-	}, nil
-}
-
-func (server *Server) FastAbort(
-	cts context.Context,
-	request *rpc.FastAbortRequest) (*rpc.FastAbortReply, error) {
-	op := NewFastAbortOp(request)
-	server.commitScheduler.AddOperation(op)
-	return &rpc.FastAbortReply{
-		LeaderId: 0,
-	}, nil
-}
-
 func (server *Server) Abort(ctx context.Context,
 	request *rpc.AbortRequest) (*rpc.AbortReply, error) {
 	logrus.Infof("RECEIVE Abort %v %v", request.TxnId, request.FromCoordinator)
@@ -292,11 +272,8 @@ func (server *Server) HeartBeat(cts context.Context, request *rpc.Empty) (*rpc.P
 func (server *Server) Probe(cts context.Context, request *rpc.ProbeReq) (*rpc.ProbeReply, error) {
 	op := NewProbeOp()
 	start := time.Now()
-	if request.FromCoordinator {
-		server.commitScheduler.AddOperation(op)
-	} else {
-		server.scheduler.AddOperation(op)
-	}
+	server.scheduler.AddOperation(op)
+
 	op.BlockClient()
 	queuingDelay := time.Since(start)
 	return &rpc.ProbeReply{
@@ -306,11 +283,8 @@ func (server *Server) Probe(cts context.Context, request *rpc.ProbeReq) (*rpc.Pr
 
 func (server *Server) ProbeTime(cts context.Context, request *rpc.ProbeReq) (*rpc.ProbeTimeReply, error) {
 	op := NewProbeOp()
-	if request.FromCoordinator {
-		server.commitScheduler.AddOperation(op)
-	} else {
-		server.scheduler.AddOperation(op)
-	}
+	server.scheduler.AddOperation(op)
+
 	op.BlockClient()
 	return &rpc.ProbeTimeReply{
 		ProcessTime: time.Now().UnixNano(),

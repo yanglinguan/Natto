@@ -23,8 +23,6 @@ type Server struct {
 	// schedule the txn by timestamp order
 	scheduler Scheduler
 
-	commitScheduler *CommitScheduler
-
 	coordinator *Coordinator
 
 	operationCreator OperationCreator
@@ -113,7 +111,6 @@ func NewServer(serverId int, configFile string) *Server {
 		server.scheduler = NewNoScheduler(server)
 	}
 
-	server.commitScheduler = NewCommitScheduler(server)
 	//server.storage.LoadKeys(server.config.GetKeyListByPartitionId(server.partitionId))
 	keyList := server.config.GetKeyListByPartitionId(server.partitionId)
 	if server.config.GetWorkLoad() == configuration.SMALLBANK {
