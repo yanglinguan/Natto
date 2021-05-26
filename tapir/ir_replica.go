@@ -121,7 +121,7 @@ func (ir *IrReplica) processUnlogOp(e *UnlogOpEvent) {
 }
 
 func (ir *IrReplica) processIncOpProposal(e *IncOpProposal) {
-	logger.Debugf("IR propose inconsistent request id = %s", e.id)
+	//logger.Debugf("IR propose inconsistent request id = %s", e.id)
 	if _, ok := ir.incOpTable[e.id]; ok {
 		logger.Fatalf("IR inconsistent request id = %s already existed", e.id)
 	}
@@ -136,7 +136,7 @@ func (ir *IrReplica) processIncOpProposal(e *IncOpProposal) {
 }
 
 func (ir *IrReplica) processIncOpFinalize(e *IncOpFinalize) {
-	logger.Debugf("IR finalize inconsistent request id = %s", e.id)
+	//logger.Debugf("IR finalize inconsistent request id = %s", e.id)
 	if _, ok := ir.incOpTable[e.id]; ok {
 		ir.finalizeIncOp(e.id)
 	} else {
@@ -169,8 +169,8 @@ func (ir *IrReplica) processConOpProposal(e *ConOpProposal) {
 	ret := ir.app.ExecConsensus(e.op)
 
 	if logger.IsEnabledFor(logging.DEBUG) {
-		opRet := ret.(*PrepareOpRet)
-		logger.Debugf("IR consensus reqId = %s result = %d %d", e.id, opRet.State, opRet.T)
+		//opRet := ret.(*PrepareOpRet)
+		//logger.Debugf("IR consensus reqId = %s result = %d %d", e.id, opRet.State, opRet.T)
 	}
 
 	ir.conOpTable[e.id] = &IrConOp{
@@ -230,10 +230,10 @@ func (ir *IrReplica) processTestEvent(e *TestEvent) {
 }
 
 func (ir *IrReplica) doTest() {
-	logger.Infof("# of non-finalized inconsistent operations: %d", len(ir.incOpTable))
-	logger.Infof("# of pending inconsistent operations: %d", len(ir.pendingIncOpTable))
-	logger.Infof("# of non-finalized consensus operations: %d", len(ir.conOpTable))
-	logger.Infof("# of pending consensus operations: %d", len(ir.pendingConOpTable))
+	//logger.Infof("# of non-finalized inconsistent operations: %d", len(ir.incOpTable))
+	//logger.Infof("# of pending inconsistent operations: %d", len(ir.pendingIncOpTable))
+	//logger.Infof("# of non-finalized consensus operations: %d", len(ir.conOpTable))
+	//logger.Infof("# of pending consensus operations: %d", len(ir.pendingConOpTable))
 
 	// Print testing log for IR App
 	ir.app.Test()

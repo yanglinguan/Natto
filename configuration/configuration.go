@@ -364,14 +364,16 @@ func (f *FileConfiguration) loadClients(config map[string]interface{}) {
 		f.clientToDataCenterId[id] = dcId
 	}
 	networkMeasureMachines := config["networkMeasureMachines"].([]interface{})
-	f.dcIdToNetworkMeasurementMachineAddr = make([]string, f.dcNum)
-	portBase := int(config["networkMeasurePortBase"].(float64))
-	if len(networkMeasureMachines) != f.dcNum {
-		log.Fatalf("there should be one machine per dc to measure network delay")
-	}
-	for dcId, ip := range networkMeasureMachines {
-		port := strconv.Itoa(portBase + dcId)
-		f.dcIdToNetworkMeasurementMachineAddr[dcId] = ip.(string) + ":" + port
+	if len(networkMeasureMachines) > 0 {
+		f.dcIdToNetworkMeasurementMachineAddr = make([]string, f.dcNum)
+		portBase := int(config["networkMeasurePortBase"].(float64))
+		if len(networkMeasureMachines) != f.dcNum {
+			log.Fatalf("there should be one machine per dc to measure network delay")
+		}
+		for dcId, ip := range networkMeasureMachines {
+			port := strconv.Itoa(portBase + dcId)
+			f.dcIdToNetworkMeasurementMachineAddr[dcId] = ip.(string) + ":" + port
+		}
 	}
 }
 

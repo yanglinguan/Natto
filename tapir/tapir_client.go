@@ -57,7 +57,7 @@ func NewTapirClient(
 
 	for pId, rAddrList := range pReplicaTable {
 		c.pClosestReplica[pId] = rAddrList[0] // temporary closest replica
-		logger.Debugf("initally set: partitionId = %d closest replica = %s", pId, rAddrList[0])
+		//logger.Debugf("initally set: partitionId = %d closest replica = %s", pId, rAddrList[0])
 		c.irClientTable[pId] = NewIrClient(c, c.id, rAddrList, c.io)
 		c.majority = len(rAddrList)>>1 + 1 // TODO allow partitions have different number of replicas
 	}
@@ -152,11 +152,11 @@ func (c *TapirClient) ExecTxn(
 ) (string, bool, bool, map[string]string) {
 	txn := c.Begin()
 	ret := c.ReadMultiPartitions(txn, rSet)
-	//logger.Debugf("txnId = %s write = %v", txn.getId(), wSet)
+	////logger.Debugf("txnId = %s write = %v", txn.getId(), wSet)
 	c.WriteMultiPartitions(txn, wSet)
 	isCommit, isFast := c.Commit(txn)
-	logger.Debugf("txnId = %s isCommit = %t isFastPath = %t", txn.getId(), isCommit, isFast)
-	//logger.Debugf("txnId = %s read results = %v", txn.getId(), ret)
+	//logger.Debugf("txnId = %s isCommit = %t isFastPath = %t", txn.getId(), isCommit, isFast)
+	////logger.Debugf("txnId = %s read results = %v", txn.getId(), ret)
 	if isCommit {
 		return txn.getId(), true, isFast, ret
 	}
@@ -342,7 +342,7 @@ func (c *TapirClient) doReadPartition(
 	pId int32,
 	rKeyList []string,
 ) map[string]*VerVal {
-	logger.Debugf("txnId = %s reads from partitionId = %d", txnId, pId)
+	//logger.Debugf("txnId = %s reads from partitionId = %d", txnId, pId)
 	irClient := c.getIrClient(pId)
 	addr := c.getClosestReplicaAddr(pId)
 	rOp := &ReadOp{Id: txnId, Key: rKeyList}
@@ -394,7 +394,7 @@ func (c *TapirClient) doCommitPartition(
 		Read:  readSet,
 	}
 	op := Encode(cOp)
-	logger.Debugf("TAPIR invokes IR inconsistent txnId = %s isCommit = %t partitionId = %d", txnId, isToCommit, pId)
+	//logger.Debugf("TAPIR invokes IR inconsistent txnId = %s isCommit = %t partitionId = %d", txnId, isToCommit, pId)
 	irClient.InvokeInconsistent(op)
 }
 
@@ -445,9 +445,9 @@ func (c *TapirClient) findClosestReplicas() map[int32]string {
 	}
 	wg.Wait()
 	if logger.IsEnabledFor(logging.DEBUG) {
-		for pId, addr := range closestR {
-			logger.Debugf("detect: partitionId = %d closest replica = %s", pId, addr)
-		}
+		//	for pId, addr := range closestR {
+		//logger.Debugf("detect: partitionId = %d closest replica = %s", pId, addr)
+		//	}
 	}
 	return closestR
 }
@@ -496,7 +496,7 @@ func (c *TapirClient) Test() {
 			wg.Add(1)
 			go func(addr string) {
 				defer wg.Done()
-				logger.Debugf("Sending test request to %s", addr)
+				//logger.Debugf("Sending test request to %s", addr)
 				c.io.Test(addr)
 			}(addr)
 		}
