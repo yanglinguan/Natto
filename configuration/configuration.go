@@ -295,7 +295,7 @@ func (f *FileConfiguration) loadFile(configFilePath string) {
 func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 	partitionNum := int(config["partitions"].(float64))
 	serverNum := int(config["nums"].(float64))
-	f.dataPartitions = int(config["dataPartition"].(float64))
+	f.dataPartitions = int(config["dataPartitions"].(float64))
 
 	f.replicationFactor = int(config["replicationFactor"].(float64))
 	//f.isReplication = f.replicationFactor != 1
