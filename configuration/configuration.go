@@ -149,6 +149,7 @@ type Configuration interface {
 	GetUpdateInterval() time.Duration
 
 	GetPartitionInfo() [][]int
+	IsCoordServer(serverId int) bool
 }
 
 type FileConfiguration struct {
@@ -1064,4 +1065,8 @@ func (f *FileConfiguration) GetPredictDelayPercentile() int {
 
 func (f *FileConfiguration) GetUpdateInterval() time.Duration {
 	return f.updateInterval
+}
+
+func (f *FileConfiguration) IsCoordServer(serverId int) bool {
+	return serverId >= f.dataPartitions*f.replicationFactor
 }

@@ -259,6 +259,7 @@ func (server *Server) PrintStatus(cts context.Context, request *rpc.PrintStatusR
 	op := NewPrintStatusRequestOp(int(request.CommittedTxn))
 	server.storage.AddOperation(op)
 	op.BlockClient()
+	server.stop()
 	return &rpc.Empty{}, nil
 }
 

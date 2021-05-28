@@ -6,6 +6,8 @@ import (
 	"Carousel-GTS/raftnode"
 	"Carousel-GTS/rpc"
 	"net"
+	"os"
+	"runtime/pprof"
 	"strings"
 
 	"github.com/coreos/etcd/raft/raftpb"
@@ -40,12 +42,14 @@ type Server struct {
 	getLeaderId func() uint64
 
 	readResultFromCoordinatorChan chan *readResultFromCoordinatorRequest
+	cpuProfile                    string
 }
 
-func NewServer(serverId int, configFile string) *Server {
+func NewServer(serverId int, configFile string, cpuProfile string) *Server {
 	server := &Server{
 		serverId:   serverId,
 		gRPCServer: grpc.NewServer(),
+		cpuProfile: cpuProfile,
 	}
 
 	server.config = configuration.NewFileConfiguration(configFile)
@@ -161,7 +165,23 @@ func (server *Server) handleReadResultFromCoordinatorRequest() {
 	}
 }
 
+func (server *Server) stop() {
+	pprof.StopCPUProfile()
+}
+
 func (server *Server) Start() {
+	if server.cpuProfile != "" {
+		f, err := os.Create(server.cpuProfile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close() // error handling omitted for example
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	log.Infof("Starting Server %v", server.serverId)
 	go server.handleReadResultFromCoordinatorRequest()
 	if server.config.GetReplication() {

@@ -7,8 +7,6 @@ import (
 	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
-	"os"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 )
@@ -22,18 +20,6 @@ func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
 
-	if cpuProfile != "" {
-		f, err := os.Create(cpuProfile)
-		if err != nil {
-			logrus.Fatal("could not create CPU profile: ", err)
-		}
-		defer f.Close() // error handling omitted for example
-		if err := pprof.StartCPUProfile(f); err != nil {
-			logrus.Fatal("could not start CPU profile: ", err)
-		}
-		defer pprof.StopCPUProfile()
-	}
-
 	config := configuration.NewFileConfiguration(configFile)
 	if config.GetServerMode() == configuration.TAPIR {
 		s := tapir.NewServer(strconv.Itoa(serverId), config.GetQueueLen(), false, 0)
@@ -46,7 +32,7 @@ func main() {
 			config)
 		s.Start(port)
 	} else {
-		s := server.NewServer(serverId, configFile)
+		s := server.NewServer(serverId, configFile, cpuProfile)
 		s.Start()
 	}
 }

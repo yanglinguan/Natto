@@ -333,6 +333,9 @@ func (c *Client) PrintServerStatus(commitTxn []int) {
 	var wg sync.WaitGroup
 	if c.Config.GetReplication() {
 		for sId := range c.connections {
+			if c.Config.IsCoordServer(sId) {
+				continue
+			}
 			pId := c.Config.GetPartitionIdByServerId(sId)
 			committed := commitTxn[pId]
 			request := &rpc.PrintStatusRequest{
