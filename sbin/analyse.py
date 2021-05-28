@@ -408,16 +408,19 @@ def analyse_throughput(txn_map):
         total_count += 1
         # total_count += value["exeCount"]
         total_executed_txn += value["exeCount"] + 1
-        pass_timestamp_abort += value["passTimestampAbort"]
-        pass_timestamp_txn += value["passTimestampTxn"]
+        if "passTimestampAbort" in value:
+            pass_timestamp_abort += value["passTimestampAbort"]
+            pass_timestamp_txn += value["passTimestampTxn"]
         if value["priority"]:
             total_executed_txn_high += value["exeCount"] + 1
-            pass_timestamp_txn_high += value["passTimestampTxn"]
-            pass_timestamp_abort_high += value["passTimestampAbort"]
+            if "passTimestampAbort" in value:
+                pass_timestamp_txn_high += value["passTimestampTxn"]
+                pass_timestamp_abort_high += value["passTimestampAbort"]
         else:
             total_executed_txn_low += value["exeCount"] + 1
-            pass_timestamp_txn_low += value["passTimestampTxn"]
-            pass_timestamp_abort_low += value["passTimestampAbort"]
+            if "passTimestampAbort" in value:
+                pass_timestamp_txn_low += value["passTimestampTxn"]
+                pass_timestamp_abort_low += value["passTimestampAbort"]
 
         if value["commit"]:
             count += 1
@@ -429,6 +432,7 @@ def analyse_throughput(txn_map):
 
     throughput = float(count * 1000000000) / (max_time - min_time)
     all_thro = float(total_executed_txn * 1000000000) / (max_time - min_time)
+
     pass_time_abort_percentage = float(pass_timestamp_abort) / float(total_executed_txn)
     pass_time_txn_percentage = float(pass_timestamp_txn) / float(total_executed_txn)
 
@@ -463,7 +467,18 @@ def analyse_throughput(txn_map):
         print("pass timestamp txn low: " + str(pass_timestamp_txn_low))
         print("pass timestamp txn low(%): " + str(pass_time_txn_percentage_low))
 
-    return all_thro, throughput, throughput_low, throughput_high
+    result = {"throughput_low": throughput_low,
+              "throughput_high": throughput_high,
+              "throughput_retry": all_thro,
+              "throughput": throughput,
+              "pass_time_txn_percentage": pass_time_txn_percentage,
+              "pass_time_abort_percentage": pass_time_abort_percentage,
+              "pass_time_txn_percentage_high": pass_time_txn_percentage_high,
+              "pass_time_abort_percentage_high": pass_time_abort_percentage_high,
+              "pass_time_txn_percentage_low": pass_time_txn_percentage_low,
+              "pass_time_abort_percentage_low": pass_time_abort_percentage_low}
+
+    return result
 
 
 def analyse_abort_rate(txn_map):
@@ -501,7 +516,8 @@ def analyse_abort_rate(txn_map):
     if args.resultDir is not None:
         print("Abort rate high: " + str(abort_high_rate))
         print("Abort rate low: " + str(abort_low_rate))
-    return abort_rate, abort_low_rate, abort_high_rate
+    result = {"abort_rate": abort_rate, "abort_rate_low": abort_low_rate, "abort_rate_high": abort_high_rate}
+    return result
 
 
 # def analyse_fast_prepare_rate(txn_map):
@@ -554,27 +570,20 @@ def analyse(dir_name):
     # analyse_waiting(path)
     txn_map = load_statistic(path)
     result = analyse_latency(txn_map)
-    throughput_retry, throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
-    commit_rate, commit_rate_low, commit_rate_high = analyse_abort_rate(txn_map)
+
+    abort_rate_result = analyse_abort_rate(txn_map)
+    for k in abort_rate_result:
+        result[k] = abort_rate_result[k]
+
+    throughput_result = analyse_throughput(txn_map)
+    for k in throughput_result:
+        result[k] = throughput_result[k]
+
     optimization_count = analyse_optimization_count(dir_name, txn_map)
-    # fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high = analyse_fast_prepare_rate(txn_map)
-    # fastPathSuccessRate = analyse_fastPath(path)
-    result["throughput_retry"] = throughput_retry
-    result["throughput"] = throughput
-    result["abort_rate"] = commit_rate
-    # result["fast_prepare_rate"] = fastPathSuccessRate
-    if throughput_low != 0 and throughput_low != 0:
-        result["throughput_low"] = throughput_low
-        result["throughput_high"] = throughput_high
-        result["abort_rate_low"] = commit_rate_low
-        result["abort_rate_high"] = commit_rate_high
-        # result["fast_prepare_rate_low"] = fast_prepare_rate_low
-        # result["fast_prepare_rate_high"] = fast_prepare_rate_high
     for k in optimization_count:
         result[k] = optimization_count[k]
 
     retry = analyse_retry(txn_map)
-
     for k in retry:
         result[k] = retry[k]
 
