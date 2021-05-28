@@ -183,6 +183,7 @@ func (s *Storage) setReadResult(op ReadAndPrepareOp, status TxnStatus, setStatus
 		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
 		Status:        -1,
 		IsLeader:      s.server.IsLeader(),
+		OnTime:        !op.IsPassTimestamp(),
 	}
 
 	if setStatus {

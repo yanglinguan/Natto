@@ -111,16 +111,29 @@ func (t *TxnStore) PrintTxnStatisticData(clientId int) {
 			i++
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
-			txn.txnId,
-			txn.executions[txn.execCount].commitResult,
-			txn.executions[txn.execCount].endTime.Sub(txn.startTime).Nanoseconds(),
-			txn.startTime.UnixNano(),
-			txn.executions[txn.execCount].endTime.UnixNano(),
-			keyList,
-			txn.execCount,
-			txn.isReadOnly(),
-			txn.priority,
+		passTimestampAbort := 0
+		passTimestampTxn := 0
+		for _, exec := range txn.executions {
+			if !exec.onTime {
+				passTimestampTxn++
+				if exec.commitResult == 0 {
+					passTimestampAbort++
+				}
+			}
+		}
+
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+			txn.txnId, // 0
+			txn.executions[txn.execCount].commitResult,                             // 1
+			txn.executions[txn.execCount].endTime.Sub(txn.startTime).Nanoseconds(), // 2
+			txn.startTime.UnixNano(),                                               // 3
+			txn.executions[txn.execCount].endTime.UnixNano(),                       // 4
+			keyList,            // 5
+			txn.execCount,      // 6
+			txn.isReadOnly(),   // 7
+			txn.priority,       // 8
+			passTimestampTxn,   // 9
+			passTimestampAbort, // 10
 		)
 		_, err = file.WriteString(s)
 		if err != nil {
@@ -198,6 +211,7 @@ type ExecutionRecord struct {
 
 	tmpReadResult  map[string]*rpc.KeyValueVersion
 	readFromLeader map[string]bool
+	onTime         bool
 }
 
 func NewExecutionRecord(op ReadOp, rpcTxnId string, readKeyNum int) *ExecutionRecord {

@@ -85,6 +85,7 @@ message ReadAndPrepareReply {
     bool isLeader = 3;
     int32 status = 4;
     string txnId = 5;
+    bool onTime = 6;
 }
 
 message ReadReplyFromCoordinator {

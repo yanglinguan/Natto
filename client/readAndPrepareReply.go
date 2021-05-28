@@ -31,6 +31,7 @@ func (op *ReadAndPrepareReply) Execute(client *Client) {
 	}
 
 	execution := client.txnStore.getExecution(op.txnId, op.executionCount)
+	execution.onTime = op.reply.OnTime
 
 	for _, kv := range op.reply.KeyValVerList {
 		// if one of the keys exist meaning the client
