@@ -7,6 +7,8 @@ import (
 	"Carousel-GTS/utils"
 	"flag"
 	"github.com/sirupsen/logrus"
+	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 )
@@ -14,10 +16,23 @@ import (
 var isDebug = false
 var serverId = -1
 var configFile = ""
+var cpuProfile = ""
 
 func main() {
 	parseArgs()
 	utils.ConfigLogger(isDebug)
+
+	if cpuProfile != "" {
+		f, err := os.Create(cpuProfile)
+		if err != nil {
+			logrus.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close() // error handling omitted for example
+		if err := pprof.StartCPUProfile(f); err != nil {
+			logrus.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	config := configuration.NewFileConfiguration(configFile)
 	if config.GetServerMode() == configuration.TAPIR {
@@ -57,6 +72,12 @@ func parseArgs() {
 		"",
 		"server configuration file",
 	)
+
+	flag.StringVar(
+		&cpuProfile,
+		"cpuprofile",
+		"",
+		"write cpu profile to `file`")
 
 	flag.Parse()
 
