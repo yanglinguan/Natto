@@ -609,6 +609,7 @@ func (f *FileConfiguration) GetLeaderIdByPartitionId(partitionId int) int {
 		log.Fatalf("partitionId %v does not exist", partitionId)
 		return -1
 	}
+	log.Debugf("partition %v leader is %v", partitionId, f.expectPartitionLeaders[partitionId])
 	return f.expectPartitionLeaders[partitionId]
 }
 
@@ -659,7 +660,7 @@ func (f *FileConfiguration) GetPartitionInfo() [][]int {
 }
 
 func (f *FileConfiguration) GetPartitionIdByKey(key string) int {
-	totalPartition := len(f.partitions)
+	totalPartition := f.dataPartitions
 	if f.GetWorkLoad() == SMALLBANK {
 		n := 0
 		if strings.HasSuffix(key, f.GetSbCheckingAccountFlag()) {
@@ -896,8 +897,8 @@ func (f *FileConfiguration) GetRaftPeersByServerId(serverId int) []string {
 		log.Fatalf("server %d does not exist", serverId)
 		return make([]string, 0)
 	}
-	totalPartitions := len(f.partitions)
-	raftGroupId := serverId % totalPartitions
+	raftGroupId := serverId / f.replicationFactor
+	log.Debugf("server %v raft peer is %v raftgroup is %v", serverId, f.raftPeers[raftGroupId], raftGroupId)
 	return f.raftPeers[raftGroupId]
 }
 
@@ -924,7 +925,7 @@ func (f *FileConfiguration) GetServerIdByRaftId(raftId int, serverId int) int {
 		return -1
 	}
 
-	raftGroupId := serverId % len(f.partitions)
+	raftGroupId := serverId / f.replicationFactor
 	sId := f.raftToServerId[raftGroupId][raftId]
 	return sId
 }
@@ -934,7 +935,7 @@ func (f *FileConfiguration) GetReplication() bool {
 }
 
 func (f *FileConfiguration) GetTotalPartition() int {
-	return len(f.partitions)
+	return f.dataPartitions
 }
 
 func (f *FileConfiguration) GetExpectPartitionLeaders() []int {

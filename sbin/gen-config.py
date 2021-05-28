@@ -52,23 +52,24 @@ def parse_azure_ips():
 
 def config_server():
     server = config_option["server"]
+    server["coordMachines"] = []
+    server["coordMachines_pub"] = []
     if args.azureIps is not None:
         server["machines"] = []
         server["machines_pub"] = []
         for m_name in config_option["server_machines"]:
             server["machines"].append(azure_machine_name_ips[m_name]["private"])
             server["machines_pub"].append(azure_machine_name_ips[m_name]["public"])
-
-        server["coordMachines"] = []
-        server["coordMachines_pub"] = []
-        for m_name in config_option["coord_machines"]:
-            server["coordMachines"].append(azure_machine_name_ips[m_name]["private"])
-            server["coordMachines_pub"].append(azure_machine_name_ips[m_name]["public"])
+        if "coord_machines" in config_option:
+            for m_name in config_option["coord_machines"]:
+                server["coordMachines"].append(azure_machine_name_ips[m_name]["private"])
+                server["coordMachines_pub"].append(azure_machine_name_ips[m_name]["public"])
     else:
         server["machines"] = config_option["server_machines"]
         server["machines_pub"] = config_option["server_machines"]
-        server["coordMachines"] = config_option["coord_machines"]
-        server["coordMachines_pub"] = config_option["coord_machines"]
+        if "coord_machines" in config_option:
+            server["coordMachines"] = config_option["coord_machines"]
+            server["coordMachines_pub"] = config_option["coord_machines"]
     return server
 
 
@@ -139,8 +140,8 @@ def output(config_list, var_client):
             exp["varExp"] += "-client_nums-" + str(config["clients"]["nums"])
             config["experiment"] = exp
 
-        #f = config["experiment"]["workload"]["type"]+ "_" + config["experiment"]["varExp"] + ".json"
-        f = config["experiment"]["varExp"] + ".json"
+        f = config["experiment"]["workload"]["type"]+ "_" + config["experiment"]["varExp"] + ".json"
+        #f = config["experiment"]["varExp"] + ".json"
         with open(os.path.join(args.directory, f), "w") as fp:
             json.dump(config, fp, indent=4, sort_keys=True)
 

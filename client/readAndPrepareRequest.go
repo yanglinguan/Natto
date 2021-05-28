@@ -123,18 +123,24 @@ func (op *ReadAndPrepare) buildRequest(
 func (op *ReadAndPrepare) findCoordinatorPartitionId(participants map[int]bool, client *Client) int {
 	// find coordinator
 	leaderIdList := client.Config.GetLeaderIdListByDataCenterId(client.clientDataCenterId)
-	coordinatorPartitionId := client.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
-	logrus.Debugf("txn %v client datacenterId %v local leader %v coordinatorId %v",
-		op.txnId, client.clientDataCenterId, leaderIdList, coordinatorPartitionId)
-	//for _, lId := range leaderIdList {
-	//	pLId := client.Config.GetPartitionIdByServerId(lId)
-	//	if _, exist := participants[pLId]; exist {
-	//		coordinatorPartitionId = pLId
-	//		break
-	//	}
-	//}
+	if len(leaderIdList) == 1 {
+		return client.Config.GetPartitionIdByServerId(leaderIdList[0])
+	} else {
+		//coordinatorPartitionId := client.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
+		coordinatorPartitionId := client.Config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList)-1)+1])
+		//coordinatorPartitionId := client.Config.GetPartitionIdByServerId(leaderIdList[len(leaderIdList)-1])
+		logrus.Debugf("txn %v client datacenterId %v local leader %v coordinatorId %v",
+			op.txnId, client.clientDataCenterId, leaderIdList, coordinatorPartitionId)
+		//for _, lId := range leaderIdList {
+		//	pLId := client.Config.GetPartitionIdByServerId(lId)
+		//	if _, exist := participants[pLId]; exist {
+		//		coordinatorPartitionId = pLId
+		//		break
+		//	}
+		//}
 
-	return coordinatorPartitionId
+		return coordinatorPartitionId
+	}
 }
 
 func (op *ReadAndPrepare) Block() {

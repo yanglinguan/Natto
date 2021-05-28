@@ -70,15 +70,16 @@ def collect_networkMeasure_log(new_dir, machines_network_measure, run_dir):
         thread.join()
 
 
-def scp_server_log_exec(new_dir, ssh, scp, server_dir, ip):
-    # server_dir = config["experiment"]["runDir"] + "/server-" + str(s_id)
-    stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
-    log_files = stdout.read().split()
-    for log in log_files:
-        scp.get(log, new_dir)
-    ssh.exec_command("rm -r " + server_dir + "/raft-*")
-    ssh.exec_command("rm -r " + server_dir + "/*.log")
-    print("collect server log " + server_dir + " from " + ip)
+def scp_server_log_exec(new_dir, ssh, scp, run_dir, ids, ip):
+    for s_id in ids:
+        server_dir = run_dir + "/server-" + str(s_id)
+        stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
+        log_files = stdout.read().split()
+        for log in log_files:
+            scp.get(log, new_dir)
+        ssh.exec_command("rm -r " + server_dir + "/raft-*")
+        ssh.exec_command("rm -r " + server_dir + "/*.log")
+        print("collect server log " + server_dir + " from " + ip)
 
 
 def collect_server_log(new_dir, machines_server, run_dir):
@@ -86,13 +87,11 @@ def collect_server_log(new_dir, machines_server, run_dir):
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
-        for sId in machine.ids:
-            server_dir = run_dir + "/server-" + str(sId)
-            thread = threading.Thread(
+        thread = threading.Thread(
                 target=scp_server_log_exec,
-                args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), server_dir, ip))
-            threads.append(thread)
-            thread.start()
+                args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), run_dir, machine.ids, ip))
+        threads.append(thread)
+        thread.start()
 
     for thread in threads:
         thread.join()
@@ -188,7 +187,8 @@ def stop_servers(machines_server, run_dir):
     threads = list()
     for ip, machine in machines_server.items():
         server_dir = run_dir + "/server-$id"
-        exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
+        #exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
+        exe = "cd " + server_dir + "; " + "rm -r raft-*;"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd = "killall -9 carousel-server; " + loop
         print(cmd + " # at " + ip)
@@ -230,7 +230,7 @@ def run_config(config_file_name, debug, i, machines_client, machines_server, mac
     config = utils.load_config(config_file_name)
     run_dir = utils.get_run_dir(config)
     turn_on_network_measure = utils.is_network_measure(config)
-
+    #stop_servers(machines_server, run_dir)
     start_time = time.time()
     start_servers(machines_server, debug, config_file_name, run_dir)
     time.sleep(15)
@@ -265,6 +265,7 @@ def run_config(config_file_name, debug, i, machines_client, machines_server, mac
     if turn_on_network_measure:
         stop_network_measure(machines_network_measure)
     stop_servers(machines_server, run_dir)
+    #collect_server_log(dir_name, machines_server, run_dir)
     end_time = time.time()
     stop_server_use = end_time - end_collect
     print("stop client and server use %.5f" % stop_server_use)

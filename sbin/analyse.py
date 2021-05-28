@@ -501,7 +501,7 @@ def analyse(dir_name):
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
     #    return
     if n == 0:
-        shutil.rmtree(dir_name)
+        #shutil.rmtree(dir_name)
         return
     # print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name

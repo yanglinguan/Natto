@@ -142,7 +142,7 @@ def parse_server_machine(config):
     machines_server = {}
     server_nums = config["servers"]["nums"]
     machines = config["servers"]["machines_pub"]
-    total_data_servers = config["servers"]["dataPartitions"] * config["server"]["replicationFactor"]
+    total_data_servers = config["servers"]["dataPartitions"] * config["servers"]["replicationFactor"]
     coord_machines = config["servers"]["coordMachines_pub"]
     ssh_username = get_ssh_username(config)
     for ip in machines:
@@ -158,7 +158,7 @@ def parse_server_machine(config):
             ip = machines[idx]
             machines_server[ip].add_id(str(server_id))
         else:
-            idx = server_id % len(coord_machines)
+            idx = (server_id - total_data_servers) % len(coord_machines)
             ip = coord_machines[idx]
             machines_server[ip].add_id(str(server_id))
 

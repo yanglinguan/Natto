@@ -63,24 +63,27 @@ def build():
         print("build error")
 
 
-def scp_exec(ssh, scp, ip, run_dir, scp_files):
-    ssh.exec_command("mkdir -p " + run_dir)
-    scp.put(scp_files, run_dir)
-    print("deploy config and server ", scp_files, " at ", ip)
+def scp_exec(ssh, scp, ip, run_dir, scp_files, ids=[]):
+    if len(ids) == 0:
+        ssh.exec_command("mkdir -p " + run_dir)
+        scp.put(scp_files, run_dir)
+        print("finish deploy config and server ", scp_files, " at ", ip, run_dir)
+        return
+    for sId in ids:
+        server_dir = run_dir + "/server-" + str(sId)
+        ssh.exec_command("mkdir -p " + server_dir)
+        scp.put(scp_files, server_dir)
+        print("finish deploy config and server ", scp_files, " at ", ip, server_dir)
 
 
 def deploy_servers(run_list, threads, run_dir, machines_server):
     server_scp_files = [os.getcwd() + "/" + f for f in run_list]
     server_scp_files.append(utils.binPath + "carousel-server")
     for ip, machine in machines_server.items():
-        if len(machine.ids) == 0:
-            continue
-        for sId in machine.ids:
-            server_dir = run_dir + "/server-" + str(sId)
-            thread = threading.Thread(target=scp_exec,
-                                      args=(machine.get_ssh_client(), machine.get_scp_client(), ip, server_dir, server_scp_files))
-            threads.append(thread)
-            thread.start()
+        thread = threading.Thread(target=scp_exec,
+                                args=(machine.get_ssh_client(), machine.get_scp_client(), ip, run_dir, server_scp_files, machine.ids))
+        threads.append(thread)
+        thread.start()
     print("deploy servers threads started")
 
 
