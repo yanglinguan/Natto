@@ -28,6 +28,8 @@ arg_parser.add_argument('-v', '--variance',
                         help="network variance", action='store_true')
 arg_parser.add_argument('-N', '--noBuildDeploy', help="run without build and deploy",
                         action='store_true')
+arg_parser.add_argument('-cp', '--cpuProfile', help="turn on cpu profiling",
+                        action='store_true')
 
 # for email notification
 arg_parser.add_argument('-e', '--senderEmail', dest="senderEmail", nargs='?',
@@ -158,7 +160,7 @@ def run_exp(i, run_conf, machines_client, machines_server, machines_network_meas
     nextRun = getNextRunCount(f)
     thread = threading.Thread(
         target=runone.run_config,
-        args=(f, args.debug, nextRun, machines_client, machines_server, machines_network_measure))
+        args=(f, args.debug, nextRun, args.cpuProfile, machines_client, machines_server, machines_network_measure))
     thread.start()
     thread.join(timeout)
     # p = multiprocessing.Process(

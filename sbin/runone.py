@@ -109,9 +109,11 @@ def ssh_exec_thread(ssh_client, command, ip, servers=None, stop=False):
             print("server " + ' '.join(servers) + " starts on " + ip)
 
 
-def start_servers(machines_server, debug, config_file_name, run_dir):
+def start_servers(machines_server, debug, config_file_name, run_dir, cpuProfile):
     threads = list()
     server_cmd = utils.get_server_cmd(debug)
+    if cpuProfile:
+        server_cmd += "-cp server-$id-cpu.prof "
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
@@ -226,13 +228,13 @@ def stop_clients(machines_client):
         thread.join()
 
 
-def run_config(config_file_name, debug, i, machines_client, machines_server, machines_network_measure):
+def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines_server, machines_network_measure):
     config = utils.load_config(config_file_name)
     run_dir = utils.get_run_dir(config)
     turn_on_network_measure = utils.is_network_measure(config)
     #stop_servers(machines_server, run_dir)
     start_time = time.time()
-    start_servers(machines_server, debug, config_file_name, run_dir)
+    start_servers(machines_server, debug, config_file_name, run_dir, cpuProfile)
     time.sleep(15)
     end_start_server = time.time()
     start_server_use = end_start_server - start_time
