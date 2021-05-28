@@ -183,11 +183,13 @@ def load_statistic(dir_name):
                 read_only = items[7] == "true"
                 exe_count = int(items[6])
                 priority = False
-                fast_prepare = False
+                passTimestampTxn = 0
+                passTimestampAbort = 0
                 if len(items) > 8:
                     priority = items[8] == "true"
-                if len(items) > 9:
-                    fast_prepare = items[9] == "true"
+                if len(items) > 10:
+                    passTimestampTxn = int(items[9])
+                    passTimestampAbort = int(items[10])
                 if start < min_start:
                     min_start = start
                 if start < first_start:
@@ -197,7 +199,8 @@ def load_statistic(dir_name):
                                    "start": start,
                                    "end": end,
                                    "priority": priority,
-                                   "fastPrepare": fast_prepare,
+                                   "passTimestampTxn": passTimestampTxn,
+                                   "passTimestampAbort": passTimestampAbort,
                                    "readOnly": read_only,
                                    "exeCount": exe_count}
             num_txn.append(txn_count)
@@ -242,7 +245,7 @@ def analyse_latency(txn_map):
     p99 = numpy.percentile(latency, 99)
     p10 = numpy.percentile(latency, 10)
     avg = numpy.average(latency)
-    
+
     if args.resultDir is not None:
         print("10 per (ms) high: " + str(p10))
         print("median (ms) high: " + str(median))
@@ -344,7 +347,7 @@ def analyse_retry(txn_map):
             print("retry 95 per (ms) low: " + str(p95))
             print("retry 99 per (ms) low: " + str(p99))
             print("retry avg (ms) low: " + str(avg))
-    
+
         result = {
             "retry_median_low": median,
             "retry_p90_low": p90,
@@ -360,7 +363,7 @@ def analyse_retry(txn_map):
         p99 = numpy.percentile(high_retry, 99)
         p10 = numpy.percentile(high_retry, 10)
         avg = numpy.average(high_retry)
-        
+
         if args.resultDir is not None:
             print("retry 10 per (ms) high: " + str(p10))
             print("retry median (ms) high: " + str(median))
@@ -386,6 +389,15 @@ def analyse_throughput(txn_map):
     count_high = 0
     count_low = 0
     total_count = 0
+    total_executed_txn = 0
+    total_executed_txn_high = 0
+    total_executed_txn_low = 0
+    pass_timestamp_abort = 0
+    pass_timestamp_abort_high = 0
+    pass_timestamp_abort_low = 0
+    pass_timestamp_txn = 0
+    pass_timestamp_txn_high = 0
+    pass_timestamp_txn_low = 0
     for txn_id, value in txn_map.items():
         if value["start"] < min_time:
             min_time = value["start"]
@@ -395,6 +407,18 @@ def analyse_throughput(txn_map):
 
         total_count += 1
         # total_count += value["exeCount"]
+        total_executed_txn += value["exeCount"] + 1
+        pass_timestamp_abort += value["passTimestampAbort"]
+        pass_timestamp_txn += value["passTimestampTxn"]
+        if value["priority"]:
+            total_executed_txn_high += value["exeCount"] + 1
+            pass_timestamp_txn_high += value["passTimestampTxn"]
+            pass_timestamp_abort_high += value["passTimestampAbort"]
+        else:
+            total_executed_txn_low += value["exeCount"] + 1
+            pass_timestamp_txn_low += value["passTimestampTxn"]
+            pass_timestamp_abort_low += value["passTimestampAbort"]
+
         if value["commit"]:
             count += 1
             # total_count += 1
@@ -404,21 +428,42 @@ def analyse_throughput(txn_map):
                 count_low += 1
 
     throughput = float(count * 1000000000) / (max_time - min_time)
-    all_thro = float(total_count * 1000000000) / (max_time - min_time)
+    all_thro = float(total_executed_txn * 1000000000) / (max_time - min_time)
+    pass_time_abort_percentage = float(pass_timestamp_abort) / float(total_executed_txn)
+    pass_time_txn_percentage = float(pass_timestamp_txn) / float(total_executed_txn)
 
-    # print("start time " + str(min_time) + "; end time" + str(max_time))
-    # print("commit throughput (txn/s): " + str(throughput))
-    # print("throughput(txn/s): " + str(all_thro))
+    pass_time_abort_percentage_high = float(pass_timestamp_abort_high) / float(total_executed_txn_high)
+    pass_time_txn_percentage_high = float(pass_timestamp_txn_high) / float(total_executed_txn_high)
 
-    if count_high == 0 or count_low == 0:
-        return throughput, 0, 0
+    pass_time_abort_percentage_low = float(pass_timestamp_abort_low) / float(total_executed_txn_low)
+    pass_time_txn_percentage_low = float(pass_timestamp_txn_low) / float(total_executed_txn_low)
 
     throughput_high = float(count_high * 1000000000) / (max_time - min_time)
     throughput_low = float(count_low * 1000000000) / (max_time - min_time)
     if args.resultDir is not None:
         print("commit throughput high (txn/s): " + str(throughput_high))
         print("commit throughput low (txn/s): " + str(throughput_low))
-    return throughput, throughput_low, throughput_high
+        print("throughput(txn/s) (no retry included): " + str(throughput))
+        print("throughput(txn/s) (retry included): " + str(all_thro))
+        print("total executed txn: " + str(total_executed_txn))
+        print("pass timestamp abort: " + str(pass_timestamp_abort))
+        print("pass timestamp abort (%): " + str(pass_time_abort_percentage))
+        print("pass timestamp txn: " + str(pass_timestamp_txn))
+        print("pass timestamp txn (%): " + str(pass_time_txn_percentage))
+
+        print("total executed txn high: " + str(total_executed_txn_high))
+        print("pass timestamp abort high: " + str(pass_timestamp_abort_high))
+        print("pass timestamp abort high (%): " + str(pass_time_abort_percentage_high))
+        print("pass timestamp txn high: " + str(pass_timestamp_txn_high))
+        print("pass timestamp txn high (%): " + str(pass_time_txn_percentage_high))
+
+        print("total executed txn low: " + str(total_executed_txn_low))
+        print("pass timestamp abort low: " + str(pass_timestamp_abort_low))
+        print("pass timestamp abort low(%): " + str(pass_time_abort_percentage_low))
+        print("pass timestamp txn low: " + str(pass_timestamp_txn_low))
+        print("pass timestamp txn low(%): " + str(pass_time_txn_percentage_low))
+
+    return all_thro, throughput, throughput_low, throughput_high
 
 
 def analyse_abort_rate(txn_map):
@@ -501,7 +546,7 @@ def analyse(dir_name):
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
     #    return
     if n == 0:
-        #shutil.rmtree(dir_name)
+        # shutil.rmtree(dir_name)
         return
     # print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
@@ -509,12 +554,12 @@ def analyse(dir_name):
     # analyse_waiting(path)
     txn_map = load_statistic(path)
     result = analyse_latency(txn_map)
-    throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
+    throughput_retry, throughput, throughput_low, throughput_high = analyse_throughput(txn_map)
     commit_rate, commit_rate_low, commit_rate_high = analyse_abort_rate(txn_map)
     optimization_count = analyse_optimization_count(dir_name, txn_map)
     # fast_prepare_rate, fast_prepare_rate_low, fast_prepare_rate_high = analyse_fast_prepare_rate(txn_map)
     # fastPathSuccessRate = analyse_fastPath(path)
-
+    result["throughput_retry"] = throughput_retry
     result["throughput"] = throughput
     result["abort_rate"] = commit_rate
     # result["fast_prepare_rate"] = fastPathSuccessRate
@@ -579,6 +624,7 @@ def error_bar(path, prefix):
     file_name = prefix[:-1] + ".final"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
+
 
 def result_file_exist(dr):
     result_file = dr + ".result"
