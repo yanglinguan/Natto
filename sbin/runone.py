@@ -113,7 +113,7 @@ def start_servers(machines_server, debug, config_file_name, run_dir, cpuProfile)
     threads = list()
     server_cmd = utils.get_server_cmd(debug)
     if cpuProfile:
-        server_cmd += "-cp server-$id-cpu.prof "
+        server_cmd += "-cpuprofile server-$id-cpu.log "
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
@@ -266,6 +266,7 @@ def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines
     print("collect log used %.5fs" % collect_use)
     if turn_on_network_measure:
         stop_network_measure(machines_network_measure)
+    #print_server_status(dir_name, debug, config_file_name)
     stop_servers(machines_server, run_dir)
     #collect_server_log(dir_name, machines_server, run_dir)
     end_time = time.time()

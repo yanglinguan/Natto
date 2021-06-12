@@ -140,7 +140,7 @@ def output(config_list, var_client):
             exp["varExp"] += "-client_nums-" + str(config["clients"]["nums"])
             config["experiment"] = exp
 
-        f = config["experiment"]["workload"]["type"]+ "_" + config["experiment"]["varExp"] + ".json"
+        f = config["experiment"]["workload"]["type"]+ "_" + str(config["experiment"]["retry"]["interval"]) + "_" + str(config["experiment"]["retry"]["maxSlot"]) + "_" + config["experiment"]["varExp"] + ".json"
         #f = config["experiment"]["varExp"] + ".json"
         with open(os.path.join(args.directory, f), "w") as fp:
             json.dump(config, fp, indent=4, sort_keys=True)
@@ -174,6 +174,8 @@ def main():
                     if x_name == "zipfAlpha":
                         val *= 100
                         val = int(val)
+                    if x_name == "latency_variance" and val == "off":
+                        val = 0
                     ev["varExp"] += str(val)
                     final_exp_list.append(ev)
             config_list.append(final_exp_list)

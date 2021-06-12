@@ -296,7 +296,7 @@ def main():
     machines_server = utils.parse_server_machine(config)
 
     utils.create_ssh_client([machines_client, machines_server, machines_network_measure])
-
+    
     if not args.noBuildDeploy:
         start_build = time.time()
         build()
@@ -321,8 +321,10 @@ def main():
             print("set varince", rlist[0][0])
             set_network_delay(rlist[0][0])
         print(rlist)
-        for run_conf in rlist:
-            for i in range(n):
+        #for run_conf in rlist:
+        #    for i in range(n):
+        for i in range(n):
+            for run_conf in rlist:
                 run_exp(i, run_conf, machines_client, machines_server, machines_network_measure)
                 #if succ:
                 #    finishes += finish
