@@ -7,11 +7,15 @@ import (
 
 type ReadAndPrepareHighPriority struct {
 	*ReadAndPreparePriority
-	hasEarlyAbort bool
+	hasEarlyAbort    bool
+	lowTxnEarlyAbort map[string]bool
 }
 
 func NewReadAndPrepareHighPriority(request *rpc.ReadAndPrepareRequest, server *Server) *ReadAndPrepareHighPriority {
-	return &ReadAndPrepareHighPriority{NewReadAndPreparePriority(request, server), false}
+	return &ReadAndPrepareHighPriority{
+		NewReadAndPreparePriority(request, server),
+		false,
+		make(map[string]bool)}
 }
 
 func (o *ReadAndPrepareHighPriority) Execute(storage *Storage) {

@@ -25,10 +25,11 @@ type TwoPCInfo struct {
 	fastPathPreparePartition map[int]*FastPrepareStatus
 	partitionPrepareResult   map[int]*PartitionStatus
 
-	conditionGraph *utils.DepGraph
-	fastPrepare    bool
-	hasCondition   bool
-	hasForward     bool
+	//conditionGraph *utils.DepGraph
+	conditionTxn map[string]bool
+	fastPrepare  bool
+	hasCondition bool
+	hasForward   bool
 
 	forwardReadOp *ForwardReadRequestToCoordinator
 	//abortReason    AbortReason
@@ -159,12 +160,13 @@ func (c *Coordinator) initTwoPCInfoIfNotExist(txnId string) *TwoPCInfo {
 			partitionPrepareResult:   make(map[int]*PartitionStatus),
 			writeDataMap:             make(map[string]*rpc.KeyValue),
 			writeDataFromLeader:      make(map[string]bool),
-			conditionGraph:           utils.NewDepGraph(c.server.config.GetTotalPartition()),
-			dependTxns:               make(map[string]bool),
-			dependTxnByPId:           make(map[int]map[string]bool),
-			waitingTxns:              make(map[string]bool),
-			waitingWriteDataTxn:      make(map[string]*forwardReadWaiting),
-			notifyTxns:               make(map[string]int),
+			conditionTxn:             make(map[string]bool),
+			//conditionGraph:           utils.NewDepGraph(c.server.config.GetTotalPartition()),
+			dependTxns:          make(map[string]bool),
+			dependTxnByPId:      make(map[int]map[string]bool),
+			waitingTxns:         make(map[string]bool),
+			waitingWriteDataTxn: make(map[string]*forwardReadWaiting),
+			notifyTxns:          make(map[string]int),
 		}
 	}
 	return c.txnStore[txnId]
@@ -208,14 +210,21 @@ func (c *Coordinator) checkResult(info *TwoPCInfo) {
 				return
 			}
 			if info.readRequest.Txn.HighPriority && c.server.config.IsConditionalPrepare() {
-				if info.conditionGraph.IsCyclic() {
-					info.conditionPrepareFail = true
-					log.Warnf("txn %v condition has cycle, condition abort", info.txnId)
-					//info.status = CONDITION_ABORT
-					//info.abortReason = CYCLE
-					//c.sendToParticipantsAndClient(info)
-					return
+				for lowTxn, abort := range info.conditionTxn {
+					if !abort {
+						log.Debugf("txn %v depends on low txn %x to abort", lowTxn)
+						info.conditionPrepareFail = true
+						return
+					}
 				}
+				//if info.conditionGraph.IsCyclic() {
+				//	info.conditionPrepareFail = true
+				//	log.Warnf("txn %v condition has cycle, condition abort", info.txnId)
+				//	//info.status = CONDITION_ABORT
+				//	//info.abortReason = CYCLE
+				//	//c.sendToParticipantsAndClient(info)
+				//	return
+				//}
 				log.Debugf("txn %v no cycle detected", info.txnId)
 			}
 			if info.readRequest.Txn.HighPriority && c.server.config.ForwardReadToCoord() {
@@ -458,8 +467,11 @@ func (c *Coordinator) conditionalPrepare(request *rpc.PrepareResultRequest) {
 	twoPCInfo := c.txnStore[txnId]
 
 	twoPCInfo.hasCondition = true
-	for c := range request.Conditions {
-		twoPCInfo.conditionGraph.AddEdge(c, int(request.PartitionId))
+	for _, c := range request.Conditions {
+		if _, exist := twoPCInfo.conditionTxn[c]; !exist {
+			twoPCInfo.conditionTxn[c] = false
+		}
+		//twoPCInfo.conditionGraph.AddEdge(c, int(request.PartitionId))
 	}
 
 	c.checkResult(twoPCInfo)

@@ -112,10 +112,11 @@ message PrepareResultRequest {
     repeated KeyVersion writeKeyVerList = 3;
     int32 partitionId = 4;
     int32 prepareStatus = 5;
-    repeated int32 conditions = 6;
+    repeated string conditions = 6;
     repeated string reorder = 7;
     repeated string forward = 8;
     int32 counter = 9;
+    repeated string earlyAborts = 10;
 }
 
 message PrepareResultReply {

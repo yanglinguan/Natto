@@ -60,8 +60,9 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 		if info.counter < p.request.Counter {
 			if twoPCInfo.partitionPrepareResult[pId].status == CONDITIONAL_PREPARED {
 				r := twoPCInfo.partitionPrepareResult[pId].prepareResult
-				for c := range r.Conditions {
-					twoPCInfo.conditionGraph.RemoveEdge(c, int(r.PartitionId))
+				for _, c := range r.Conditions {
+					delete(twoPCInfo.conditionTxn, c)
+					//twoPCInfo.conditionGraph.RemoveEdge(c, int(r.PartitionId))
 				}
 			}
 			log.Debugf("txn %v counter is %v greater than current counter %v status %v",
@@ -98,6 +99,9 @@ func (p *PrepareRequestOp) Execute(coordinator *Coordinator) {
 				delete(twoPCInfo.dependTxns, depTxn)
 			}
 			delete(twoPCInfo.dependTxnByPId, pId)
+		}
+		for _, lowTxn := range p.request.EarlyAborts {
+			twoPCInfo.conditionTxn[lowTxn] = true
 		}
 		coordinator.checkResult(twoPCInfo)
 	case CONDITIONAL_PREPARED:

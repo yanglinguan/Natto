@@ -21,7 +21,7 @@ type ReplicationMsg struct {
 	WriteDataFromLeader     []bool
 	PreparedReadKeyVersion  []*rpc.KeyVersion
 	PreparedWriteKeyVersion []*rpc.KeyVersion
-	Conditions              []int32
+	Conditions              []string
 	Forward                 []string
 	IsFastPathSuccess       bool
 	IsFromCoordinator       bool

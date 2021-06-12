@@ -235,7 +235,7 @@ func (s *Storage) setForwardPrepare(op *ReadAndPrepareHighPriority, condition ma
 	s.txnStore[txnId].forwardPrepareResultRequest = prepareResultRequest
 }
 
-func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition map[int]bool) {
+func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition map[string]bool) {
 	txnId := op.txnId
 	if _, exist := s.txnStore[txnId]; !exist {
 		log.Fatalf("txn %v txnInfo should be created, and INIT status", txnId)
@@ -251,8 +251,9 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition 
 		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 		PartitionId:     int32(s.server.partitionId),
 		PrepareStatus:   int32(s.txnStore[txnId].status),
-		Conditions:      make([]int32, len(condition)),
+		Conditions:      make([]string, len(condition)),
 		Counter:         s.txnStore[txnId].prepareCounter,
+		EarlyAborts:     make([]string, len(op.lowTxnEarlyAbort)),
 	}
 
 	s.txnStore[txnId].prepareCounter++
@@ -280,7 +281,12 @@ func (s *Storage) setConditionPrepare(op *ReadAndPrepareHighPriority, condition 
 
 	i := 0
 	for c := range condition {
-		prepareResultRequest.Conditions[i] = int32(c)
+		prepareResultRequest.Conditions[i] = c
+		i++
+	}
+	i = 0
+	for c := range op.lowTxnEarlyAbort {
+		prepareResultRequest.EarlyAborts[i] = c
 		i++
 	}
 
@@ -467,7 +473,7 @@ func (s *Storage) conditionalPrepare(op *ReadAndPrepareHighPriority) bool {
 	s.txnStore[op.txnId].isConditionalPrepare = true
 	s.kvStore.RecordPrepared(op)
 	s.setReadResult(op, -1, false)
-	s.setConditionPrepare(op, overlapPartition)
+	s.setConditionPrepare(op, lowTxnList)
 	s.replicatePreparedResult(op.txnId)
 	// add to the queue if condition fail it can prepare as usual
 	s.wait(op)

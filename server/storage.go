@@ -225,9 +225,19 @@ func (s *Storage) setPrepareResult(op ReadAndPrepareOp) {
 		WriteKeyVerList: make([]*rpc.KeyVersion, 0),
 		PartitionId:     int32(s.server.partitionId),
 		PrepareStatus:   int32(s.txnStore[txnId].status),
-		Conditions:      make([]int32, 0),
+		Conditions:      make([]string, 0),
 		Counter:         s.txnStore[txnId].prepareCounter,
+		EarlyAborts:     make([]string, 0),
 	}
+
+	if h, ok := op.(*ReadAndPrepareHighPriority); ok {
+		if s.server.config.IsConditionalPrepare() {
+			for c := range h.lowTxnEarlyAbort {
+				prepareResultRequest.EarlyAborts = append(prepareResultRequest.EarlyAborts, c)
+			}
+		}
+	}
+
 	s.txnStore[txnId].prepareCounter++
 	if !s.txnStore[txnId].status.IsAbort() {
 		s.txnStore[txnId].preparedTime = time.Now()
