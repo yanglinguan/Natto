@@ -438,9 +438,11 @@ def analyse_throughput(txn_map):
 
     pass_time_abort_percentage_high = float(pass_timestamp_abort_high) / float(total_executed_txn_high)
     pass_time_txn_percentage_high = float(pass_timestamp_txn_high) / float(total_executed_txn_high)
-
-    pass_time_abort_percentage_low = float(pass_timestamp_abort_low) / float(total_executed_txn_low)
-    pass_time_txn_percentage_low = float(pass_timestamp_txn_low) / float(total_executed_txn_low)
+    pass_time_abort_percentage_low = 0
+    pass_time_txn_percentage_low = 0
+    if total_executed_txn_low != 0:
+        pass_time_abort_percentage_low = float(pass_timestamp_abort_low) / float(total_executed_txn_low)
+        pass_time_txn_percentage_low = float(pass_timestamp_txn_low) / float(total_executed_txn_low)
 
     throughput_high = float(count_high * 1000000000) / (max_time - min_time)
     throughput_low = float(count_low * 1000000000) / (max_time - min_time)
@@ -507,9 +509,9 @@ def analyse_abort_rate(txn_map):
     abort_rate = 1 - float(commit) / count
 
     # print("Abort rate: " + str(abort_rate))
-
+    
     if commit_high == 0 or commit_low == 0:
-        return abort_rate, 0, 0
+        return {"abort_rate":abort_rate, "abort_rate_high":0, "abort_rate_low":0}
 
     abort_high_rate = 1 - float(commit_high) / count_high
     abort_low_rate = 1 - float(commit_low) / count_low
@@ -562,7 +564,7 @@ def analyse(dir_name):
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
     #    return
     if n == 0:
-        # shutil.rmtree(dir_name)
+        #shutil.rmtree(dir_name)
         return
     # print(clientN, dir_name, setting["experiment"]["varExp"])
     path = dir_name
