@@ -28,6 +28,8 @@
     ]
   },
   "experiment": {
+    "concurrencyControl": "2PL",
+    "priorityMode": "preemption",
     "mode": "occ",
     "fastPath": false,
     "readOnly": false,

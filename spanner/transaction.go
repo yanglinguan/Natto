@@ -1,0 +1,230 @@
+package spanner
+
+import (
+	"bytes"
+	"encoding/gob"
+	"github.com/sirupsen/logrus"
+	"sync"
+)
+
+type TxnStatus int32
+
+const (
+	INIT TxnStatus = iota
+	READ
+	WRITE
+	PREPARED
+	ABORTED
+	COMMITTED
+)
+
+type transaction struct {
+	txnId                string
+	coordPId             int
+	participantPartition map[int]bool
+	timestamp            int64
+	clientId             int64
+	readKeys             []string
+
+	writeKeys map[string]string
+
+	waitKeys map[string]LockType
+
+	keyMap map[string]bool
+
+	Status TxnStatus
+
+	read2PLOp *read2PL
+
+	commitOp *commit2PL
+
+	server *Server
+
+	// for priority queue
+	index int
+
+	readResult map[string]*ValVer
+	lock       sync.Mutex
+	wg         sync.WaitGroup
+}
+
+func NewTransaction(
+	txnId string,
+	timestamp int64,
+	cId int64) *transaction {
+	t := &transaction{
+		txnId:                txnId,
+		coordPId:             0,
+		participantPartition: make(map[int]bool),
+		timestamp:            timestamp,
+		clientId:             cId,
+		readKeys:             nil,
+		writeKeys:            nil,
+		waitKeys:             nil,
+		keyMap:               make(map[string]bool),
+		Status:               INIT,
+		read2PLOp:            nil,
+		commitOp:             nil,
+		server:               nil,
+		index:                0,
+		readResult:           make(map[string]*ValVer),
+		lock:                 sync.Mutex{},
+	}
+	return t
+}
+
+func (t *transaction) setReadKeys(readKeys []string) {
+	t.readKeys = readKeys
+}
+
+func (t *transaction) setWriteKeys(writeKeys map[string]string) {
+	t.writeKeys = writeKeys
+}
+
+// this transaction is older than txn ?
+func (t transaction) isOlderThan(txn *transaction) bool {
+	if txn.timestamp == t.timestamp {
+		if txn.clientId == t.clientId {
+			return t.txnId < txn.txnId
+		}
+		return t.clientId < txn.clientId
+	}
+	return t.timestamp < txn.timestamp
+}
+
+func (t *transaction) addWaitKey(key string, lockType LockType) {
+	t.waitKeys[key] = lockType
+}
+
+func (t *transaction) getWaitKey() map[string]LockType {
+	return t.waitKeys
+}
+
+func (t *transaction) removeWaitKey(key string) {
+	delete(t.waitKeys, key)
+}
+
+func (t *transaction) replyRead() {
+	logrus.Debugf("txn %v reply the read result to client %v", t.txnId, t.clientId)
+	t.read2PLOp.readResult = t.server.kvStore.read(t.readKeys)
+	t.read2PLOp.waitChan <- true
+}
+
+func (t *transaction) coordLeaderCommit() {
+	// reply to the client
+	twoPCInfo := t.server.coordinator.transactions[t.txnId]
+	twoPCInfo.commitOp.result = twoPCInfo.status == COMMITTED
+	twoPCInfo.commitOp.waitChan <- true
+
+	selfPartition := t.server.pId
+	for pid := range t.participantPartition {
+		if selfPartition == pid {
+			t.partitionLeaderCommit()
+		}
+		// send the commit decision to partition leader
+		go t.server.sendCommitDecision(t, pid)
+	}
+}
+
+func (t *transaction) coordFollowerCommit() {
+
+}
+
+func (t *transaction) leaderPrepare() {
+	if len(t.participantPartition) == 1 {
+		// single partition; send the result to client;
+		// do not require 2PC
+		if t.Status == PREPARED {
+			t.Status = COMMITTED
+		}
+		t.commitOp.result = t.Status == COMMITTED
+		t.commitOp.waitChan <- true
+		// release lock
+		t.partitionLeaderCommit()
+		return
+	}
+	// send to coord
+	go t.server.sendPrepare(t)
+}
+
+func (t *transaction) followerPrepare() {
+	//t.status = PREPARED
+
+}
+
+func (t *transaction) partitionLeaderCommit() {
+	// write to kv store
+	if t.Status == COMMITTED {
+		t.server.kvStore.write(t.writeKeys, t.timestamp, t.clientId)
+	}
+	for key := range t.keyMap {
+		t.server.lm.lockRelease(t, key)
+	}
+}
+
+func (t *transaction) partitionFollowerCommit() {
+	if t.Status == COMMITTED {
+		t.server.kvStore.write(t.writeKeys, t.timestamp, t.clientId)
+	}
+}
+
+type ReplicateMsgType int32
+
+const (
+	PREPARE ReplicateMsgType = iota
+	COORDCOMMIT
+	PARTITIONCOMMIT
+)
+
+type ReplicateMessage struct {
+	txnId       string
+	timestamp   int64
+	clientId    int64
+	status      TxnStatus
+	writeKeyVal map[string]string
+	msgType     ReplicateMsgType
+}
+
+func (t *transaction) replicate(status TxnStatus, msgType ReplicateMsgType) {
+	logrus.Debugf("txn %v replicate status %v, msg type %v", t.txnId, status, msgType)
+	msg := &ReplicateMessage{
+		txnId:       t.txnId,
+		timestamp:   t.timestamp,
+		clientId:    t.clientId,
+		status:      status,
+		writeKeyVal: nil,
+		msgType:     msgType,
+	}
+
+	if status == PREPARED {
+		msg.writeKeyVal = t.writeKeys
+	}
+
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(msg); err != nil {
+		logrus.Fatalf("replication encoding error: %v", err)
+	}
+
+	t.server.raft.raftInputChannel <- string(buf.Bytes())
+}
+
+// partition leader abort txn and replicate the result
+func (t *transaction) abort() {
+	logrus.Debugf("txn %v abort", t.txnId)
+	if t.Status == READ {
+		t.Status = ABORTED
+		t.read2PLOp.abort = true
+		t.read2PLOp.waitChan <- true
+		return
+	}
+	t.Status = ABORTED
+	// this is prepare message
+	// after replication send to coord
+	t.replicate(ABORTED, PREPARE)
+}
+
+func (t *transaction) prepare() {
+	logrus.Debugf("txn %v prepare", t.txnId)
+	t.Status = PREPARED
+	t.replicate(PREPARED, PREPARE)
+}

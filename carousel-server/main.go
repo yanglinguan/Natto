@@ -3,6 +3,7 @@ package main
 import (
 	"Carousel-GTS/configuration"
 	"Carousel-GTS/server"
+	"Carousel-GTS/spanner"
 	"Carousel-GTS/tapir"
 	"Carousel-GTS/utils"
 	"flag"
@@ -21,7 +22,9 @@ func main() {
 	utils.ConfigLogger(isDebug)
 
 	config := configuration.NewFileConfiguration(configFile)
-	if config.GetServerMode() == configuration.TAPIR {
+	serverMode := config.GetServerMode()
+	switch serverMode {
+	case configuration.TAPIR:
 		s := tapir.NewServer(strconv.Itoa(serverId), config.GetQueueLen(), false, 0)
 		addr := config.GetServerAddressByServerId(serverId)
 		port := strings.Split(addr, ":")[1]
@@ -31,7 +34,20 @@ func main() {
 			utils.ConvertToString(config.GetKeySize(), 0),
 			config)
 		s.Start(port)
-	} else {
+	case configuration.SPANNER:
+		s := spanner.NewServer(serverId, config)
+		pId := config.GetPartitionIdByServerId(serverId)
+		if config.GetWorkLoad() == configuration.SMALLBANK {
+			keys := config.GetKeyListByPartitionId(pId)
+			for _, key := range keys {
+				s.InitKeyValue(key+config.GetSbSavingsAccountFlag(), config.GetSbInitBalance())
+				s.InitKeyValue(key+config.GetSbCheckingAccountFlag(), config.GetSbInitBalance())
+			}
+		} else {
+			s.InitData(config.GetKeyListByPartitionId(pId))
+		}
+		s.Start()
+	default:
 		s := server.NewServer(serverId, configFile, cpuProfile)
 		s.Start()
 	}

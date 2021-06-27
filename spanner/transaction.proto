@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package spanner;
+
+service Spanner {
+    rpc Read(ReadRequest) returns (ReadReply);
+    rpc Commit(CommitRequest) returns (CommitReply);
+    rpc Abort(AbortRequest) returns (Empty);
+    rpc Prepare(PrepareRequest) returns (Empty);
+    rpc CommitDecision(CommitResult) returns (Empty);
+}
+
+message AbortRequest {
+    string id = 1;
+    int64 ts = 2;
+    int64 cId = 3;
+}
+
+message CommitResult {
+    bool commit = 1;
+    string id = 2;
+    int64 ts = 3;
+    int64 cId = 4;
+}
+
+message Empty {
+
+}
+
+message ReadRequest {
+    string id = 1;
+    repeated string keys = 2;
+    int64 ts = 3;
+    int64 cId = 4;
+}
+
+message valVer {
+    string val = 2;
+    string ver = 3;
+}
+
+message keyVal {
+    string key = 1;
+    string val = 2;
+}
+
+message keyVer {
+    string key = 1;
+    string ver = 2;
+}
+
+message ReadReply {
+    repeated valVer vals = 1;
+    bool abort = 2;
+}
+
+message CommitRequest {
+    string id = 1;
+    int64 ts = 2;
+    int64 cId = 3;
+    repeated keyVer rKV = 4; // read key version
+    repeated keyVal wKV = 5; // write key value
+    repeated int32 pp = 6; // participant partitions
+    int64 coordPId = 7; // coordinator Id
+}
+
+message CommitReply {
+    bool commit = 1;
+}
+
+message PrepareRequest {
+    string id = 1;
+    bool prepared = 2;
+    int32 pId = 3;
+    int64 ts = 4;
+    int64 cId = 5;
+}
+
+//message PrepareReply {
+//    bool commit = 1;
+//}

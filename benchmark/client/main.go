@@ -22,11 +22,15 @@ func main() {
 
 	config := configuration.NewFileConfiguration(configFile)
 	var c client.IFClient
-	if config.GetServerMode() == configuration.TAPIR {
+	switch config.GetServerMode() {
+	case configuration.TAPIR:
 		c = client.NewTapirClient(clientId, config)
-	} else {
+	case configuration.SPANNER:
+		c = client.NewSpannerClient(clientId, config)
+	default:
 		c = client.NewClient(clientId, configFile)
 	}
+
 	baseWorkload := workload.NewAbstractWorkload(
 		config.GetKeyNum(),
 		config.GetZipfAlpha(),

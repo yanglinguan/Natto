@@ -21,8 +21,19 @@ const (
 	TwoPL
 	TO
 	TAPIR
-	//GtsDepGraph
-	//GTSReorder
+	SPANNER
+)
+
+type ConcurrencyControl int
+
+const (
+	TWOPL ConcurrencyControl = iota
+)
+
+type PriorityMode int
+
+const (
+	PREEMPTION PriorityMode = iota
 )
 
 type WorkLoad int
@@ -267,6 +278,9 @@ type FileConfiguration struct {
 	randycsbtSingle        int
 	predictDelayPercentile int
 	updateInterval         time.Duration
+
+	cc           ConcurrencyControl
+	priorityMode PriorityMode
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -420,6 +434,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.serverMode = TO
 			} else if mode == "tapir" {
 				f.serverMode = TAPIR
+			} else if mode == "spanner" {
+				f.serverMode = SPANNER
 			} else {
 				log.Fatalf("server mode should be one of occ, priority, 2PL, TO")
 			}
@@ -583,6 +599,16 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			f.forwardReadToCoord = v.(bool)
 		} else if key == "popular" {
 			f.popular = int64(v.(float64))
+		} else if key == "concurrencyControl" {
+			cc := v.(string)
+			if cc == "2PL" {
+				f.cc = TWOPL
+			}
+		} else if key == "priorityMode" {
+			pm := v.(string)
+			if pm == "preemption" {
+				f.priorityMode = PREEMPTION
+			}
 		}
 	}
 }
