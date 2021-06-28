@@ -43,8 +43,10 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 
 	// wait for the coordinator commit result
 	if s.pId == int(request.CoordPId) {
+		txn := s.txnStore.createTxn(request.Id, request.Ts, request.CId, s)
 		op := &commitCoord{
 			commitRequest: request,
+			txn:           txn,
 			result:        false,
 			waitChan:      make(chan bool),
 		}
