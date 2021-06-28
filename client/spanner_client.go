@@ -36,7 +36,6 @@ func (op *spannerOp) exec(
 	aborted, result := client.lib.Read(txn, readKey)
 	if aborted {
 		op.result = false
-		txn.Status = spanner.ABORTED
 		client.lib.Abort(txn)
 	} else {
 		op.txn.GenWriteData(result)

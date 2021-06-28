@@ -55,6 +55,8 @@ func (c *Client) sendRead(txn *transaction, readKeys []string, pId int) {
 			txn.txnId, leaderId, pId, err)
 	} else {
 		txn.lock.Lock()
+		logrus.Debugf("txn %v receive read result from server %v, status %v",
+			txn.txnId, leaderId, result.Abort)
 		if result.Abort {
 			txn.Status = ABORTED
 		} else {
@@ -78,13 +80,13 @@ func (c *Client) Read(txn *transaction, rSet map[int][]string) (bool, map[string
 	txn.wg.Wait()
 	// if txn abort returns nil; otherwise returns read result
 	if txn.Status == ABORTED {
-		return false, nil
+		return true, nil
 	}
 	result := make(map[string]string)
 	for k, kv := range txn.readResult {
 		result[k] = kv.Val
 	}
-	return true, result
+	return false, result
 }
 
 // send commit request to partition leaders

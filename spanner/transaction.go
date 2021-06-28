@@ -107,7 +107,8 @@ func (t *transaction) removeWaitKey(key string) {
 }
 
 func (t *transaction) replyRead() {
-	logrus.Debugf("txn %v reply the read result to client %v", t.txnId, t.clientId)
+	logrus.Debugf("txn %v reply the read result to client %v, status %v",
+		t.txnId, t.clientId, t.Status)
 	if t.read2PLOp.replied {
 		logrus.Debugf("txn %v already reply read result to client %v", t.txnId, t.clientId)
 		return
