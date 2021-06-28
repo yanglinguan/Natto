@@ -119,7 +119,7 @@ func (s *Server) Start() {
 	if err != nil {
 		log.Fatalf("Fails to listen on port %s \nError: %v", s.port, err)
 	}
-
+	logrus.Debugf("server %v listen on port %v", s.serverId, s.port)
 	err = s.gRPCServer.Serve(rpcListener)
 	if err != nil {
 		log.Fatalf("Cannot start RPC services. \nError: %v", err)
