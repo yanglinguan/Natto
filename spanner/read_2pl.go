@@ -5,6 +5,7 @@ type read2PL struct {
 	readResult  []*ValVer
 	abort       bool
 	waitChan    chan bool
+	replied     bool
 }
 
 func (o *read2PL) wait() {
@@ -19,6 +20,12 @@ func (o *read2PL) execute(server *Server) {
 	txn := server.txnStore.createTxn(o.readRequest.Id, o.readRequest.Ts, o.readRequest.CId)
 	txn.setReadKeys(o.readRequest.Keys)
 	txn.read2PLOp = o
+	// it is possible that txn is already aborted
+	if txn.Status == ABORTED {
+		o.abort = true
+		o.waitChan <- true
+		return
+	}
 	txn.Status = READ
 	for _, key := range txn.readKeys {
 		txn.keyMap[key] = true

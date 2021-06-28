@@ -4,13 +4,16 @@ import (
 	"Carousel-GTS/configuration"
 	"context"
 	"github.com/sirupsen/logrus"
+	"math/rand"
 	"time"
 )
 
+// client lib
 type Client struct {
 	config      configuration.Configuration
 	connections []*connection
 	clientId    int64
+	dcId        int
 }
 
 func NewClient(clientId int, config configuration.Configuration) *Client {
@@ -18,8 +21,9 @@ func NewClient(clientId int, config configuration.Configuration) *Client {
 		config:      config,
 		connections: make([]*connection, config.GetServerNum()),
 		clientId:    int64(clientId),
+		dcId:        config.GetDataCenterIdByClientId(clientId),
 	}
-
+	// create connection to each server
 	for sId, addr := range config.GetServerAddress() {
 		logrus.Debugf("add connection server %v, addr %v", sId, addr)
 		c.connections[sId] = newConnect(addr)
@@ -32,6 +36,7 @@ func (c *Client) Begin(txnId string) *transaction {
 	return txn
 }
 
+// send read request to partition leaders
 func (c *Client) sendRead(txn *transaction, readKeys []string, pId int) {
 	defer txn.wg.Done()
 	leaderId := c.config.GetLeaderIdByPartitionId(pId)
@@ -61,13 +66,16 @@ func (c *Client) sendRead(txn *transaction, readKeys []string, pId int) {
 	}
 }
 
+// returns false if txn aborted; otherwise returns true and read result
 func (c *Client) Read(txn *transaction, rSet map[int][]string) (bool, map[string]string) {
 	for pId, readKeys := range rSet {
 		txn.participantPartition[pId] = true
 		txn.wg.Add(1)
 		go c.sendRead(txn, readKeys, pId)
 	}
+	// wait until all read requests get results
 	txn.wg.Wait()
+	// if txn abort returns nil; otherwise returns read result
 	if txn.Status == ABORTED {
 		return false, nil
 	}
@@ -78,17 +86,10 @@ func (c *Client) Read(txn *transaction, rSet map[int][]string) (bool, map[string
 	return true, result
 }
 
-func (c *Client) sendCommit(txn *transaction, pp []int32, wKeys map[string]string, pId int) bool {
-	readKeyVer := make([]*KeyVer, len(txn.readResult))
+// send commit request to partition leaders
+func (c *Client) sendCommit(txn *transaction, readKeyVer []*KeyVer, pp []int32, wKeys map[string]string, pId int) bool {
 	i := 0
-	for key, kv := range txn.readResult {
-		readKeyVer[i] = &KeyVer{
-			Key: key,
-			Ver: kv.Ver,
-		}
-		i++
-	}
-
+	// create write data
 	writeKeyVal := make([]*KeyVal, len(wKeys))
 	i = 0
 	for key, val := range wKeys {
@@ -129,6 +130,21 @@ func getWriteSet(wSet map[int]map[string]string, pId int) map[string]string {
 	return make(map[string]string)
 }
 
+func (c *Client) findCoordinatorPartitionId(participants map[int]bool) int {
+	// find leaders in the client's datacenter
+	leaderIdList := c.config.GetLeaderIdListByDataCenterId(c.dcId)
+	// use the participant partition if possible
+	for _, sId := range leaderIdList {
+		pId := c.config.GetPartitionIdByServerId(sId)
+		if _, exist := participants[pId]; exist {
+			return pId
+		}
+	}
+	// if there is no participant partition in the client's datacenter
+	// randomly select a leader in the client's datacenter
+	return c.config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])
+}
+
 func (c *Client) Commit(txn *transaction, wSet map[int]map[string]string) bool {
 	for pId := range wSet {
 		txn.participantPartition[pId] = true
@@ -137,21 +153,40 @@ func (c *Client) Commit(txn *transaction, wSet map[int]map[string]string) bool {
 	i := 0
 	for pId := range txn.participantPartition {
 		pp[i] = int32(pId)
+		i++
 	}
 
+	i = 0
+	readKeyVer := make([]*KeyVer, len(txn.readResult))
+	for key, kv := range txn.readResult {
+		readKeyVer[i] = &KeyVer{
+			Key: key,
+			Ver: kv.Ver,
+		}
+		i++
+	}
+
+	// for the single partition transaction, wait until the partition leader
+	// returns commit result
 	if len(txn.participantPartition) == 1 {
 		for pId := range txn.participantPartition {
-			return c.sendCommit(txn, pp, getWriteSet(wSet, pId), pId)
+			return c.sendCommit(txn, readKeyVer, pp, getWriteSet(wSet, pId), pId)
 		}
 	}
+
+	// assign coordinator partition
+	coordPId := c.findCoordinatorPartitionId(txn.participantPartition)
+	txn.coordPId = coordPId
+	// for the multi-partition transaction,
+	// send to participant partition leader without waiting the result
 	for pId := range txn.participantPartition {
 		if pId == txn.coordPId {
 			continue
 		}
-		go c.sendCommit(txn, pp, getWriteSet(wSet, pId), pId)
+		go c.sendCommit(txn, readKeyVer, pp, getWriteSet(wSet, pId), pId)
 	}
-
-	return c.sendCommit(txn, pp, getWriteSet(wSet, txn.coordPId), txn.coordPId)
+	// wait the coordinator the commit result
+	return c.sendCommit(txn, readKeyVer, pp, getWriteSet(wSet, txn.coordPId), txn.coordPId)
 }
 
 func (c *Client) sendAbort(txn *transaction, pId int) {

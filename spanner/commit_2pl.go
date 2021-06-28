@@ -1,7 +1,5 @@
 package spanner
 
-import "github.com/sirupsen/logrus"
-
 type commit2PL struct {
 	commitRequest *CommitRequest
 	result        bool
@@ -20,8 +18,15 @@ func (o *commit2PL) execute(server *Server) {
 	txn := server.txnStore.createTxn(o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId)
 	txn.commitOp = o
 	txn.coordPId = int(o.commitRequest.CoordPId)
+	// if txn is already aborted,
 	if txn.Status == ABORTED {
-		logrus.Fatalf("txn %v is already aborted", txn.txnId)
+		if txn.finalize {
+			o.result = false
+			o.waitChan <- true
+		} else {
+			txn.abort()
+		}
+		return
 	}
 
 	writeMap := make(map[string]string)

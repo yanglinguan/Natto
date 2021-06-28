@@ -17,6 +17,7 @@ func (ts *txnStore) getTxnById(txnId string) *transaction {
 	return ts.transactions[txnId]
 }
 
+// create txn if not exist; otherwise return existing txn
 func (ts *txnStore) createTxn(txnId string, timestamp int64, cId int64) *transaction {
 	if _, exist := ts.transactions[txnId]; !exist {
 		ts.transactions[txnId] = NewTransaction(txnId, timestamp, cId)

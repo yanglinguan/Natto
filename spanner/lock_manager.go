@@ -12,7 +12,7 @@ const (
 type lockInfo struct {
 	readers       map[string]*transaction
 	writer        *transaction
-	pq            *PriorityQueue
+	pq            *PriorityQueue // order txn by timestamp to prevent deadlock
 	waitToUpgrade *transaction
 }
 
@@ -47,11 +47,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 		if waitTxn.getWaitKey()[key] == SHARED {
 			grant = lm.lockShared(waitTxn, key)
 		} else {
-			if _, exist := lm.keys[key].readers[waitTxn.txnId]; exist {
-				grant = lm.lockUpgrade(txn, key)
-			} else {
-				grant = lm.lockExclusive(waitTxn, key)
-			}
+			grant = lm.lockExclusive(waitTxn, key)
 		}
 
 		if !grant {
@@ -72,6 +68,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	}
 }
 
+// returns lock info for key. if not exist, create a lock info
 func (lm *lockManager) createLockInfo(key string) *lockInfo {
 	if _, exist := lm.keys[key]; !exist {
 		lm.keys[key] = &lockInfo{
@@ -86,10 +83,16 @@ func (lm *lockManager) createLockInfo(key string) *lockInfo {
 func (lm *lockManager) lockShared(txn *transaction, key string) bool {
 	lockInfo := lm.createLockInfo(key)
 	writer := lockInfo.writer
+	// if there is no writer, txn grants the shared lock
 	if writer == nil {
+		logrus.Debugf("txn %v acquired shared lock for key %v", txn.txnId, key)
 		lockInfo.readers[txn.txnId] = txn
 		return true
 	}
+
+	// if txn has smaller timestamp (older) than the writer
+	// if the write is already prepared then abort txn
+	// otherwise abort writer
 	if txn.isOlderThan(writer) {
 		logrus.Debugf("shared lock key %v txn %v has older timestamp than write %v",
 			key, txn.txnId, writer.txnId)
@@ -135,21 +138,21 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 		if reader.txnId == txn.txnId {
 			continue
 		}
-		if reader.isOlderThan(txn) {
-			logrus.Debugf("key %v reader %v is older than txn %v wait to upgrade", key, reader.txnId, txn.txnId)
-			lockInfo.waitToUpgrade = txn
-			lockInfo.pq.Push(txn)
-			txn.addWaitKey(key, EXCLUSIVE)
-			return false
-		} else {
-			logrus.Debugf("key %v txn %v is older than reader %v", key, txn.txnId, reader.txnId)
-			wound[reader.txnId] = reader
+		if txn.isOlderThan(reader) {
+			if reader.Status == PREPARED {
+				logrus.Debugf("key %v reader %v is already prepared %v abort txn %v",
+					key, writer.txnId, txn.txnId)
+				txn.abort()
+				return false
+			} else {
+				wound[reader.txnId] = reader
+			}
 		}
 	}
 
 	for _, reader := range wound {
-		reader.abort()
 		logrus.Debugf("txn %v wound reader %v of key %v", txn.txnId, reader.txnId, key)
+		reader.abort()
 		delete(readers, reader.txnId)
 	}
 
@@ -163,6 +166,7 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 			logrus.Debugf("key %v txn %v upgraded abort write %v", key, txn.txnId, writer.txnId)
 			lockInfo.writer = txn
 			lockInfo.waitToUpgrade = nil
+			delete(readers, txn.txnId)
 			writer.abort()
 			return true
 		}
@@ -176,7 +180,7 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 
 func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 	lockInfo := lm.createLockInfo(key)
-
+	// if already acquired the shared lock, upgrade to exclusive lock
 	if _, exist := lockInfo.readers[txn.txnId]; exist {
 		return lm.lockUpgrade(txn, key)
 	}
@@ -184,6 +188,7 @@ func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 	readers := lockInfo.readers
 	writer := lockInfo.writer
 	wound := make([]*transaction, 0)
+	// if there is no reader and writer, txn grants the exclusive lock
 	if len(readers) == 0 && writer == nil {
 		logrus.Debugf("txn %v acquired exclusive lock of key %v", txn.txnId, key)
 		lockInfo.writer = txn
@@ -225,5 +230,4 @@ func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 	lockInfo.pq.Push(txn)
 	txn.addWaitKey(key, EXCLUSIVE)
 	return false
-
 }

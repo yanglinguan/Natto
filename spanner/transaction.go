@@ -32,7 +32,8 @@ type transaction struct {
 
 	keyMap map[string]bool
 
-	Status TxnStatus
+	Status   TxnStatus
+	finalize bool
 
 	read2PLOp *read2PL
 
@@ -43,6 +44,7 @@ type transaction struct {
 	// for priority queue
 	index int
 
+	// the client lib uses the lock and wait group
 	readResult map[string]*ValVer
 	lock       sync.Mutex
 	wg         sync.WaitGroup
@@ -106,7 +108,16 @@ func (t *transaction) removeWaitKey(key string) {
 
 func (t *transaction) replyRead() {
 	logrus.Debugf("txn %v reply the read result to client %v", t.txnId, t.clientId)
-	t.read2PLOp.readResult = t.server.kvStore.read(t.readKeys)
+	if t.read2PLOp.replied {
+		logrus.Debugf("txn %v already reply read result to client %v", t.txnId, t.clientId)
+		return
+	}
+	t.read2PLOp.replied = true
+	if t.Status == ABORTED {
+		t.read2PLOp.abort = true
+	} else {
+		t.read2PLOp.readResult = t.server.kvStore.read(t.readKeys)
+	}
 	t.read2PLOp.waitChan <- true
 }
 
@@ -153,6 +164,7 @@ func (t *transaction) followerPrepare() {
 }
 
 func (t *transaction) partitionLeaderCommit() {
+	logrus.Debugf("txn %v partition leader commit, status %v", t.txnId, t.Status)
 	// write to kv store
 	if t.Status == COMMITTED {
 		t.server.kvStore.write(t.writeKeys, t.timestamp, t.clientId)
@@ -212,9 +224,12 @@ func (t *transaction) replicate(status TxnStatus, msgType ReplicateMsgType) {
 func (t *transaction) abort() {
 	logrus.Debugf("txn %v abort", t.txnId)
 	if t.Status == READ {
+		// if txn is in the read phase,
+		// do not replicate
 		t.Status = ABORTED
-		t.read2PLOp.abort = true
-		t.read2PLOp.waitChan <- true
+		t.replyRead()
+		// release lock
+		t.partitionLeaderCommit()
 		return
 	}
 	t.Status = ABORTED

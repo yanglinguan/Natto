@@ -31,7 +31,8 @@ func (o *commitCoord) execute(coordinator *coordinator) {
 
 	// check if receives the prepared messages from the participant partitions
 	if twoPCInfo.prepared != len(o.commitRequest.Pp) {
-		logrus.Debugf("txn %v receives %v prepared required %v", o.txn.txnId, len(o.commitRequest.Pp))
+		logrus.Debugf("txn %v receives %v prepared required %v",
+			o.txn.txnId, len(o.commitRequest.Pp))
 		return
 	}
 	logrus.Debugf("txn %v committed", o.txn.txnId)

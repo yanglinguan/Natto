@@ -2,11 +2,6 @@ package spanner
 
 import "strconv"
 
-//type valVer struct {
-//	val string
-//	ver string
-//}
-
 type kvStore struct {
 	keys map[string]*ValVer
 }
