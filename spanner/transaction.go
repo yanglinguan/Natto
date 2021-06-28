@@ -62,7 +62,7 @@ func NewTransaction(
 		clientId:             cId,
 		readKeys:             nil,
 		writeKeys:            nil,
-		waitKeys:             nil,
+		waitKeys:             make(map[string]LockType),
 		keyMap:               make(map[string]bool),
 		Status:               INIT,
 		read2PLOp:            nil,
