@@ -42,6 +42,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 		waitTxn := lockInfo.pq.Peek()
 		if waitTxn.Status == ABORTED {
 			logrus.Debugf("wait txn %v is already aborted", waitTxn.txnId)
+			lockInfo.pq.Pop()
 			continue
 		}
 		grant := false
