@@ -50,7 +50,7 @@ func (op *spannerOp) exec(
 		}
 		op.result = client.lib.Commit(txn, writeDataPartitionMap)
 	}
-
+	execRecord.endTime = time.Now()
 	logrus.Debugf("txn %v result %v", txnIdToServer, op.result)
 	if !op.result {
 		execRecord.commitResult = 0
