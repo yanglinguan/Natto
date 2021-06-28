@@ -51,7 +51,8 @@ func (c *Client) sendRead(txn *transaction, readKeys []string, pId int) {
 	}
 	result, err := client.Read(context.Background(), readRequest)
 	if err != nil {
-		logrus.Debugf("txn %v cannot send read request to server %v pid %v", txn.txnId, leaderId, pId)
+		logrus.Fatalf("txn %v cannot send read request to server %v pid %v; error： %v",
+			txn.txnId, leaderId, pId, err)
 	} else {
 		txn.lock.Lock()
 		if result.Abort {
@@ -116,7 +117,8 @@ func (c *Client) sendCommit(txn *transaction, readKeyVer []*KeyVer, pp []int32, 
 	client := NewSpannerClient(conn.GetConn())
 	result, err := client.Commit(context.Background(), commitRequest)
 	if err != nil {
-		logrus.Fatalf("txn %v cannot send commit request to server %v pId %v", txn.txnId, leaderId, pId)
+		logrus.Fatalf("txn %v cannot send commit request to server %v pId %v; error: %v",
+			txn.txnId, leaderId, pId, err)
 		return false
 	} else {
 		return result.Commit
@@ -201,7 +203,8 @@ func (c *Client) sendAbort(txn *transaction, pId int) {
 	client := NewSpannerClient(conn.GetConn())
 	_, err := client.Abort(context.Background(), abortRequest)
 	if err != nil {
-		logrus.Fatalf("txn %v cannot send abort to server %v partition %v", txn.txnId, leaderId, pId)
+		logrus.Fatalf("txn %v cannot send abort to server %v partition %v; error: %v",
+			txn.txnId, leaderId, pId, err)
 	}
 }
 
