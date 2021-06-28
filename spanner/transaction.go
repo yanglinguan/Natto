@@ -190,27 +190,27 @@ const (
 )
 
 type ReplicateMessage struct {
-	txnId       string
-	timestamp   int64
-	clientId    int64
-	status      TxnStatus
-	writeKeyVal map[string]string
-	msgType     ReplicateMsgType
+	TxnId       string
+	Timestamp   int64
+	ClientId    int64
+	Status      TxnStatus
+	WriteKeyVal map[string]string
+	MsgType     ReplicateMsgType
 }
 
 func (t *transaction) replicate(status TxnStatus, msgType ReplicateMsgType) {
 	logrus.Debugf("txn %v replicate status %v, msg type %v", t.txnId, status, msgType)
 	msg := &ReplicateMessage{
-		txnId:       t.txnId,
-		timestamp:   t.timestamp,
-		clientId:    t.clientId,
-		status:      status,
-		writeKeyVal: nil,
-		msgType:     msgType,
+		TxnId:       t.txnId,
+		Timestamp:   t.timestamp,
+		ClientId:    t.clientId,
+		Status:      status,
+		WriteKeyVal: nil,
+		MsgType:     msgType,
 	}
 
 	if status == PREPARED {
-		msg.writeKeyVal = t.writeKeys
+		msg.WriteKeyVal = t.writeKeys
 	}
 
 	var buf bytes.Buffer

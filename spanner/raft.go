@@ -53,7 +53,7 @@ func (o *replicateResultOp) wait() {
 }
 
 func (o *replicateResultOp) execute(s *Server) {
-	switch o.replicationMsg.msgType {
+	switch o.replicationMsg.MsgType {
 	case PREPARE:
 		s.applyPrepare(o.replicationMsg)
 	case COORDCOMMIT:
@@ -70,7 +70,7 @@ func (r *raft) handleReplicatedOp(data *string) {
 		logrus.Fatalf("Decoding error %v", err)
 	}
 	logrus.Debugf("get replicated msg txn %v msg %v",
-		replicationMsg.txnId, replicationMsg.status)
+		replicationMsg.TxnId, replicationMsg.Status)
 	op := &replicateResultOp{replicationMsg: replicationMsg}
 	r.server.opChan <- op
 }
