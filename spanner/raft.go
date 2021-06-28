@@ -69,7 +69,7 @@ func (r *raft) handleReplicatedOp(data *string) {
 	if err := decoder.Decode(&replicationMsg); err != nil {
 		logrus.Fatalf("Decoding error %v", err)
 	}
-	logrus.Debugf("get replicated msg txn %v msg %v",
+	logrus.Debugf("get replicated msg txn %v status %v",
 		replicationMsg.TxnId, replicationMsg.Status)
 	op := &replicateResultOp{replicationMsg: replicationMsg}
 	r.server.opChan <- op

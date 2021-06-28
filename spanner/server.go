@@ -222,11 +222,11 @@ func (s *Server) sendCommitDecision(txn *transaction, pId int) {
 	// send to participant partition
 	leaderId := s.config.GetLeaderIdByPartitionId(pId)
 
-	if leaderId == s.serverId {
-		op := &commitDecision{commitResult: commitResult}
-		s.opChan <- op
-		return
-	}
+	//if leaderId == s.serverId {
+	//	op := &commitDecision{commitResult: commitResult}
+	//	s.opChan <- op
+	//	return
+	//}
 
 	logrus.Debugf("txn %v send commit decision to server %v pId %v", txn.txnId, leaderId, pId)
 	conn := s.connection[leaderId]

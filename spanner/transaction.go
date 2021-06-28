@@ -132,6 +132,7 @@ func (t *transaction) coordLeaderCommit() {
 	for pid := range t.participantPartition {
 		if selfPartition == pid {
 			t.partitionLeaderCommit()
+			continue
 		}
 		// send the commit decision to partition leader
 		go t.server.sendCommitDecision(t, pid)

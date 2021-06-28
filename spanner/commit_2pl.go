@@ -35,9 +35,9 @@ func (o *commit2PL) execute(server *Server) {
 		writeMap[kv.Key] = kv.Val
 	}
 	txn.setWriteKeys(writeMap)
-	for _, pId := range o.commitRequest.Pp {
-		txn.participantPartition[int(pId)] = true
-	}
+	//for _, pId := range o.commitRequest.Pp {
+	//	txn.participantPartition[int(pId)] = true
+	//}
 
 	txn.Status = WRITE
 	for key := range writeMap {
