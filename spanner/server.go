@@ -196,7 +196,7 @@ func (s *Server) sendPrepare(txn *transaction) {
 	}
 
 	if coordServerId == s.serverId {
-		p := newPrepare(prepareRequest, txn)
+		p := newPrepare(prepareRequest, s)
 		s.coordinator.opChan <- p
 		return
 	}

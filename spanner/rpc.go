@@ -50,7 +50,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 	if s.pId == int(request.CoordPId) {
 		op := &commitCoord{
 			commitRequest: request,
-			txn:           txn,
+			server:        s,
 			result:        false,
 			waitChan:      make(chan bool),
 		}
@@ -71,8 +71,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 func (s *Server) Prepare(ctx context.Context, request *PrepareRequest) (*Empty, error) {
 	logrus.Debugf("receive txn %v coord receives prepare from pId %v, status %v",
 		request.Id, request.PId, request.Prepared)
-	txn := s.txnStore.createTxn(request.Id, request.Ts, request.CId, s)
-	op := newPrepare(request, txn)
+	op := newPrepare(request, s)
 	s.coordinator.opChan <- op
 	return &Empty{}, nil
 }
