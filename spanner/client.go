@@ -115,7 +115,7 @@ func (c *Client) sendCommit(txn *transaction, readKeyVer []*KeyVer, pp []int32, 
 
 	leaderId := c.config.GetLeaderIdByPartitionId(pId)
 	conn := c.connections[leaderId]
-
+	logrus.Debugf("send commit txn %v to server %v pId %v", txn.txnId, leaderId, pId)
 	client := NewSpannerClient(conn.GetConn())
 	result, err := client.Commit(context.Background(), commitRequest)
 	if err != nil {
@@ -203,6 +203,7 @@ func (c *Client) sendAbort(txn *transaction, pId int) {
 	}
 	conn := c.connections[leaderId]
 	client := NewSpannerClient(conn.GetConn())
+	logrus.Debugf("send abort txn %v to server %v pid %v", txn.txnId, leaderId, pId)
 	_, err := client.Abort(context.Background(), abortRequest)
 	if err != nil {
 		logrus.Fatalf("txn %v cannot send abort to server %v partition %v; error: %v",

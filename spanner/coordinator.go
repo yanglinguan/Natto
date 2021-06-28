@@ -19,6 +19,7 @@ func newCoordinator(queueLen int) *coordinator {
 		transactions: make(map[string]*twoPCInfo),
 		opChan:       make(chan coordOperation, queueLen),
 	}
+	go c.start()
 	return c
 }
 
