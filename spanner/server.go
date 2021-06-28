@@ -221,9 +221,17 @@ func (s *Server) sendCommitDecision(txn *transaction, pId int) {
 
 	// send to participant partition
 	leaderId := s.config.GetLeaderIdByPartitionId(pId)
-	conn := s.connection[leaderId].GetConn()
-	client := NewSpannerClient(conn)
+
+	if leaderId == s.serverId {
+		op := &commitDecision{commitResult: commitResult}
+		s.opChan <- op
+		return
+	}
+
 	logrus.Debugf("txn %v send commit decision to server %v pId %v", txn.txnId, leaderId, pId)
+	conn := s.connection[leaderId]
+	client := NewSpannerClient(conn.GetConn())
+
 	_, err := client.CommitDecision(context.Background(), commitResult)
 	if err != nil {
 		logrus.Fatalf("txn %v coord cannot sent commit decision to partition %v",
