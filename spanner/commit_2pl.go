@@ -15,7 +15,7 @@ func (o *commit2PL) getCommitResult() bool {
 }
 
 func (o *commit2PL) execute(server *Server) {
-	txn := server.txnStore.createTxn(o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId)
+	txn := server.txnStore.createTxn(o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId, server)
 	txn.commitOp = o
 	txn.coordPId = int(o.commitRequest.CoordPId)
 	// if txn is already aborted,

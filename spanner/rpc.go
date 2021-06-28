@@ -59,7 +59,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 }
 
 func (s *Server) Prepare(ctx context.Context, request *PrepareRequest) (*Empty, error) {
-	txn := s.txnStore.createTxn(request.Id, request.Ts, request.CId)
+	txn := s.txnStore.createTxn(request.Id, request.Ts, request.CId, s)
 	op := newPrepare(request, txn)
 	s.coordinator.opChan <- op
 	return &Empty{}, nil

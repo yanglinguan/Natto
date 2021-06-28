@@ -32,7 +32,9 @@ func (t *twoPLOpCreator) createReadOp(request *ReadRequest) readOp {
 	op := &read2PL{
 		readRequest: request,
 		readResult:  nil,
+		abort:       false,
 		waitChan:    make(chan bool),
+		replied:     false,
 	}
 	return op
 }

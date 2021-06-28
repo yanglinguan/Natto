@@ -12,7 +12,7 @@ func (o *abortClient) wait() {
 
 // client send abort when the read request is fail
 func (o *abortClient) execute(s *Server) {
-	txn := s.txnStore.createTxn(o.abortRequest.Id, o.abortRequest.Ts, o.abortRequest.CId)
+	txn := s.txnStore.createTxn(o.abortRequest.Id, o.abortRequest.Ts, o.abortRequest.CId, s)
 	txn.Status = ABORTED
 	txn.partitionLeaderCommit()
 	o.waitChan <- true

@@ -11,7 +11,7 @@ func (o *commitDecision) wait() {
 
 func (o *commitDecision) execute(s *Server) {
 	// replicate commit decision
-	txn := s.txnStore.createTxn(o.commitResult.Id, o.commitResult.Ts, o.commitResult.CId)
+	txn := s.txnStore.createTxn(o.commitResult.Id, o.commitResult.Ts, o.commitResult.CId, s)
 	txn.finalize = true
 	status := ABORTED
 	if o.commitResult.Commit {

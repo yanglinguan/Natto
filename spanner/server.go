@@ -133,7 +133,7 @@ func (s *Server) Start() {
 
 func (s *Server) applyPrepare(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated prepare status %v", message.txnId, message.status)
-	txn := s.txnStore.createTxn(message.txnId, message.timestamp, message.clientId)
+	txn := s.txnStore.createTxn(message.txnId, message.timestamp, message.clientId, s)
 	txn.Status = message.status
 	if s.IsLeader() {
 		txn.leaderPrepare()
@@ -145,7 +145,7 @@ func (s *Server) applyPrepare(message ReplicateMessage) {
 
 func (s *Server) applyCoordCommit(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated coord commit status %v", message.txnId, message.status)
-	txn := s.txnStore.createTxn(message.txnId, message.timestamp, message.clientId)
+	txn := s.txnStore.createTxn(message.txnId, message.timestamp, message.clientId, s)
 	txn.Status = message.status
 	if s.IsLeader() {
 		txn.coordLeaderCommit()
@@ -156,7 +156,7 @@ func (s *Server) applyCoordCommit(message ReplicateMessage) {
 
 func (s *Server) applyPartitionCommit(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated partition commit status %v", message.txnId, message.status)
-	txn := s.txnStore.createTxn(message.txnId, message.timestamp, message.clientId)
+	txn := s.txnStore.createTxn(message.txnId, message.timestamp, message.clientId, s)
 	txn.Status = message.status
 	if s.IsLeader() {
 		txn.partitionLeaderCommit()
