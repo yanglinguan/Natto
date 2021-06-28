@@ -21,7 +21,7 @@ func (s *Server) Read(ctx context.Context, request *ReadRequest) (*ReadReply, er
 }
 
 func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitReply, error) {
-	logrus.Debugf("receive txn %v commit request from client", request.Id, request.CId)
+	logrus.Debugf("receive txn %v commit request from client %v", request.Id, request.CId)
 	// single partition txn
 	if len(request.Pp) == 1 {
 		op := s.opCreator.createCommitOp(request)
@@ -65,7 +65,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 }
 
 func (s *Server) Prepare(ctx context.Context, request *PrepareRequest) (*Empty, error) {
-	logrus.Debugf("receive txn %v coord receives prepare from server %v, pId %v, status %v",
+	logrus.Debugf("receive txn %v coord receives prepare from pId %v, status %v",
 		request.Id, request.PId, request.Prepared)
 	txn := s.txnStore.createTxn(request.Id, request.Ts, request.CId, s)
 	op := newPrepare(request, txn)

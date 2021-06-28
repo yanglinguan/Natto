@@ -37,10 +37,12 @@ func (o *prepare) execute(coordinator *coordinator) {
 	logrus.Debugf("txn %v partition %v prepared", o.txn.txnId, o.prepareRequest.PId)
 	if twoPCInfo.commitOp != nil {
 		logrus.Debugf("txn %v receive %v prepared, require %v",
-			twoPCInfo.prepared, len(o.txn.participantPartition))
+			o.txn.txnId, twoPCInfo.prepared, len(o.txn.participantPartition))
 		if twoPCInfo.prepared == len(o.txn.participantPartition) {
 			logrus.Debugf("txn %v committed", o.txn.txnId)
 			coordinator.commit(o.txn)
 		}
+	} else {
+		logrus.Debugf("txn %v dose not receives commit msg from client", o.txn.txnId)
 	}
 }
