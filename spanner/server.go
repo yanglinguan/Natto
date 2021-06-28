@@ -7,6 +7,7 @@ import (
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
 	"strings"
@@ -66,6 +67,10 @@ func NewServer(serverId int, config configuration.Configuration) *Server {
 		logrus.Debugf("add connection server %v, addr %v", sId, addr)
 		s.connection[sId] = newConnect(addr)
 	}
+
+	RegisterSpannerServer(s.gRPCServer, s)
+	reflection.Register(s.gRPCServer)
+
 	return s
 }
 
