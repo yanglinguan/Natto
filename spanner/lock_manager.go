@@ -27,13 +27,14 @@ func newLockManager() *lockManager {
 
 func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	lockInfo := lm.createLockInfo(key)
-	if _, exist := lockInfo.readers[txn.txnId]; !exist && lockInfo.writer.txnId != txn.txnId {
+	if _, exist := lockInfo.readers[txn.txnId]; !exist &&
+		(lockInfo.writer != nil && lockInfo.writer.txnId != txn.txnId) {
 		logrus.Debugf("txn %v does not hold key %v", txn.txnId, key)
 		return
 	}
 	logrus.Debugf("txn %v release key %v", txn.txnId, key)
 	delete(lockInfo.readers, txn.txnId)
-	if lockInfo.writer.txnId == txn.txnId {
+	if lockInfo.writer != nil && lockInfo.writer.txnId == txn.txnId {
 		lockInfo.writer = nil
 	}
 
