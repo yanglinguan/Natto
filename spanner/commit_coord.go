@@ -26,11 +26,13 @@ func (o *commitCoord) getCommitResult() bool {
 }
 
 func (o *commitCoord) execute(coordinator *coordinator) {
-	txn := o.server.txnStore.createTxn(o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId, o.server)
+
+	twoPCInfo := coordinator.createTwoPCInfo(
+		o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId)
+	txn := twoPCInfo.txn
 	for _, pId := range o.commitRequest.Pp {
 		txn.participantPartition[int(pId)] = true
 	}
-	twoPCInfo := coordinator.createTwoPCInfo(txn)
 	twoPCInfo.commitOp = o
 	status := twoPCInfo.status
 	if status == ABORTED {

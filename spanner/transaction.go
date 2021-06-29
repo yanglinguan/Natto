@@ -122,27 +122,6 @@ func (t *transaction) replyRead() {
 	t.read2PLOp.waitChan <- true
 }
 
-func (t *transaction) coordLeaderCommit() {
-	// reply to the client
-	twoPCInfo := t.server.coordinator.transactions[t.txnId]
-	twoPCInfo.commitOp.result = twoPCInfo.status == COMMITTED
-	twoPCInfo.commitOp.waitChan <- true
-
-	selfPartition := t.server.pId
-	for pid := range t.participantPartition {
-		if selfPartition == pid {
-			t.partitionLeaderCommit()
-			continue
-		}
-		// send the commit decision to partition leader
-		go t.server.sendCommitDecision(t, pid)
-	}
-}
-
-func (t *transaction) coordFollowerCommit() {
-
-}
-
 func (t *transaction) leaderPrepare() {
 	if len(t.participantPartition) == 1 {
 		// single partition; send the result to client;

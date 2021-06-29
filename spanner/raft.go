@@ -62,13 +62,28 @@ func (o *replicateResultOp) execute(s *Server) {
 	switch o.replicationMsg.MsgType {
 	case PREPARE:
 		s.applyPrepare(o.replicationMsg)
-	case COORDCOMMIT:
-		s.applyCoordCommit(o.replicationMsg)
 	case PARTITIONCOMMIT:
 		s.applyPartitionCommit(o.replicationMsg)
 	default:
 		return
 	}
+}
+
+type replicatedCoordCommitResult struct {
+	replicationMsg ReplicateMessage
+}
+
+func (o *replicatedCoordCommitResult) wait() {
+	return
+}
+
+func (o *replicatedCoordCommitResult) string() string {
+	return fmt.Sprintf("REPLICATION RESULT OP txn %v msgType %v status %v",
+		o.replicationMsg.TxnId, o.replicationMsg.MsgType, o.replicationMsg.Status)
+}
+
+func (o *replicatedCoordCommitResult) execute(coord *coordinator) {
+	coord.applyCoordCommit(o.replicationMsg)
 }
 
 func (r *raft) handleReplicatedOp(data *string) {
@@ -79,6 +94,12 @@ func (r *raft) handleReplicatedOp(data *string) {
 	}
 	logrus.Debugf("get replicated msg txn %v status %v",
 		replicationMsg.TxnId, replicationMsg.Status)
-	op := &replicateResultOp{replicationMsg: replicationMsg}
-	r.server.addOp(op)
+
+	if replicationMsg.MsgType == COORDCOMMIT {
+		op := &replicatedCoordCommitResult{replicationMsg: replicationMsg}
+		r.server.coordinator.addOp(op)
+	} else {
+		op := &replicateResultOp{replicationMsg: replicationMsg}
+		r.server.addOp(op)
+	}
 }

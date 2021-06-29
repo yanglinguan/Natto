@@ -59,7 +59,7 @@ func NewServer(serverId int, config configuration.Configuration) *Server {
 		serverAddress: config.GetServerAddressByServerId(serverId),
 	}
 	s.port = strings.Split(s.serverAddress, ":")[1]
-
+	s.coordinator.server = s
 	for sId, addr := range config.GetServerAddress() {
 		if sId == serverId {
 			continue
@@ -150,16 +150,16 @@ func (s *Server) applyPrepare(message ReplicateMessage) {
 	}
 }
 
-func (s *Server) applyCoordCommit(message ReplicateMessage) {
-	logrus.Debugf("txn %v replicated coord commit status %v", message.TxnId, message.Status)
-	txn := s.txnStore.createTxn(message.TxnId, message.Timestamp, message.ClientId, s)
-	txn.Status = message.Status
-	if s.IsLeader() {
-		txn.coordLeaderCommit()
-	} else {
-		txn.coordFollowerCommit()
-	}
-}
+//func (s *Server) applyCoordCommit(message ReplicateMessage) {
+//	logrus.Debugf("txn %v replicated coord commit status %v", message.TxnId, message.Status)
+//	txn := s.txnStore.createTxn(message.TxnId, message.Timestamp, message.ClientId, s)
+//	txn.Status = message.Status
+//	if s.IsLeader() {
+//		txn.coordLeaderCommit()
+//	} else {
+//		txn.coordFollowerCommit()
+//	}
+//}
 
 func (s *Server) applyPartitionCommit(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated partition commit status %v", message.TxnId, message.Status)
@@ -195,6 +195,7 @@ func (s *Server) IsLeader() bool {
 	return leaderId == s.serverId
 }
 
+// send prepare result to coordinator
 func (s *Server) sendPrepare(txn *transaction) {
 	coordServerId := s.config.GetLeaderIdByPartitionId(txn.coordPId)
 	prepareRequest := &PrepareRequest{
@@ -216,33 +217,5 @@ func (s *Server) sendPrepare(txn *transaction) {
 	if err != nil {
 		logrus.Fatalf("txn %v cannot sent prepare result to coordinator %v",
 			txn.txnId, coordServerId)
-	}
-}
-
-func (s *Server) sendCommitDecision(txn *transaction, pId int) {
-	twoPCInfo := s.coordinator.transactions[txn.txnId]
-
-	commitResult := &CommitResult{
-		Commit: twoPCInfo.commitOp.result,
-		Id:     txn.txnId,
-	}
-
-	// send to participant partition
-	leaderId := s.config.GetLeaderIdByPartitionId(pId)
-
-	//if leaderId == s.serverId {
-	//	op := &commitDecision{commitResult: commitResult}
-	//	s.opChan <- op
-	//	return
-	//}
-
-	logrus.Debugf("txn %v send commit decision to server %v pId %v", txn.txnId, leaderId, pId)
-	conn := s.connection[leaderId]
-	client := NewSpannerClient(conn.GetConn())
-
-	_, err := client.CommitDecision(context.Background(), commitResult)
-	if err != nil {
-		logrus.Fatalf("txn %v coord cannot sent commit decision to partition %v",
-			txn.txnId, pId)
 	}
 }

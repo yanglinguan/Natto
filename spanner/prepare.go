@@ -28,8 +28,9 @@ func (o *prepare) string() string {
 }
 
 func (o *prepare) execute(coordinator *coordinator) {
-	txn := o.server.txnStore.createTxn(o.prepareRequest.Id, o.prepareRequest.Ts, o.prepareRequest.CId, o.server)
-	twoPCInfo := coordinator.createTwoPCInfo(txn)
+	twoPCInfo := coordinator.createTwoPCInfo(
+		o.prepareRequest.Id, o.prepareRequest.Ts, o.prepareRequest.CId)
+	txn := twoPCInfo.txn
 	if twoPCInfo.status == ABORTED {
 		logrus.Debugf("txn %v already aborted", o.prepareRequest.Id)
 		return

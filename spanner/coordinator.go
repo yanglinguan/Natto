@@ -1,6 +1,9 @@
 package spanner
 
-import "github.com/sirupsen/logrus"
+import (
+	"context"
+	"github.com/sirupsen/logrus"
+)
 
 type twoPCInfo struct {
 	prepared int
@@ -12,8 +15,8 @@ type twoPCInfo struct {
 
 type coordinator struct {
 	transactions map[string]*twoPCInfo
-
-	opChan chan coordOperation
+	server       *Server
+	opChan       chan coordOperation
 }
 
 func newCoordinator(queueLen int) *coordinator {
@@ -39,15 +42,16 @@ func (c *coordinator) start() {
 	}
 }
 
-func (c *coordinator) createTwoPCInfo(txn *transaction) *twoPCInfo {
-	if _, exist := c.transactions[txn.txnId]; !exist {
+func (c *coordinator) createTwoPCInfo(txnId string, ts int64, cId int64) *twoPCInfo {
+	if _, exist := c.transactions[txnId]; !exist {
+		txn := NewTransaction(txnId, ts, cId)
 		c.transactions[txn.txnId] = &twoPCInfo{
 			prepared: 0,
 			status:   INIT,
 			txn:      txn,
 		}
 	}
-	return c.transactions[txn.txnId]
+	return c.transactions[txnId]
 }
 
 func (c *coordinator) abort(txn *transaction) {
@@ -58,4 +62,49 @@ func (c *coordinator) abort(txn *transaction) {
 func (c *coordinator) commit(txn *transaction) {
 	c.transactions[txn.txnId].status = COMMITTED
 	txn.replicate(COMMITTED, COORDCOMMIT)
+}
+
+func (c *coordinator) sendCommitDecision(txnId string, pId int) {
+	twoPCInfo := c.transactions[txnId]
+
+	commitResult := &CommitResult{
+		Commit: twoPCInfo.commitOp.result,
+		Id:     txnId,
+	}
+
+	// send to participant partition
+	leaderId := c.server.config.GetLeaderIdByPartitionId(pId)
+
+	logrus.Debugf("txn %v send commit decision to server %v pId %v",
+		txnId, leaderId, pId)
+	conn := c.server.connection[leaderId]
+	client := NewSpannerClient(conn.GetConn())
+
+	_, err := client.CommitDecision(context.Background(), commitResult)
+	if err != nil {
+		logrus.Fatalf("txn %v coord cannot sent commit decision to partition %v",
+			txnId, pId)
+	}
+}
+
+func (c *coordinator) applyCoordCommit(message ReplicateMessage) {
+	logrus.Debugf("txn %v replicated coord commit status %v", message.TxnId, message.Status)
+	twoPCInfo := c.createTwoPCInfo(message.TxnId, message.Timestamp, message.ClientId)
+	twoPCInfo.status = message.Status
+	txn := twoPCInfo.txn
+	if c.server.IsLeader() {
+		twoPCInfo.commitOp.result = twoPCInfo.status == COMMITTED
+		twoPCInfo.commitOp.waitChan <- true
+
+		for pid := range txn.participantPartition {
+			if c.server.pId == pid {
+				message.MsgType = PARTITIONCOMMIT
+				op := &replicateResultOp{replicationMsg: message}
+				c.server.addOp(op)
+				continue
+			}
+			// send the commit decision to partition leader
+			go c.sendCommitDecision(txn.txnId, pid)
+		}
+	}
 }
