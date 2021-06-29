@@ -45,6 +45,7 @@ func (c *coordinator) start() {
 func (c *coordinator) createTwoPCInfo(txnId string, ts int64, cId int64) *twoPCInfo {
 	if _, exist := c.transactions[txnId]; !exist {
 		txn := NewTransaction(txnId, ts, cId)
+		txn.server = c.server
 		c.transactions[txn.txnId] = &twoPCInfo{
 			prepared: 0,
 			status:   INIT,
