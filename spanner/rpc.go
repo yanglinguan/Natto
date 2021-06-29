@@ -8,7 +8,7 @@ import (
 func (s *Server) Read(ctx context.Context, request *ReadRequest) (*ReadReply, error) {
 	logrus.Debugf("txn %v receive read request from client %v", request.Id, request.CId)
 	op := s.opCreator.createReadOp(request)
-	s.opChan <- op
+	s.addOp(op)
 
 	op.wait()
 	abort, result := op.getReadResult()
@@ -25,7 +25,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 	// single partition txn
 	if len(request.Pp) == 1 {
 		op := s.opCreator.createCommitOp(request)
-		s.opChan <- op
+		s.addOp(op)
 		op.wait()
 		result := &CommitReply{
 			Commit: op.getCommitResult(),
@@ -36,7 +36,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 	for _, pId := range request.Pp {
 		if int(pId) == s.pId {
 			op := s.opCreator.createCommitOp(request)
-			s.opChan <- op
+			s.addOp(op)
 			break
 		}
 	}
@@ -49,7 +49,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 			result:        false,
 			waitChan:      make(chan bool),
 		}
-		s.coordinator.opChan <- op
+		s.coordinator.addOp(op)
 		op.wait()
 		result := &CommitReply{
 			Commit: op.getCommitResult(),
@@ -67,7 +67,7 @@ func (s *Server) Prepare(ctx context.Context, request *PrepareRequest) (*Empty, 
 	logrus.Debugf("receive txn %v coord receives prepare from pId %v, status %v",
 		request.Id, request.PId, request.Prepared)
 	op := newPrepare(request, s)
-	s.coordinator.opChan <- op
+	s.coordinator.addOp(op)
 	return &Empty{}, nil
 }
 
@@ -75,14 +75,14 @@ func (s *Server) CommitDecision(ctx context.Context, request *CommitResult) (*Em
 	logrus.Debugf("receive txn %v commit decision from coord status %v",
 		request.Id, request.Commit)
 	op := &commitDecision{commitResult: request}
-	s.opChan <- op
+	s.addOp(op)
 	return &Empty{}, nil
 }
 
 func (s *Server) Abort(ctx context.Context, request *AbortRequest) (*Empty, error) {
 	logrus.Debugf("receive txn %v abort from client %v", request.Id, request.CId)
 	op := &abortClient{abortRequest: request, waitChan: make(chan bool)}
-	s.opChan <- op
+	s.addOp(op)
 	op.wait()
 	return &Empty{}, nil
 }

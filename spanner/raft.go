@@ -65,6 +65,8 @@ func (o *replicateResultOp) execute(s *Server) {
 		s.applyCoordCommit(o.replicationMsg)
 	case PARTITIONCOMMIT:
 		s.applyPartitionCommit(o.replicationMsg)
+	default:
+		return
 	}
 }
 
@@ -77,5 +79,5 @@ func (r *raft) handleReplicatedOp(data *string) {
 	logrus.Debugf("get replicated msg txn %v status %v",
 		replicationMsg.TxnId, replicationMsg.Status)
 	op := &replicateResultOp{replicationMsg: replicationMsg}
-	r.server.opChan <- op
+	r.server.addOp(op)
 }

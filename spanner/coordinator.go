@@ -25,11 +25,17 @@ func newCoordinator(queueLen int) *coordinator {
 	return c
 }
 
+func (c *coordinator) addOp(op coordOperation) {
+	logrus.Debugf("Add Coord op %v", op.string())
+	c.opChan <- op
+}
+
 func (c *coordinator) start() {
 	for {
 		op := <-c.opChan
-		logrus.Debugf("Coord process %v", op.string())
+		logrus.Debugf("Coord op process %v", op.string())
 		op.execute(c)
+		logrus.Debugf("finish Coord op process %v", op.string())
 	}
 }
 

@@ -74,6 +74,11 @@ func NewServer(serverId int, config configuration.Configuration) *Server {
 	return s
 }
 
+func (s *Server) addOp(op operation) {
+	logrus.Debugf("Add Server op %v", op.string())
+	s.opChan <- op
+}
+
 func (s *Server) InitKeyValue(key string, val string) {
 	s.kvStore.initKeyValue(key, val)
 }
@@ -85,8 +90,9 @@ func (s *Server) InitData(key []string) {
 func (s *Server) handleOp() {
 	for {
 		op := <-s.opChan
-		logrus.Debugf("Server process %v", op.string())
+		logrus.Debugf("Server op process %v", op.string())
 		op.execute(s)
+		logrus.Debugf("finish Server op process %v", op.string())
 	}
 }
 
@@ -199,7 +205,7 @@ func (s *Server) sendPrepare(txn *transaction) {
 
 	if coordServerId == s.serverId {
 		p := newPrepare(prepareRequest, s)
-		s.coordinator.opChan <- p
+		s.coordinator.addOp(p)
 		return
 	}
 	// send to coord and wait for commit result
