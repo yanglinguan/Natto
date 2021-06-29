@@ -39,10 +39,13 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	}
 
 	for lockInfo.pq.Len() != 0 {
-		logrus.Debugf("wait txn %v try to acquire lock of key %v", txn.txnId, key)
 		waitTxn := lockInfo.pq.Peek()
+		logrus.Debugf("lock release txn %v wait txn %v try to acquire lock of key %v",
+			txn.txnId, waitTxn.txnId, key)
+
 		if waitTxn.Status == ABORTED {
-			logrus.Debugf("wait txn %v is already aborted", waitTxn.txnId)
+			logrus.Debugf("lock release txn %v wait txn %v is already aborted",
+				txn.txnId, waitTxn.txnId)
 			lockInfo.pq.Pop()
 			continue
 		}
@@ -54,14 +57,17 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 		}
 
 		if !grant {
-			logrus.Debugf("txn %v in the queue cannot get lock of key %v", waitTxn.txnId, key)
+			logrus.Debugf("lock release txn %v wait txn %v in the queue cannot get lock of key %v",
+				txn.txnId, waitTxn.txnId, key)
 			break
 		}
-		logrus.Debugf("txn %v in the queue get lock of key %v", waitTxn.txnId, key)
+		logrus.Debugf("lock release txn %v wait txn %v in the queue get lock of key %v",
+			txn.txnId, waitTxn.txnId, key)
 		lockInfo.pq.Pop()
 		waitTxn.removeWaitKey(key)
 		if len(waitTxn.getWaitKey()) == 0 {
-			logrus.Debugf("txn %v get all locks of keys", waitTxn.txnId)
+			logrus.Debugf("lock release txn %v wait txn %v get all locks of keys",
+				txn.txnId, waitTxn.txnId)
 			if waitTxn.Status == READ {
 				waitTxn.replyRead()
 			} else if waitTxn.Status == WRITE {

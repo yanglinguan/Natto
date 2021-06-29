@@ -164,6 +164,7 @@ func (s *Server) applyPartitionCommit(message ReplicateMessage) {
 	} else {
 		txn.partitionFollowerCommit()
 	}
+	logrus.Debugf("finish replicated partition commit txn %v status %v", message.TxnId, message.Status)
 }
 
 func (s *Server) GetLeaderServerId() int {
