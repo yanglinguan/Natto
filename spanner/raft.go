@@ -54,7 +54,8 @@ func (o *replicateResultOp) wait() {
 }
 
 func (o *replicateResultOp) string() string {
-	return fmt.Sprintf("REPLICATION RESULT OP txn %v", o.replicationMsg.TxnId)
+	return fmt.Sprintf("REPLICATION RESULT OP txn %v msgType %v status %v",
+		o.replicationMsg.TxnId, o.replicationMsg.MsgType, o.replicationMsg.Status)
 }
 
 func (o *replicateResultOp) execute(s *Server) {

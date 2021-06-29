@@ -52,6 +52,10 @@ func (o *commit2PL) execute(server *Server) {
 	txn.Status = WRITE
 	for key := range writeMap {
 		server.lm.lockExclusive(txn, key)
+		if txn.Status == ABORTED {
+			logrus.Debugf("finish process commit 2pl op txn %v ABORTED", o.commitRequest.Id)
+			return
+		}
 	}
 	if len(txn.waitKeys) == 0 {
 		txn.prepare()

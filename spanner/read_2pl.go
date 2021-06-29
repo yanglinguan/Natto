@@ -40,6 +40,9 @@ func (o *read2PL) execute(server *Server) {
 	for _, key := range txn.readKeys {
 		txn.keyMap[key] = true
 		server.lm.lockShared(txn, key)
+		if txn.Status == ABORTED {
+			return
+		}
 	}
 	if len(txn.waitKeys) == 0 {
 		txn.replyRead()
