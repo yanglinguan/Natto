@@ -39,6 +39,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	}
 
 	for lockInfo.pq.Len() != 0 {
+		logrus.Debugf("wait txn %v try to acquire lock of key %v", txn.txnId, key)
 		waitTxn := lockInfo.pq.Peek()
 		if waitTxn.Status == ABORTED {
 			logrus.Debugf("wait txn %v is already aborted", waitTxn.txnId)
@@ -68,6 +69,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 			}
 		}
 	}
+	logrus.Debugf("txn %v lock of key %v released", txn.txnId, key)
 }
 
 // returns lock info for key. if not exist, create a lock info
