@@ -1,6 +1,9 @@
 package spanner
 
-import "github.com/sirupsen/logrus"
+import (
+	"fmt"
+	"github.com/sirupsen/logrus"
+)
 
 // coord handle the commit request from client
 type commitCoord struct {
@@ -12,6 +15,10 @@ type commitCoord struct {
 
 func (o *commitCoord) wait() {
 	<-o.waitChan
+}
+
+func (o *commitCoord) string() string {
+	return fmt.Sprintf("COMMIT COORD OP txn %v", o.commitRequest.Id)
 }
 
 func (o *commitCoord) getCommitResult() bool {

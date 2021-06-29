@@ -1,5 +1,7 @@
 package spanner
 
+import "github.com/sirupsen/logrus"
+
 type twoPCInfo struct {
 	prepared int
 	status   TxnStatus
@@ -26,6 +28,7 @@ func newCoordinator(queueLen int) *coordinator {
 func (c *coordinator) start() {
 	for {
 		op := <-c.opChan
+		logrus.Debugf("Coord process %v", op.string())
 		op.execute(c)
 	}
 }

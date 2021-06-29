@@ -1,6 +1,9 @@
 package spanner
 
-import "github.com/sirupsen/logrus"
+import (
+	"fmt"
+	"github.com/sirupsen/logrus"
+)
 
 // coordinator handle the prepare result from the partition leaders
 type prepare struct {
@@ -18,6 +21,10 @@ func newPrepare(pRequest *PrepareRequest, server *Server) *prepare {
 
 func (o *prepare) wait() {
 	return
+}
+
+func (o *prepare) string() string {
+	return fmt.Sprintf("PREPARE OP txn %v pid %v", o.prepareRequest.Id, o.prepareRequest.PId)
 }
 
 func (o *prepare) execute(coordinator *coordinator) {

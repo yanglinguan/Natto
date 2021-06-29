@@ -33,11 +33,6 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 		return result, nil
 	}
 
-	//txn := s.txnStore.createTxn(request.Id, request.Ts, request.CId, s)
-	//for _, pId := range request.Pp {
-	//	txn.participantPartition[int(pId)] = true
-	//}
-
 	for _, pId := range request.Pp {
 		if int(pId) == s.pId {
 			op := s.opCreator.createCommitOp(request)

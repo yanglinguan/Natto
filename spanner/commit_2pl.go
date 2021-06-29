@@ -1,5 +1,10 @@
 package spanner
 
+import (
+	"fmt"
+	"github.com/sirupsen/logrus"
+)
+
 type commit2PL struct {
 	commitRequest *CommitRequest
 	result        bool
@@ -10,11 +15,16 @@ func (o *commit2PL) wait() {
 	<-o.waitChan
 }
 
+func (o *commit2PL) string() string {
+	return fmt.Sprintf("COMMIT 2PL OP txn %v", o.commitRequest.Id)
+}
+
 func (o *commit2PL) getCommitResult() bool {
 	return o.result
 }
 
 func (o *commit2PL) execute(server *Server) {
+	logrus.Debugf("process commit 2pl op txn %v", o.commitRequest.Id)
 	txn := server.txnStore.createTxn(o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId, server)
 	txn.commitOp = o
 	txn.coordPId = int(o.commitRequest.CoordPId)
@@ -46,4 +56,5 @@ func (o *commit2PL) execute(server *Server) {
 	if len(txn.waitKeys) == 0 {
 		txn.prepare()
 	}
+	logrus.Debugf("finish process commit 2pl op txn %v", o.commitRequest.Id)
 }

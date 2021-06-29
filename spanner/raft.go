@@ -3,6 +3,7 @@ package spanner
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"github.com/coreos/etcd/snap"
 	"github.com/sirupsen/logrus"
 )
@@ -50,6 +51,10 @@ type replicateResultOp struct {
 
 func (o *replicateResultOp) wait() {
 	return
+}
+
+func (o *replicateResultOp) string() string {
+	return fmt.Sprintf("REPLICATION RESULT OP txn %v", o.replicationMsg.TxnId)
 }
 
 func (o *replicateResultOp) execute(s *Server) {

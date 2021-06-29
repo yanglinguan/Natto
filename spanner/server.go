@@ -85,6 +85,7 @@ func (s *Server) InitData(key []string) {
 func (s *Server) handleOp() {
 	for {
 		op := <-s.opChan
+		logrus.Debugf("Server process %v", op.string())
 		op.execute(s)
 	}
 }

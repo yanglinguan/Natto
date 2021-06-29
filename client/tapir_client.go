@@ -60,7 +60,8 @@ func exec(
 func (op *TapirTxnOp) Execute() {
 	op.tapirClient.txnStore.addTxn(
 		nil,
-		op.txnId, op.txn.GetReadKeys(),
+		op.txnId,
+		op.txn.GetReadKeys(),
 		op.txn.GetWriteKeys(),
 		op.txn.GetPriority(),
 		op.tapirClient.config)

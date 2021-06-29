@@ -1,5 +1,7 @@
 package spanner
 
+import "fmt"
+
 // partition leader handles the commit decision from coordinator
 type commitDecision struct {
 	commitResult *CommitResult
@@ -7,6 +9,10 @@ type commitDecision struct {
 
 func (o *commitDecision) wait() {
 	return
+}
+
+func (o *commitDecision) string() string {
+	return fmt.Sprintf("COMMIT DECISION OP txn %v", o.commitResult.Id)
 }
 
 func (o *commitDecision) execute(s *Server) {

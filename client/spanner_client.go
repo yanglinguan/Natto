@@ -22,6 +22,7 @@ func (op *spannerOp) exec(
 	execRecord *ExecutionRecord,
 	client *SpannerClient) {
 	// read
+	logrus.Debugf("execute txn %v execCount %v", execRecord.rpcTxnId, execRecord)
 	readKey := make(map[int][]string)
 	for _, key := range op.txn.GetReadKeys() {
 		pId := client.config.GetPartitionIdByKey(key)
@@ -51,7 +52,7 @@ func (op *spannerOp) exec(
 		op.result = client.lib.Commit(txn, writeDataPartitionMap)
 	}
 	execRecord.endTime = time.Now()
-	logrus.Debugf("txn %v result %v", txnIdToServer, op.result)
+	logrus.Debugf("txn %v commit result %v", txnIdToServer, op.result)
 	if !op.result {
 		execRecord.commitResult = 0
 		op.isRetry, op.waitTime = isRetryTxn(execCount+1, client.config)
@@ -63,12 +64,17 @@ func (op *spannerOp) exec(
 
 func (op *spannerOp) execute(client *SpannerClient) {
 	txnId := getTxnId(client.clientId, op.txn.GetTxnId())
-	client.txnStore.addTxn(nil, txnId, op.txn.GetReadKeys(), op.txn.GetWriteKeys(), op.txn.GetPriority(), client.config)
+	client.txnStore.addTxn(
+		nil,
+		txnId,
+		op.txn.GetReadKeys(),
+		op.txn.GetWriteKeys(),
+		op.txn.GetPriority(),
+		client.config)
 
 	execRecord := client.txnStore.getCurrentExecution(txnId)
 	execCount := client.txnStore.getCurrentExecutionCount(txnId)
 	go op.exec(execCount, execRecord, client)
-
 }
 
 type SpannerClient struct {

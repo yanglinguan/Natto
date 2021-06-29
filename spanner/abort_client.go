@@ -1,5 +1,7 @@
 package spanner
 
+import "fmt"
+
 // handle the client abort request
 type abortClient struct {
 	abortRequest *AbortRequest
@@ -8,6 +10,10 @@ type abortClient struct {
 
 func (o *abortClient) wait() {
 	<-o.waitChan
+}
+
+func (o *abortClient) string() string {
+	return fmt.Sprintf("ABORT CLIENT OP txn %v", o.abortRequest.Id)
 }
 
 // client send abort when the read request is fail

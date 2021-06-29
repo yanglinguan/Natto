@@ -3,6 +3,7 @@ package spanner
 type operation interface {
 	execute(server *Server)
 	wait()
+	string() string
 }
 
 type readOp interface {
@@ -18,6 +19,7 @@ type commitOp interface {
 type coordOperation interface {
 	execute(coord *coordinator)
 	wait()
+	string() string
 }
 
 type opCreator interface {
