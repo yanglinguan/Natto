@@ -8,15 +8,6 @@ import (
 // coordinator handle the prepare result from the partition leaders
 type prepare struct {
 	prepareRequest *PrepareRequest
-	server         *Server
-}
-
-func newPrepare(pRequest *PrepareRequest, server *Server) *prepare {
-	p := &prepare{
-		prepareRequest: pRequest,
-		server:         server,
-	}
-	return p
 }
 
 func (o *prepare) wait() {

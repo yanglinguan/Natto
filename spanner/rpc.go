@@ -66,7 +66,7 @@ func (s *Server) Commit(ctx context.Context, request *CommitRequest) (*CommitRep
 func (s *Server) Prepare(ctx context.Context, request *PrepareRequest) (*Empty, error) {
 	logrus.Debugf("receive txn %v coord receives prepare from pId %v, status %v",
 		request.Id, request.PId, request.Prepared)
-	op := newPrepare(request, s)
+	op := &prepare{prepareRequest: request}
 	s.coordinator.addOp(op)
 	return &Empty{}, nil
 }

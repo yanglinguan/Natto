@@ -65,11 +65,9 @@ func (c *coordinator) commit(txn *transaction) {
 	txn.replicate(COMMITTED, COORDCOMMIT)
 }
 
-func (c *coordinator) sendCommitDecision(txnId string, pId int) {
-	twoPCInfo := c.transactions[txnId]
-
+func (c *coordinator) sendCommitDecision(txnId string, result bool, pId int) {
 	commitResult := &CommitResult{
-		Commit: twoPCInfo.commitOp.result,
+		Commit: result,
 		Id:     txnId,
 	}
 
@@ -105,7 +103,7 @@ func (c *coordinator) applyCoordCommit(message ReplicateMessage) {
 				continue
 			}
 			// send the commit decision to partition leader
-			go c.sendCommitDecision(txn.txnId, pid)
+			go c.sendCommitDecision(txn.txnId, twoPCInfo.commitOp.result, pid)
 		}
 	}
 }
