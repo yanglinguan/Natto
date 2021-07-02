@@ -9,8 +9,9 @@ type twoPCInfo struct {
 	prepared int
 	status   TxnStatus
 
-	commitOp *commitCoord
-	txn      *transaction
+	commitOp    *commitCoord
+	txn         *transaction
+	replyClient bool
 }
 
 type coordinator struct {
@@ -92,8 +93,11 @@ func (c *coordinator) applyCoordCommit(message ReplicateMessage) {
 	twoPCInfo.status = message.Status
 	txn := twoPCInfo.txn
 	if c.server.IsLeader() {
-		twoPCInfo.commitOp.result = twoPCInfo.status == COMMITTED
-		twoPCInfo.commitOp.waitChan <- true
+		if !twoPCInfo.replyClient && twoPCInfo.commitOp != nil {
+			twoPCInfo.replyClient = true
+			twoPCInfo.commitOp.result = twoPCInfo.status == COMMITTED
+			twoPCInfo.commitOp.waitChan <- true
+		}
 
 		for pid := range txn.participantPartition {
 			if c.server.pId == pid {

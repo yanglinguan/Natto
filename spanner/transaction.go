@@ -39,7 +39,8 @@ type transaction struct {
 
 	commitOp *commit2PL
 
-	server *Server
+	server            *Server
+	replicatedPrepare bool
 
 	// for priority queue
 	index int
@@ -123,14 +124,19 @@ func (t *transaction) replyRead() {
 }
 
 func (t *transaction) leaderPrepare() {
+	logrus.Debugf("txn %v pp %v", t.txnId, t.participantPartition)
 	if len(t.participantPartition) == 1 {
 		// single partition; send the result to client;
 		// do not require 2PC
+		logrus.Debugf("single partition txn %v status %v", t.txnId, t.Status)
 		if t.Status == PREPARED {
 			t.Status = COMMITTED
 		}
-		t.commitOp.result = t.Status == COMMITTED
-		t.commitOp.waitChan <- true
+		if t.commitOp != nil {
+			logrus.Debugf("single partition txn %v reply commit op", t.txnId)
+			t.commitOp.result = t.Status == COMMITTED
+			t.commitOp.waitChan <- true
+		}
 		// release lock
 		t.partitionLeaderCommit()
 		return
@@ -188,7 +194,9 @@ func (t *transaction) replicate(status TxnStatus, msgType ReplicateMsgType) {
 		WriteKeyVal: nil,
 		MsgType:     msgType,
 	}
-
+	if msgType == PREPARE {
+		t.replicatedPrepare = true
+	}
 	if status == PREPARED {
 		msg.WriteKeyVal = t.writeKeys
 	}
@@ -216,7 +224,9 @@ func (t *transaction) abort() {
 	t.Status = ABORTED
 	// this is prepare message
 	// after replication send to coord
-	t.replicate(ABORTED, PREPARE)
+	if !t.replicatedPrepare && !t.finalize {
+		t.replicate(ABORTED, PREPARE)
+	}
 }
 
 func (t *transaction) prepare() {
