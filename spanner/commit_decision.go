@@ -23,6 +23,6 @@ func (o *commitDecision) execute(s *Server) {
 	if o.commitResult.Commit {
 		status = COMMITTED
 	}
-
+	txn.Status = status
 	txn.replicate(status, PARTITIONCOMMIT)
 }

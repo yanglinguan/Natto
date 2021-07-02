@@ -36,7 +36,7 @@ func (o *commitCoord) execute(coordinator *coordinator) {
 	twoPCInfo.commitOp = o
 	status := twoPCInfo.status
 	if status == ABORTED {
-		twoPCInfo.replyToClient = true
+		twoPCInfo.replyClient = true
 		o.result = false
 		o.waitChan <- true
 		logrus.Debugf("txn %v is already aborted", o.commitRequest.Id)
