@@ -258,6 +258,7 @@ func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockTyp
 				break
 			}
 			if !waitTxn.priority {
+				logrus.Debugf("txn %v is preempted by high priority txn %v", waitTxn.txnId, txn.txnId)
 				waitTxn.abort()
 			} else {
 				highTxnList = append(highTxnList, waitTxn)
@@ -270,23 +271,32 @@ func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockTyp
 	} else {
 		txnList := make([]*transaction, 0)
 		for lockInfo.pq.Len() != 0 {
-			waitTxn := lockInfo.pq.Peek()
+			waitTxn := lockInfo.pq.Pop()
+			txnList = append(txnList, waitTxn)
 			if waitTxn.txnId == txn.txnId {
 				break
 			}
+		}
+
+		for lockInfo.pq.Len() != 0 {
+			waitTxn := lockInfo.pq.Peek()
 			if waitTxn.priority {
+				logrus.Debugf("txn %v is aborted because of high priority txn %v", txn.txnId, waitTxn.txnId)
 				txn.abort()
 				break
 			}
 			txnList = append(txnList, waitTxn)
 			lockInfo.pq.Pop()
 		}
+
 		for _, t := range txnList {
+			if t.txnId == txn.txnId && txn.Status == ABORTED {
+				continue
+			}
 			lockInfo.pq.Push(t)
 		}
 
 		if txn.Status == ABORTED {
-			lockInfo.pq.Remove(txn)
 			return false
 		}
 	}
