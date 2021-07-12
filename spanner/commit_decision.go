@@ -17,7 +17,8 @@ func (o *commitDecision) string() string {
 
 func (o *commitDecision) execute(s *Server) {
 	// replicate commit decision
-	txn := s.txnStore.createTxn(o.commitResult.Id, o.commitResult.Ts, o.commitResult.CId, s)
+	txn := s.txnStore.createTxn(
+		o.commitResult.Id, o.commitResult.Ts, o.commitResult.CId, o.commitResult.P, s)
 	txn.finalize = true
 	status := ABORTED
 	if o.commitResult.Commit {

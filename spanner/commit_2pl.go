@@ -25,7 +25,8 @@ func (o *commit2PL) getCommitResult() bool {
 
 func (o *commit2PL) execute(server *Server) {
 	logrus.Debugf("process commit 2pl op txn %v pp %v", o.commitRequest.Id, o.commitRequest.Pp)
-	txn := server.txnStore.createTxn(o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId, server)
+	txn := server.txnStore.createTxn(
+		o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId, o.commitRequest.P, server)
 	txn.commitOp = o
 	txn.coordPId = int(o.commitRequest.CoordPId)
 	for _, pId := range o.commitRequest.Pp {

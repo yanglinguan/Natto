@@ -49,12 +49,15 @@ type transaction struct {
 	readResult map[string]*ValVer
 	lock       sync.Mutex
 	wg         sync.WaitGroup
+
+	priority bool
 }
 
 func NewTransaction(
 	txnId string,
 	timestamp int64,
-	cId int64) *transaction {
+	cId int64,
+	priority bool) *transaction {
 	t := &transaction{
 		txnId:                txnId,
 		coordPId:             0,
@@ -72,6 +75,7 @@ func NewTransaction(
 		index:                0,
 		readResult:           make(map[string]*ValVer),
 		lock:                 sync.Mutex{},
+		priority:             priority,
 	}
 	return t
 }
@@ -84,7 +88,7 @@ func (t *transaction) setWriteKeys(writeKeys map[string]string) {
 	t.writeKeys = writeKeys
 }
 
-// this transaction is older than txn ?
+// this transaction is older than txn
 func (t transaction) isOlderThan(txn *transaction) bool {
 	if txn.timestamp == t.timestamp {
 		if txn.clientId == t.clientId {
@@ -182,6 +186,7 @@ type ReplicateMessage struct {
 	Status      TxnStatus
 	WriteKeyVal map[string]string
 	MsgType     ReplicateMsgType
+	Priority    bool
 }
 
 func (t *transaction) replicate(status TxnStatus, msgType ReplicateMsgType) {
@@ -193,6 +198,7 @@ func (t *transaction) replicate(status TxnStatus, msgType ReplicateMsgType) {
 		Status:      status,
 		WriteKeyVal: nil,
 		MsgType:     msgType,
+		Priority:    t.priority,
 	}
 	if msgType == PREPARE {
 		t.replicatedPrepare = true

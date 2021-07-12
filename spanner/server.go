@@ -18,7 +18,7 @@ type Server struct {
 	pId      int // partition Id
 
 	kvStore  *kvStore
-	lm       *lockManager
+	lm       lockManagerIF
 	txnStore *txnStore
 
 	coordinator *coordinator
@@ -46,7 +46,6 @@ func NewServer(serverId int, config configuration.Configuration) *Server {
 		serverId:      serverId,
 		pId:           config.GetPartitionIdByServerId(serverId),
 		kvStore:       newKVStore(),
-		lm:            newLockManager(),
 		txnStore:      newTxnStore(),
 		coordinator:   newCoordinator(config.GetQueueLen()),
 		gRPCServer:    grpc.NewServer(),
@@ -58,6 +57,13 @@ func NewServer(serverId int, config configuration.Configuration) *Server {
 		opCreator:     &twoPLOpCreator{},
 		serverAddress: config.GetServerAddressByServerId(serverId),
 	}
+
+	if config.GetPriorityMode() == configuration.PREEMPTION {
+		s.lm = newLockManagerPriority()
+	} else {
+		s.lm = newLockManager()
+	}
+
 	s.port = strings.Split(s.serverAddress, ":")[1]
 	s.coordinator.server = s
 	for sId, addr := range config.GetServerAddress() {
@@ -140,7 +146,8 @@ func (s *Server) Start() {
 
 func (s *Server) applyPrepare(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated prepare status %v", message.TxnId, message.Status)
-	txn := s.txnStore.createTxn(message.TxnId, message.Timestamp, message.ClientId, s)
+	txn := s.txnStore.createTxn(
+		message.TxnId, message.Timestamp, message.ClientId, message.Priority, s)
 	txn.Status = message.Status
 	if s.IsLeader() {
 		txn.leaderPrepare()
@@ -163,7 +170,8 @@ func (s *Server) applyPrepare(message ReplicateMessage) {
 
 func (s *Server) applyPartitionCommit(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated partition commit status %v", message.TxnId, message.Status)
-	txn := s.txnStore.createTxn(message.TxnId, message.Timestamp, message.ClientId, s)
+	txn := s.txnStore.createTxn(
+		message.TxnId, message.Timestamp, message.ClientId, message.Priority, s)
 	txn.Status = message.Status
 	if s.IsLeader() {
 		txn.partitionLeaderCommit()

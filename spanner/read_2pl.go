@@ -27,7 +27,8 @@ func (o *read2PL) getReadResult() (bool, []*ValVer) {
 
 func (o *read2PL) execute(server *Server) {
 	logrus.Debugf("process txn %v read 2pl op", o.readRequest.Id)
-	txn := server.txnStore.createTxn(o.readRequest.Id, o.readRequest.Ts, o.readRequest.CId, server)
+	txn := server.txnStore.createTxn(
+		o.readRequest.Id, o.readRequest.Ts, o.readRequest.CId, o.readRequest.P, server)
 	txn.setReadKeys(o.readRequest.Keys)
 	txn.read2PLOp = o
 	// it is possible that txn is already aborted

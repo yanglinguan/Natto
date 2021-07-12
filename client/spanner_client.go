@@ -33,7 +33,7 @@ func (op *spannerOp) exec(
 	}
 
 	txnIdToServer := execRecord.rpcTxnId
-	txn := client.lib.Begin(txnIdToServer)
+	txn := client.lib.Begin(txnIdToServer, op.txn.GetPriority())
 	aborted, result := client.lib.Read(txn, readKey)
 	if aborted {
 		op.result = false

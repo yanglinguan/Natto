@@ -33,7 +33,8 @@ const (
 type PriorityMode int
 
 const (
-	PREEMPTION PriorityMode = iota
+	NOPRIORITY PriorityMode = iota
+	PREEMPTION
 )
 
 type WorkLoad int
@@ -161,6 +162,8 @@ type Configuration interface {
 
 	GetPartitionInfo() [][]int
 	IsCoordServer(serverId int) bool
+
+	GetPriorityMode() PriorityMode
 }
 
 type FileConfiguration struct {
@@ -608,9 +611,15 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			pm := v.(string)
 			if pm == "preemption" {
 				f.priorityMode = PREEMPTION
+			} else {
+				f.priorityMode = NOPRIORITY
 			}
 		}
 	}
+}
+
+func (f *FileConfiguration) GetPriorityMode() PriorityMode {
+	return f.priorityMode
 }
 
 func (f *FileConfiguration) loadKey() {

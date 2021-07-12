@@ -43,9 +43,9 @@ func (c *coordinator) start() {
 	}
 }
 
-func (c *coordinator) createTwoPCInfo(txnId string, ts int64, cId int64) *twoPCInfo {
+func (c *coordinator) createTwoPCInfo(txnId string, ts int64, cId int64, priority bool) *twoPCInfo {
 	if _, exist := c.transactions[txnId]; !exist {
-		txn := NewTransaction(txnId, ts, cId)
+		txn := NewTransaction(txnId, ts, cId, priority)
 		txn.server = c.server
 		c.transactions[txn.txnId] = &twoPCInfo{
 			prepared: 0,
@@ -89,7 +89,7 @@ func (c *coordinator) sendCommitDecision(txnId string, result bool, pId int) {
 
 func (c *coordinator) applyCoordCommit(message ReplicateMessage) {
 	logrus.Debugf("txn %v replicated coord commit status %v", message.TxnId, message.Status)
-	twoPCInfo := c.createTwoPCInfo(message.TxnId, message.Timestamp, message.ClientId)
+	twoPCInfo := c.createTwoPCInfo(message.TxnId, message.Timestamp, message.ClientId, message.Priority)
 	twoPCInfo.status = message.Status
 	txn := twoPCInfo.txn
 	if c.server.IsLeader() {

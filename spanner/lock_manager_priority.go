@@ -1,38 +1,31 @@
 package spanner
 
-import "github.com/sirupsen/logrus"
-
-type LockType int32
-
-const (
-	SHARED LockType = iota
-	EXCLUSIVE
+import (
+	"github.com/sirupsen/logrus"
 )
 
-type lockManagerIF interface {
-	lockRelease(txn *transaction, key string)
-	lockShared(txn *transaction, key string) bool
-	lockUpgrade(txn *transaction, key string) bool
-	lockExclusive(txn *transaction, key string) bool
-}
-
-type lockInfo struct {
-	readers       map[string]*transaction
-	writer        *transaction
-	pq            *PriorityQueue // order txn by timestamp to prevent deadlock
-	waitToUpgrade *transaction
-}
-
-type lockManager struct {
+type lockManagerPriority struct {
 	keys map[string]*lockInfo
 }
 
-func newLockManager() *lockManager {
-	lm := &lockManager{keys: make(map[string]*lockInfo)}
+func newLockManagerPriority() *lockManagerPriority {
+	lm := &lockManagerPriority{keys: make(map[string]*lockInfo)}
 	return lm
 }
 
-func (lm *lockManager) lockRelease(txn *transaction, key string) {
+// returns lock info for key. if not exist, create a lock info
+func (lm *lockManagerPriority) createLockInfo(key string) *lockInfo {
+	if _, exist := lm.keys[key]; !exist {
+		lm.keys[key] = &lockInfo{
+			readers: make(map[string]*transaction),
+			writer:  nil,
+			pq:      NewPriorityQueue(),
+		}
+	}
+	return lm.keys[key]
+}
+
+func (lm *lockManagerPriority) lockRelease(txn *transaction, key string) {
 	lockInfo := lm.createLockInfo(key)
 	if _, exist := lockInfo.readers[txn.txnId]; !exist &&
 		(lockInfo.writer != nil && lockInfo.writer.txnId != txn.txnId) {
@@ -85,52 +78,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	logrus.Debugf("txn %v lock of key %v released", txn.txnId, key)
 }
 
-// returns lock info for key. if not exist, create a lock info
-func (lm *lockManager) createLockInfo(key string) *lockInfo {
-	if _, exist := lm.keys[key]; !exist {
-		lm.keys[key] = &lockInfo{
-			readers: make(map[string]*transaction),
-			writer:  nil,
-			pq:      NewPriorityQueue(),
-		}
-	}
-	return lm.keys[key]
-}
-
-func (lm *lockManager) lockShared(txn *transaction, key string) bool {
-	lockInfo := lm.createLockInfo(key)
-	writer := lockInfo.writer
-	// if there is no writer, txn grants the shared lock
-	if writer == nil {
-		logrus.Debugf("txn %v acquired shared lock for key %v", txn.txnId, key)
-		lockInfo.readers[txn.txnId] = txn
-		return true
-	}
-
-	// if txn has smaller timestamp (older) than the writer
-	// if the write is already prepared then abort txn
-	// otherwise abort writer
-	if txn.isOlderThan(writer) {
-		logrus.Debugf("shared lock key %v txn %v has older timestamp than write %v",
-			key, txn.txnId, writer.txnId)
-		if writer.Status == PREPARED {
-			logrus.Debugf("key %v write %v already prepared abort txn %v", key, writer.txnId, txn.txnId)
-			txn.abort()
-			return false
-		} else {
-			lockInfo.readers[txn.txnId] = txn
-			logrus.Debugf("key %v txn %v get shard lock wound write %v", key, writer.txnId, txn.txnId)
-			writer.abort()
-			return true
-		}
-	}
-	logrus.Debugf("txn %v wait to get shard lock of key %v", txn.txnId, key)
-	txn.addWaitKey(key, SHARED)
-	lockInfo.pq.Push(txn)
-	return false
-}
-
-func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
+func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 	logrus.Debugf("txn %v requires to upgrade key %v", txn.txnId, key)
 	lockInfo := lm.createLockInfo(key)
 	readers := lockInfo.readers
@@ -198,13 +146,13 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 		}
 	}
 	logrus.Debugf("txn %v wait to upgrade key %v", txn.txnId, key)
-	lockInfo.waitToUpgrade = txn
-	lockInfo.pq.Push(txn)
-	txn.addWaitKey(key, EXCLUSIVE)
+	if lm.pushToQueue(txn, key, EXCLUSIVE) {
+		lockInfo.waitToUpgrade = txn
+	}
 	return false
 }
 
-func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
+func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool {
 	lockInfo := lm.createLockInfo(key)
 	// if already acquired the shared lock, upgrade to exclusive lock
 	if _, exist := lockInfo.readers[txn.txnId]; exist {
@@ -262,7 +210,80 @@ func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 		}
 	}
 	logrus.Debugf("txn %v wait to acquire exclusive lock of key %v", txn.txnId, key)
-	lockInfo.pq.Push(txn)
-	txn.addWaitKey(key, EXCLUSIVE)
+	lm.pushToQueue(txn, key, EXCLUSIVE)
 	return false
+}
+
+func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
+	lockInfo := lm.createLockInfo(key)
+	writer := lockInfo.writer
+	// if there is no writer, txn grants the shared lock
+	if writer == nil {
+		logrus.Debugf("txn %v acquired shared lock for key %v", txn.txnId, key)
+		lockInfo.readers[txn.txnId] = txn
+		return true
+	}
+
+	// if txn has smaller timestamp (older) than the writer
+	// if the write is already prepared then abort txn
+	// otherwise abort writer
+	if txn.isOlderThan(writer) {
+		logrus.Debugf("shared lock key %v txn %v has older timestamp than write %v",
+			key, txn.txnId, writer.txnId)
+		if writer.Status == PREPARED {
+			logrus.Debugf("key %v write %v already prepared abort txn %v", key, writer.txnId, txn.txnId)
+			txn.abort()
+			return false
+		} else {
+			lockInfo.readers[txn.txnId] = txn
+			logrus.Debugf("key %v txn %v get shard lock wound write %v", key, writer.txnId, txn.txnId)
+			writer.abort()
+			return true
+		}
+	}
+	logrus.Debugf("txn %v wait to get shard lock of key %v", txn.txnId, key)
+
+	lm.pushToQueue(txn, key, SHARED)
+	return false
+}
+
+func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockType LockType) bool {
+	lockInfo := lm.createLockInfo(key)
+	if txn.priority {
+		lockInfo.pq.Push(txn)
+		highTxnList := make([]*transaction, 0)
+		for lockInfo.pq.Len() != 0 {
+			waitTxn := lockInfo.pq.Peek()
+			if waitTxn.txnId == txn.txnId {
+				break
+			}
+			if !waitTxn.priority {
+				waitTxn.abort()
+			} else {
+				highTxnList = append(highTxnList, waitTxn)
+			}
+			lockInfo.pq.Pop()
+		}
+		for _, t := range highTxnList {
+			lockInfo.pq.Push(t)
+		}
+	} else {
+		for lockInfo.pq.Len() != 0 {
+			waitTxn := lockInfo.pq.Peek()
+			if waitTxn.txnId == txn.txnId {
+				break
+			}
+			if waitTxn.priority {
+				txn.abort()
+				break
+			}
+			lockInfo.pq.Pop()
+		}
+		if txn.Status == ABORTED {
+			return false
+		}
+		lockInfo.pq.Push(txn)
+	}
+	txn.addWaitKey(key, lockType)
+	return true
 }

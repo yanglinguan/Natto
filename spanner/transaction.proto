@@ -14,6 +14,7 @@ message AbortRequest {
     string id = 1;
     int64 ts = 2;
     int64 cId = 3;
+    bool p = 4;
 }
 
 message CommitResult {
@@ -21,6 +22,7 @@ message CommitResult {
     string id = 2;
     int64 ts = 3;
     int64 cId = 4;
+    bool p = 5;
 }
 
 message Empty {
@@ -32,6 +34,7 @@ message ReadRequest {
     repeated string keys = 2;
     int64 ts = 3;
     int64 cId = 4;
+    bool p = 5;
 }
 
 message valVer {
@@ -62,6 +65,7 @@ message CommitRequest {
     repeated keyVal wKV = 5; // write key value
     repeated int32 pp = 6; // participant partitions
     int64 coordPId = 7; // coordinator Id
+    bool p = 8;
 }
 
 message CommitReply {
@@ -74,8 +78,5 @@ message PrepareRequest {
     int32 pId = 3;
     int64 ts = 4;
     int64 cId = 5;
+    bool p = 6;
 }
-
-//message PrepareReply {
-//    bool commit = 1;
-//}

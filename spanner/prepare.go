@@ -20,7 +20,7 @@ func (o *prepare) string() string {
 
 func (o *prepare) execute(coordinator *coordinator) {
 	twoPCInfo := coordinator.createTwoPCInfo(
-		o.prepareRequest.Id, o.prepareRequest.Ts, o.prepareRequest.CId)
+		o.prepareRequest.Id, o.prepareRequest.Ts, o.prepareRequest.CId, o.prepareRequest.P)
 	txn := twoPCInfo.txn
 	if twoPCInfo.status == ABORTED {
 		logrus.Debugf("txn %v already aborted", o.prepareRequest.Id)

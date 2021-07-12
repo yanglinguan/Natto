@@ -28,7 +28,7 @@ func (o *commitCoord) getCommitResult() bool {
 func (o *commitCoord) execute(coordinator *coordinator) {
 
 	twoPCInfo := coordinator.createTwoPCInfo(
-		o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId)
+		o.commitRequest.Id, o.commitRequest.Ts, o.commitRequest.CId, o.commitRequest.P)
 	txn := twoPCInfo.txn
 	for _, pId := range o.commitRequest.Pp {
 		txn.participantPartition[int(pId)] = true

@@ -18,9 +18,9 @@ func (ts *txnStore) getTxnById(txnId string) *transaction {
 }
 
 // create txn if not exist; otherwise return existing txn
-func (ts *txnStore) createTxn(txnId string, timestamp int64, cId int64, server *Server) *transaction {
+func (ts *txnStore) createTxn(txnId string, timestamp int64, cId int64, priority bool, server *Server) *transaction {
 	if _, exist := ts.transactions[txnId]; !exist {
-		ts.transactions[txnId] = NewTransaction(txnId, timestamp, cId)
+		ts.transactions[txnId] = NewTransaction(txnId, timestamp, cId, priority)
 		ts.transactions[txnId].server = server
 	}
 	return ts.transactions[txnId]

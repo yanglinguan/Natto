@@ -31,8 +31,8 @@ func NewClient(clientId int, config configuration.Configuration) *Client {
 	return c
 }
 
-func (c *Client) Begin(txnId string) *transaction {
-	txn := NewTransaction(txnId, time.Now().UnixNano(), c.clientId)
+func (c *Client) Begin(txnId string, priority bool) *transaction {
+	txn := NewTransaction(txnId, time.Now().UnixNano(), c.clientId, priority)
 	return txn
 }
 
