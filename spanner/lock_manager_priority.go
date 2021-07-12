@@ -249,8 +249,8 @@ func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
 
 func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockType LockType) bool {
 	lockInfo := lm.createLockInfo(key)
+	lockInfo.pq.Push(txn)
 	if txn.priority {
-		lockInfo.pq.Push(txn)
 		highTxnList := make([]*transaction, 0)
 		for lockInfo.pq.Len() != 0 {
 			waitTxn := lockInfo.pq.Peek()
@@ -268,6 +268,7 @@ func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockTyp
 			lockInfo.pq.Push(t)
 		}
 	} else {
+		txnList := make([]*transaction, 0)
 		for lockInfo.pq.Len() != 0 {
 			waitTxn := lockInfo.pq.Peek()
 			if waitTxn.txnId == txn.txnId {
@@ -277,12 +278,17 @@ func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockTyp
 				txn.abort()
 				break
 			}
+			txnList = append(txnList, waitTxn)
 			lockInfo.pq.Pop()
 		}
+		for _, t := range txnList {
+			lockInfo.pq.Push(t)
+		}
+
 		if txn.Status == ABORTED {
+			lockInfo.pq.Remove(txn)
 			return false
 		}
-		lockInfo.pq.Push(txn)
 	}
 	txn.addWaitKey(key, lockType)
 	return true
