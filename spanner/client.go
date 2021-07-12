@@ -48,6 +48,7 @@ func (c *Client) sendRead(txn *transaction, readKeys []string, pId int) {
 		Keys: readKeys,
 		Ts:   txn.timestamp,
 		CId:  txn.clientId,
+		P:    txn.priority,
 	}
 	result, err := client.Read(context.Background(), readRequest)
 	if err != nil {
@@ -111,6 +112,7 @@ func (c *Client) sendCommit(txn *transaction, readKeyVer []*KeyVer, pp []int32, 
 		WKV:      writeKeyVal,
 		Pp:       pp,
 		CoordPId: int64(txn.coordPId),
+		P:        txn.priority,
 	}
 
 	leaderId := c.config.GetLeaderIdByPartitionId(pId)
@@ -200,6 +202,7 @@ func (c *Client) sendAbort(txn *transaction, pId int) {
 		Id:  txn.txnId,
 		Ts:  txn.timestamp,
 		CId: txn.clientId,
+		P:   txn.priority,
 	}
 	conn := c.connections[leaderId]
 	client := NewSpannerClient(conn.GetConn())
