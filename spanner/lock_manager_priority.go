@@ -248,6 +248,8 @@ func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
 }
 
 func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockType LockType) bool {
+	logrus.Debugf("txn %v priority %v push to queue of key %v (%v)",
+		txn.txnId, txn.priority, key, lockType)
 	lockInfo := lm.createLockInfo(key)
 	lockInfo.pq.Push(txn)
 	if txn.priority {
