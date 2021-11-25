@@ -333,8 +333,12 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 }
 
 func (w *SmallBankWorkload) genPriority() bool {
-	p := rand.Intn(100)
-	return p < w.priorityPercentage
+	if w.clientPriority {
+		return w.priorityClient
+	} else {
+		p := rand.Intn(100)
+		return p < w.priorityPercentage
+	}
 }
 
 func (w *SmallBankWorkload) genTxnType() int {

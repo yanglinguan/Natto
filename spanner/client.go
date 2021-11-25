@@ -146,6 +146,7 @@ func (c *Client) findCoordinatorPartitionId(participants map[int]bool) int {
 			return pId
 		}
 	}
+	logrus.Debugf("client dcId %v, leader list %v", c.dcId, leaderIdList)
 	// if there is no participant partition in the client's datacenter
 	// randomly select a leader in the client's datacenter
 	return c.config.GetPartitionIdByServerId(leaderIdList[rand.Intn(len(leaderIdList))])

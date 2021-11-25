@@ -25,6 +25,9 @@ type AbstractWorkload struct {
 	priorityPercentage int
 	//val     string
 	partition int64
+
+	priorityClient bool
+	clientPriority bool
 }
 
 func NewAbstractWorkload(
@@ -33,6 +36,7 @@ func NewAbstractWorkload(
 	keySize int,
 	priorityPercentage int,
 	partition int,
+	clientPriority bool,
 ) *AbstractWorkload {
 	workload := &AbstractWorkload{
 		KeyNum:             keyNum,
@@ -41,11 +45,15 @@ func NewAbstractWorkload(
 		keySize:            keySize,
 		priorityPercentage: priorityPercentage,
 		partition:          int64(partition),
+		clientPriority:     clientPriority,
 	}
 	workload.zipf = nil
 	workload.zipfReady = false
 	workload.txnCount = 0
-
+	if clientPriority {
+		p := rand.Intn(100)
+		workload.priorityClient = p < workload.priorityPercentage
+	}
 	return workload
 }
 
@@ -79,10 +87,12 @@ func (workload *AbstractWorkload) buildTxn(
 		txn.writeData[keyList[i]] = ""
 		txn.writeKeys = append(txn.writeKeys, keyList[i])
 	}
-
-	p := rand.Intn(100)
-	txn.priority = p < workload.priorityPercentage
-
+	if !workload.clientPriority {
+		p := rand.Intn(100)
+		txn.priority = p < workload.priorityPercentage
+	} else {
+		txn.priority = workload.priorityClient
+	}
 	return txn
 }
 

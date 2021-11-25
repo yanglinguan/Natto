@@ -37,6 +37,7 @@ func main() {
 		config.GetKeySize(),
 		config.GetHighPriorityRate(),
 		config.GetTotalPartition(),
+		config.IsClientPriority(),
 	)
 	var expWorkload workload.Workload
 	var exp Experiment

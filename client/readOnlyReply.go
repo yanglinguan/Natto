@@ -28,6 +28,7 @@ func (op *ReadOnlyReply) Execute(client *Client) {
 	}
 
 	execution := client.txnStore.getExecution(op.txnId, op.executionCount)
+	execution.onTime = op.reply.OnTime
 
 	if execution.isAbort || execution.receiveAllReadResult() {
 		logrus.Debugf("txn %v abort %v or receive all read result %v", op.txnId,

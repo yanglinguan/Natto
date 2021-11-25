@@ -164,6 +164,7 @@ type Configuration interface {
 	IsCoordServer(serverId int) bool
 
 	GetPriorityMode() PriorityMode
+	IsClientPriority() bool
 }
 
 type FileConfiguration struct {
@@ -282,8 +283,9 @@ type FileConfiguration struct {
 	predictDelayPercentile int
 	updateInterval         time.Duration
 
-	cc           ConcurrencyControl
-	priorityMode PriorityMode
+	cc             ConcurrencyControl
+	priorityMode   PriorityMode
+	clientPriority bool
 }
 
 func NewFileConfiguration(filePath string) *FileConfiguration {
@@ -369,9 +371,30 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		f.serverToPartitionId[sId] = pId
 		f.serverToRaftPort[sId] = raftPort
 
-		if sId%f.replicationFactor == 0 {
-			f.expectPartitionLeaders[pId] = sId
-			f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], sId)
+		if f.dcNum == 3 {
+			leaderMap := make(map[int]bool)
+			var leaderList []int
+			if partitionNum == 9 {
+				leaderList = []int{0, 3, 6, 10, 13, 16, 20, 23, 26}
+			} else if partitionNum == 6 {
+				leaderList = []int{0, 3, 7, 10, 14, 17}
+			} else if partitionNum == 3 {
+				leaderList = []int{0, 4, 8}
+			} else if partitionNum == 12 {
+				leaderList = []int{0, 13, 26, 3, 16, 29, 6, 19, 32, 9, 22, 35}
+			}
+			for _, l := range leaderList {
+				leaderMap[l] = true
+			}
+			if leaderMap[sId] {
+				f.expectPartitionLeaders[pId] = sId
+				f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], sId)
+			}
+		} else {
+			if sId%f.replicationFactor == 0 {
+				f.expectPartitionLeaders[pId] = sId
+				f.dataCenterIdToLeaderIdList[dcId] = append(f.dataCenterIdToLeaderIdList[dcId], sId)
+			}
 		}
 
 		f.dataCenterIdToServerIdList[dcId] = append(f.dataCenterIdToServerIdList[dcId], sId)
@@ -379,6 +402,7 @@ func (f *FileConfiguration) loadServers(config map[string]interface{}) {
 		log.Infof("Server %v: addr %v, raftAddr %v, raftGroup %v, partitionId %v, dataCenterId %v, isLeader %v",
 			sId, rpcAddr, raftAddr, pId, pId, dcId, sId%f.replicationFactor == 0)
 	}
+	log.Debugf("datacenter leader %v", f.dataCenterIdToLeaderIdList)
 }
 
 func (f *FileConfiguration) loadClients(config map[string]interface{}) {
@@ -614,6 +638,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			} else {
 				f.priorityMode = NOPRIORITY
 			}
+		} else if key == "clientPriority" {
+			f.clientPriority = v.(bool)
 		}
 	}
 }
@@ -1104,4 +1130,8 @@ func (f *FileConfiguration) GetUpdateInterval() time.Duration {
 
 func (f *FileConfiguration) IsCoordServer(serverId int) bool {
 	return serverId >= f.dataPartitions*f.replicationFactor
+}
+
+func (f *FileConfiguration) IsClientPriority() bool {
+	return f.clientPriority
 }
