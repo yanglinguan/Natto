@@ -58,6 +58,13 @@ const (
 	SB_TXN_SEND_PAYMENT     = 3
 	SB_TXN_TRANSACT_SAVINGS = 4
 	SB_TXN_WRITE_CHECK      = 5
+
+	AMALGATE         = "amalgamate"
+	BALANCE          = "balance"
+	DEPOSIT_CHECKING = "depositChecking"
+	SEND_PAMENT      = "sendPayment"
+	TRANSACT_SAVINGS = "transactSavings"
+	WRITE_CHECK      = "writeCheck"
 )
 
 type TxnAmalgamate struct {
@@ -189,6 +196,7 @@ type SmallBankWorkload struct {
 	sbSavingsFlag          string
 
 	sbNonHotSpotSize int
+	highPriorityTxn  int
 }
 
 func NewSmallBankWorkload(
@@ -204,6 +212,7 @@ func NewSmallBankWorkload(
 	sbTransactSavingsRatio int,
 	sbWriteCheckRatio int,
 	checkingFlag, savingsFlag string,
+	highPriorityTxn string,
 ) *SmallBankWorkload {
 	sb := &SmallBankWorkload{
 		AbstractWorkload:       workload,
@@ -235,7 +244,27 @@ func NewSmallBankWorkload(
 		sb.sbHotSpotFixedSize = int(sb.KeyNum/100.0) * sb.sbHotSpotPercentage
 	}
 	sb.sbNonHotSpotSize = int(sb.KeyNum) - sb.sbHotSpotFixedSize
+	sb.setHighPriorityTxnType(highPriorityTxn)
 	return sb
+}
+
+func (w *SmallBankWorkload) setHighPriorityTxnType(t string) {
+	if t == AMALGATE {
+		w.highPriorityTxn = SB_TXN_AMALGAMATE
+	} else if t == BALANCE {
+		w.highPriorityTxn = SB_TXN_BALANCE
+	} else if t == TRANSACT_SAVINGS {
+		w.highPriorityTxn = SB_TXN_TRANSACT_SAVINGS
+	} else if t == DEPOSIT_CHECKING {
+		w.highPriorityTxn = SB_TXN_DEPOSIT_CHECKING
+	} else if t == WRITE_CHECK {
+		w.highPriorityTxn = SB_TXN_WRITE_CHECK
+	} else if t == TRANSACT_SAVINGS {
+		w.highPriorityTxn = SB_TXN_TRANSACT_SAVINGS
+	} else {
+		w.highPriorityTxn = -1
+	}
+
 }
 
 func (w *SmallBankWorkload) GenTxn() Txn {
@@ -248,9 +277,9 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		writeKeys: make([]string, 0),
 		writeData: make(map[string]string),
 	}
-	priority := w.genPriority()
-	baseTxn.SetPriority(priority)
 	txnType := w.genTxnType()
+	priority := w.genPriority(txnType)
+	baseTxn.SetPriority(priority)
 	switch txnType {
 	case SB_TXN_AMALGAMATE:
 		cId1 := w.genCustomerID() // sender customerID
@@ -332,13 +361,16 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 	return nil
 }
 
-func (w *SmallBankWorkload) genPriority() bool {
-	if w.clientPriority {
-		return w.priorityClient
-	} else {
-		p := rand.Intn(100)
-		return p < w.priorityPercentage
+func (w *SmallBankWorkload) genPriority(t int) bool {
+	if w.highPriorityTxn == -1 {
+		if w.clientPriority {
+			return w.priorityClient
+		} else {
+			p := rand.Intn(100)
+			return p < w.priorityPercentage
+		}
 	}
+	return w.highPriorityTxn == t
 }
 
 func (w *SmallBankWorkload) genTxnType() int {

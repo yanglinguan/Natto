@@ -1,0 +1,176 @@
+{
+  "server": {
+    "nums": 15,
+    "partitions": 5,
+    "replicationFactor": 3,
+    "dataPartitions": 5,
+    "dcNum": 5,
+    "failure": 1,
+    "raftPortBase": 20000,
+    "rpcPortBase": 10000
+  },
+  "server_machines": [
+        "10.0.2.2",
+        "10.0.2.3",
+        "10.0.2.4",
+        "10.0.2.5",
+        "10.0.2.6",
+        "10.0.2.7",
+        "10.0.2.8",
+        "10.0.2.9",
+        "10.0.3.9",
+        "10.0.3.10",
+        "10.0.3.11",
+        "10.0.3.12",
+        "10.0.3.13",
+        "10.0.3.14",
+        "10.0.3.15"
+  ],
+  "client_nums": 10,
+  "client_machines": [
+        "10.0.1.1",
+        "10.0.1.2",
+        "10.0.1.3",
+        "10.0.1.4",
+        "10.0.1.5"
+  ],
+  "networkMeasureMachines": [
+        "10.0.1.1",
+        "10.0.1.2",
+        "10.0.1.3",
+        "10.0.1.4",
+        "10.0.1.5"
+  ],
+  "networkMeasurePortBase": 30000,
+  "latency": {
+        "variance": "off",
+        "distribution": "pareto",
+        "oneWayDelay" : [
+            ["0ms", "33ms", "40ms", "98ms", "107ms"],
+            ["33ms", "0ms", "68ms", "87ms", "81ms"],
+            ["40ms", "68ms", "0ms", "117ms", "74ms"],
+            ["98ms", "87ms", "117ms", "0ms", "43ms"],
+            ["107ms", "81ms", "74ms", "43ms", "0ms"]
+        ],
+        "packetLoss": "0.8%"
+  },
+  "default_exp": {
+    "readOnly": true,
+    "checkWaiting": false,
+    "replication": true,
+    "totalKey": 1000000,
+    "RPCPoolSize": 0,
+    "keySize": 64,
+    "duration": "60s",
+    "totalTxn": 1000,
+    "targetRate": 100,
+    "dynamicLatency": {
+      "mode": true,
+      "probeWindowLen": "4s",
+      "probeWindowMinSize": 10,
+      "probeInterval": "100ms",
+      "blocking": false,
+      "probeTime": true,
+      "percentile": 95,
+      "updateInterval": "100ms"
+    },
+    "workload": {
+      "type": "smallbank",
+      "retwis": {
+        "addUserRatio": 5,
+        "followUnfollowRatio": 15,
+        "postTweetRatio": 30,
+        "loadTimelineRatio": 50,
+        "highPriorityTxn": ""
+      },
+      "smallbank": {
+        "isHotSpotFixedSize": false,
+        "hotSpotFixedSize": 100,
+        "hotSpotPercentage": 1,
+        "hotSpotTxnRatio": 90,
+        "amalgamateRatio": 15,
+        "balance": 15,
+        "depositChecking": 15,
+        "sendPayment": 25,
+        "transactSavings": 15,
+        "writeCheck": 15,
+        "checkingFlag": "c",
+        "savingsFlag": "s",
+        "initBalance": 50000.0,
+        "highPriorityTxn": ""
+      },
+      "randYcsbt": {
+        "single": 50
+      },
+      "highPriority": 10
+    },
+    "seed": 0,
+    "queueLen": 102400,
+    "retry": {
+      "mode": "const",
+      "interval": "0ms",
+      "maxRetry": 100,
+      "maxSlot": 32
+    },
+    "ssh": {
+      "username": "l69yang",
+      "identity": ""
+    },
+    "runDir": "/hdd2/l69yang/carousel-gts/",
+    "waitToStart": 0,
+    "poissonProcess":true,
+    "highTxnOnly": false,
+    "queuePos": 2,
+    "priorityScheduler": true,
+    "popular": 0,
+    "optimisticReorder": false,
+    "fastPath": false,
+    "delay": "2ms",
+    "txnSize": 6,
+    "openLoop": true,
+    "txnRate": 100,
+    "zipfAlpha": 0.65,
+    "timeWindow": "0ms",
+    "conditionalPrepare": false,
+    "networkTimestamp": false,
+    "readBeforeCommitReplicate": false,
+    "forwardReadToCoord": false
+  },
+  "var_exp": {
+    "spanner": {
+        "mode": "spanner",
+        "concurrencyControl": "2PL"
+    },
+    "spannerPreemption": {
+        "mode": "spanner",
+        "concurrencyControl": "2PL",
+        "priorityMode": "preemption" 
+    },
+    "carousel_fast": {
+      "mode": "occ",
+      "fastPath": true
+    },
+    "carousel": {
+      "mode": "occ"
+    },
+
+    "timestamp": {
+      "mode": "priority",
+      "networkTimestamp": true
+    },
+    "ROR": {
+      "mode": "priority",
+      "networkTimestamp": true,
+      "readBeforeCommitReplicate": true,
+      "timeWindow": "-1ms",
+      "conditionalPrepare": true,
+      "forwardReadToCoord": true
+    },
+    "tapir": {
+      "mode": "tapir"
+    }
+  },
+  "x_axis": {
+      "workload_smallbank_highPriorityTxn": ["sendPayment"]
+  }
+}

@@ -56,7 +56,9 @@ func main() {
 			config.GetAddUserRatio(),
 			config.GetFollowUnfollowRatio(),
 			config.GetPostTweetRatio(),
-			config.GetLoadTimelineRatio())
+			config.GetLoadTimelineRatio(),
+			config.GetRetwisHighPriorityTxn(),
+		)
 		break
 	case configuration.SMALLBANK:
 		expWorkload = workload.NewSmallBankWorkload(
@@ -73,6 +75,7 @@ func main() {
 			config.GetSbWriteCheckRatio(),
 			config.GetSbCheckingAccountFlag(),
 			config.GetSbSavingsAccountFlag(),
+			config.GetSbHighPriorityTxn(),
 		)
 		break
 	case configuration.REORDER:

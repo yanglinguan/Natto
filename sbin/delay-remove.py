@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import json
 import argparse
 import os
@@ -104,7 +104,7 @@ clean_cmd = '%s qdisc del dev %s root;' % (tc, dev)
 
 # Sets up delays among different DCs
 dc_ip_list = dc_ip_map.keys()
-dc_ip_list.sort()
+sorted(dc_ip_list)
 for dc_id in dc_ip_list:
     print("DataCenter: %s" % dc_id)
     ip_list = dc_ip_map[dc_id]

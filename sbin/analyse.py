@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import itertools
 import json
 import os
@@ -213,13 +213,14 @@ def load_statistic(dir_name):
     diff = client_starts[-1] - client_starts[0]
     if diff / 1000000000.0 > 10:
         print(dir_name, "one client start 10s later than another client")
-    print(dir_name, num_txn, avg, std)
+    #print(dir_name, num_txn, avg, std)
+    print(dir_name)
     # print("avg txn num: " + str(avg) + " error: " + str(std))
-    for txn_id, value in txn_map.items():
+    for txn_id, value in list(txn_map.items()):
         value["start"] = value["start"] - min_start
         if value["start"] < low or value["start"] > high:
             del txn_map[txn_id]
-    print("total valid txn", len(txn_map))
+    #print("total valid txn", len(txn_map))
     return txn_map
 
 
@@ -436,8 +437,12 @@ def analyse_throughput(txn_map):
     pass_time_abort_percentage = float(pass_timestamp_abort) / float(total_executed_txn)
     pass_time_txn_percentage = float(pass_timestamp_txn) / float(total_executed_txn)
 
-    pass_time_abort_percentage_high = float(pass_timestamp_abort_high) / float(total_executed_txn_high)
-    pass_time_txn_percentage_high = float(pass_timestamp_txn_high) / float(total_executed_txn_high)
+    pass_time_abort_percentage_high = 0
+    pass_time_txn_percentage_high = 0
+    if total_executed_txn_high != 0:
+        pass_time_abort_percentage_high = float(pass_timestamp_abort_high) / float(total_executed_txn_high)
+        pass_time_txn_percentage_high = float(pass_timestamp_txn_high) / float(total_executed_txn_high)
+    
     pass_time_abort_percentage_low = 0
     pass_time_txn_percentage_low = 0
     if total_executed_txn_low != 0:
@@ -562,7 +567,7 @@ def analyse(dir_name):
              if f.endswith('.statistic') and os.path.isfile(os.path.join(dir_name, f))])
     if n != clientN:
         print(dir_name + " does not contain *.statistic file, requires " + str(clientN) + " has " + str(n))
-    #    return
+        return
     if n == 0:
         #shutil.rmtree(dir_name)
         return

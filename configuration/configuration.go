@@ -165,6 +165,9 @@ type Configuration interface {
 
 	GetPriorityMode() PriorityMode
 	IsClientPriority() bool
+
+	GetRetwisHighPriorityTxn() string
+	GetSbHighPriorityTxn() string
 }
 
 type FileConfiguration struct {
@@ -219,10 +222,11 @@ type FileConfiguration struct {
 	maxRetry      int64 // -1: retry until commit, otherwise only retry maxRetry time
 	maxSlot       int64
 
-	addUserRatio        int
-	followUnfollowRatio int
-	postTweetRatio      int
-	loadTimelineRatio   int
+	addUserRatio          int
+	followUnfollowRatio   int
+	postTweetRatio        int
+	loadTimelineRatio     int
+	retwisHighPriorityTxn string
 
 	// SmallBank
 	sbIsHotSpotFixedSize   bool
@@ -238,6 +242,7 @@ type FileConfiguration struct {
 	sbCheckingFlag         string
 	sbSavingsFlag          string
 	sbInitBalance          string // encoded float64 instead of a string of a number
+	sbHighPriorityTxn      string
 
 	isReplication     bool
 	replicationFactor int
@@ -510,6 +515,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.followUnfollowRatio = int(retwis["followUnfollowRatio"].(float64))
 				f.postTweetRatio = int(retwis["postTweetRatio"].(float64))
 				f.loadTimelineRatio = int(retwis["loadTimelineRatio"].(float64))
+				f.retwisHighPriorityTxn = retwis["highPriorityTxn"].(string)
 			} else if workloadType == "smallbank" {
 				f.workload = SMALLBANK
 				sb := workload["smallbank"].(map[string]interface{})
@@ -526,6 +532,7 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 				f.sbCheckingFlag = sb["checkingFlag"].(string)
 				f.sbSavingsFlag = sb["savingsFlag"].(string)
 				f.sbInitBalance = utils.ConvertFloatToString(sb["initBalance"].(float64))
+				f.sbHighPriorityTxn = sb["highPriorityTxn"].(string)
 			} else if workloadType == "reorder" {
 				f.workload = REORDER
 			} else if workloadType == "randYcsbt" {
@@ -1134,4 +1141,12 @@ func (f *FileConfiguration) IsCoordServer(serverId int) bool {
 
 func (f *FileConfiguration) IsClientPriority() bool {
 	return f.clientPriority
+}
+
+func (f *FileConfiguration) GetRetwisHighPriorityTxn() string {
+	return f.retwisHighPriorityTxn
+}
+
+func (f *FileConfiguration) GetSbHighPriorityTxn() string {
+	return f.sbHighPriorityTxn
 }

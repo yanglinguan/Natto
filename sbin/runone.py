@@ -154,7 +154,7 @@ def start_network_measure(machines_network_measure, debug, config_file_name, run
 def start_clients(machines_client, debug, config_file_name, run_dir):
     threads = list()
     client_cmd = utils.get_client_cmd(debug)
-    start_time = str(int((time.time() + 3) * 1000 * 1000 * 1000))
+    start_time = str(int((time.time() + 5) * 1000 * 1000 * 1000))
     for ip, machine in machines_client.items():
         if len(machine.ids) == 0:
             continue

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import datetime
 # import multiprocessing
 import smtplib
@@ -43,7 +43,7 @@ args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
-timeout = 300 * 60
+timeout =10 * 60
 n = 1
 if args.num is not None:
     n = int(args.num)
@@ -325,6 +325,7 @@ def main():
         #    for i in range(n):
         for i in range(n):
             for run_conf in rlist:
+                #print(run_conf)
                 run_exp(i, run_conf, machines_client, machines_server, machines_network_measure)
                 #if succ:
                 #    finishes += finish

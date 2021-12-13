@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import argparse
 import json
 import itertools
@@ -139,10 +139,16 @@ def output(config_list, var_client):
             exp = copy.deepcopy(config["experiment"])
             exp["varExp"] += "-client_nums-" + str(config["clients"]["nums"])
             config["experiment"] = exp
-
+        f = config["experiment"]["workload"]["type"] + "_"
         #f = config["experiment"]["workload"]["type"]+ "_" + str(config["experiment"]["retry"]["interval"]) + "_" + str(config["experiment"]["retry"]["maxSlot"]) + "_" + config["experiment"]["varExp"] + ".json"
-        f = config["experiment"]["workload"]["type"]+ "_" + config["experiment"]["varExp"] + ".json"
-        #f = config["experiment"]["varExp"] + ".json"
+       
+        if config["experiment"]["zipfAlpha"] == -1:
+            f += str(config["servers"]["partitions"]) + "P" + "_"
+        else:
+            f += "z" + str(int(config["experiment"]["zipfAlpha"]*100)) + "_"
+
+        f += config["experiment"]["varExp"] + ".json"
+        
         with open(os.path.join(args.directory, f), "w") as fp:
             json.dump(config, fp, indent=4, sort_keys=True)
 
@@ -177,6 +183,11 @@ def main():
                         val = int(val)
                     if x_name == "latency_variance" and val == "off":
                         val = 0
+                    if x_name == "latency_packetLoss": 
+                        if val == "off":
+                            val = "0%"
+                        else:
+                            val = str(int(float(val[:-1]) * 100))
                     ev["varExp"] += str(val)
                     final_exp_list.append(ev)
             config_list.append(final_exp_list)

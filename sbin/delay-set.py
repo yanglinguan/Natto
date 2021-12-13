@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import json
 import argparse
 import os
@@ -92,6 +92,7 @@ for dc_id, dst_list in enumerate(config["experiment"]["latency"]["oneWayDelay"])
 print(dc_delay_map)
 
 variance = config["experiment"]["latency"]["variance"]
+loss = config["experiment"]["latency"]["packetLoss"]
 if variance != "off":
     variance = float(variance) / 100.0
 distribution = config["experiment"]["latency"]["distribution"]
@@ -109,7 +110,7 @@ setup_cmd += '%s 1: classid 1:1 htb rate %s;' % (class_cmd, bandwidth)
 
 # Sets up delays among different DCs
 dc_ip_list = dc_ip_map.keys()
-dc_ip_list.sort()
+sorted(dc_ip_list)
 for dc_id in dc_ip_list:
     print("DataCenter: %s" % dc_id)
     ip_list = dc_ip_map[dc_id]
@@ -131,13 +132,18 @@ for dc_id in dc_ip_list:
             handle += 1
             shell_cmd += "%s 1:1 classid 1:%d htb rate %s;" % \
                          (class_cmd, handle, bandwidth)
+            shell_cmd += "%s %d: parent 1:%d netem delay %s" % \
+                         (delay_cmd, handle, handle, delay)
+            
             if variance != "off":
                 var = str(float(delay[:-2]) * variance) + "ms"
-                shell_cmd += "%s %d: parent 1:%d netem delay %s %s distribution %s;" % \
-                             (delay_cmd, handle, handle, delay, var, distribution)
-            else:
-                shell_cmd += "%s %d: parent 1:%d netem delay %s;" % \
-                             (delay_cmd, handle, handle, delay)
+                shell_cmd += " %s distribution %s" % \
+                             (var, distribution)
+            if loss != "off":
+                shell_cmd += " loss %s" % (loss)
+            
+            shell_cmd += ";"
+                
             for dst_ip in dst_ip_list:
                 shell_cmd += "%s %d protocol ip u32 match ip dst %s flowid 1:%d;" % \
                              (filter_cmd, handle, dst_ip, handle)
