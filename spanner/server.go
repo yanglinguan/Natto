@@ -59,7 +59,9 @@ func NewServer(serverId int, config configuration.Configuration) *Server {
 	}
 
 	if config.GetPriorityMode() == configuration.PREEMPTION {
-		s.lm = newLockManagerPriority()
+		s.lm = newLockManagerPreemption()
+	} else if config.GetPriorityMode() == configuration.POW {
+		s.lm = newLockManagerPow()
 	} else {
 		s.lm = newLockManager()
 	}

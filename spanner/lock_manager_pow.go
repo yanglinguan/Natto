@@ -1,20 +1,18 @@
 package spanner
 
-import (
-	"github.com/sirupsen/logrus"
-)
+import "github.com/sirupsen/logrus"
 
-type lockManagerPriority struct {
+type lockManagerPow struct {
 	keys map[string]*lockInfo
 }
 
-func newLockManagerPriority() *lockManagerPriority {
-	lm := &lockManagerPriority{keys: make(map[string]*lockInfo)}
+func newLockManagerPow() *lockManagerPow {
+	lm := &lockManagerPow{keys: make(map[string]*lockInfo)}
 	return lm
 }
 
 // returns lock info for key. if not exist, create a lock info
-func (lm *lockManagerPriority) createLockInfo(key string) *lockInfo {
+func (lm *lockManagerPow) createLockInfo(key string) *lockInfo {
 	if _, exist := lm.keys[key]; !exist {
 		lm.keys[key] = &lockInfo{
 			readers: make(map[string]*transaction),
@@ -25,7 +23,7 @@ func (lm *lockManagerPriority) createLockInfo(key string) *lockInfo {
 	return lm.keys[key]
 }
 
-func (lm *lockManagerPriority) lockRelease(txn *transaction, key string) {
+func (lm *lockManagerPow) lockRelease(txn *transaction, key string) {
 	lockInfo := lm.createLockInfo(key)
 	if _, exist := lockInfo.readers[txn.txnId]; !exist &&
 		(lockInfo.writer != nil && lockInfo.writer.txnId != txn.txnId) {
@@ -78,7 +76,7 @@ func (lm *lockManagerPriority) lockRelease(txn *transaction, key string) {
 	logrus.Debugf("txn %v lock of key %v released", txn.txnId, key)
 }
 
-func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
+func (lm *lockManagerPow) lockUpgrade(txn *transaction, key string) bool {
 	logrus.Debugf("txn %v requires to upgrade key %v", txn.txnId, key)
 	lockInfo := lm.createLockInfo(key)
 	readers := lockInfo.readers
@@ -116,10 +114,17 @@ func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 				wound[reader.txnId] = reader
 			}
 		} else if txn.priority {
-			if reader.Status != PREPARED && !reader.priority {
+			if reader.Status != PREPARED && !reader.priority && len(reader.waitKeys) > 0 {
 				wound[reader.txnId] = reader
 			}
 		}
+	}
+
+	if len(wound) < len(readers)-1 {
+		if lm.pushToQueue(txn, key, EXCLUSIVE) {
+			lockInfo.waitToUpgrade = txn
+		}
+		return false
 	}
 
 	if writer == nil {
@@ -143,7 +148,7 @@ func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 			lockUpgraded = true
 		}
 	} else if txn.priority {
-		if writer.Status != PREPARED && !writer.priority {
+		if writer.Status != PREPARED && !writer.priority && len(writer.waitKeys) > 0 {
 			lockInfo.writer = txn
 			lockInfo.waitToUpgrade = nil
 			delete(readers, txn.txnId)
@@ -179,7 +184,7 @@ func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 	return false
 }
 
-func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool {
+func (lm *lockManagerPow) lockExclusive(txn *transaction, key string) bool {
 	lockInfo := lm.createLockInfo(key)
 	// if already acquired the shared lock, upgrade to exclusive lock
 	if _, exist := lockInfo.readers[txn.txnId]; exist {
@@ -206,10 +211,15 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 			}
 			wound = append(wound, reader)
 		} else {
-			if reader.Status != PREPARED && !reader.priority {
+			if reader.Status != PREPARED && !reader.priority && len(reader.waitKeys) > 0 {
 				wound = append(wound, reader)
 			}
 		}
+	}
+
+	if len(wound) < len(readers) {
+		lm.pushToQueue(txn, key, EXCLUSIVE)
+		return false
 	}
 
 	if writer == nil {
@@ -232,7 +242,7 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 			lockAcquired = true
 		}
 	} else if txn.priority {
-		if writer.Status != PREPARED && !writer.priority {
+		if writer.Status != PREPARED && !writer.priority && len(writer.waitKeys) > 0 {
 			lockInfo.writer = txn
 			lockAcquired = true
 			writer.abort()
@@ -262,7 +272,7 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 	return false
 }
 
-func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
+func (lm *lockManagerPow) lockShared(txn *transaction, key string) bool {
 	lockInfo := lm.createLockInfo(key)
 	writer := lockInfo.writer
 	// if there is no writer, txn grants the shared lock
@@ -289,7 +299,7 @@ func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
 			return true
 		}
 	} else if txn.priority {
-		if writer.Status != PREPARED && !writer.priority {
+		if writer.Status != PREPARED && !writer.priority && len(writer.waitKeys) > 0 {
 			writer.abort()
 			lockInfo.readers[txn.txnId] = txn
 			for lockInfo.pq.Len() != 0 {
@@ -309,7 +319,7 @@ func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
 	return false
 }
 
-func (lm *lockManagerPriority) pushToQueue(txn *transaction, key string, lockType LockType) bool {
+func (lm *lockManagerPow) pushToQueue(txn *transaction, key string, lockType LockType) bool {
 	logrus.Debugf("txn %v priority %v push to queue of key %v (%v)",
 		txn.txnId, txn.priority, key, lockType)
 	lockInfo := lm.createLockInfo(key)

@@ -35,6 +35,7 @@ type PriorityMode int
 const (
 	NOPRIORITY PriorityMode = iota
 	PREEMPTION
+	POW // Preemption on wait
 )
 
 type WorkLoad int
@@ -642,6 +643,8 @@ func (f *FileConfiguration) loadExperiment(config map[string]interface{}) {
 			pm := v.(string)
 			if pm == "preemption" {
 				f.priorityMode = PREEMPTION
+			} else if pm == "pow" {
+				f.priorityMode = POW
 			} else {
 				f.priorityMode = NOPRIORITY
 			}
