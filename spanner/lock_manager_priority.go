@@ -115,6 +115,10 @@ func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 			} else {
 				wound[reader.txnId] = reader
 			}
+		} else if txn.priority {
+			if reader.Status != PREPARED && !reader.priority {
+				wound[reader.txnId] = reader
+			}
 		}
 	}
 
@@ -138,6 +142,15 @@ func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 			writer.abort()
 			lockUpgraded = true
 		}
+	} else if txn.priority {
+		if writer.Status != PREPARED && !writer.priority {
+			lockInfo.writer = txn
+			lockInfo.waitToUpgrade = nil
+			delete(readers, txn.txnId)
+			writer.abort()
+			lockUpgraded = true
+		}
+
 	}
 
 	if lockUpgraded {
@@ -146,6 +159,16 @@ func (lm *lockManagerPriority) lockUpgrade(txn *transaction, key string) bool {
 			delete(readers, reader.txnId)
 			reader.abort()
 		}
+
+		for lockInfo.pq.Len() != 0 {
+			waitTxn := lockInfo.pq.Peek()
+			if !waitTxn.isOlderThan(txn) {
+				break
+			}
+			waitTxn.abort()
+			lockInfo.pq.Pop()
+		}
+
 		return true
 	}
 
@@ -182,6 +205,10 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 				return false
 			}
 			wound = append(wound, reader)
+		} else {
+			if reader.Status != PREPARED && !reader.priority {
+				wound = append(wound, reader)
+			}
 		}
 	}
 
@@ -204,6 +231,12 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 			writer.abort()
 			lockAcquired = true
 		}
+	} else if txn.priority {
+		if writer.Status != PREPARED && !writer.priority {
+			lockAcquired = true
+			writer.abort()
+			lockInfo.writer = txn
+		}
 	}
 
 	if lockAcquired {
@@ -211,6 +244,15 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 			logrus.Debugf("key %v txn %v wound reader %v", key, txn.txnId, reader.txnId)
 			delete(readers, reader.txnId)
 			reader.abort()
+		}
+
+		for lockInfo.pq.Len() != 0 {
+			waitTxn := lockInfo.pq.Peek()
+			if !waitTxn.isOlderThan(txn) {
+				break
+			}
+			waitTxn.abort()
+			lockInfo.pq.Pop()
 		}
 		return true
 	}
@@ -244,6 +286,19 @@ func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
 			lockInfo.readers[txn.txnId] = txn
 			logrus.Debugf("key %v txn %v get shard lock wound write %v", key, writer.txnId, txn.txnId)
 			writer.abort()
+			return true
+		}
+	} else if txn.priority {
+		if writer.Status != PREPARED && !writer.priority {
+			writer.abort()
+			for lockInfo.pq.Len() != 0 {
+				waitTxn := lockInfo.pq.Peek()
+				if !waitTxn.isOlderThan(txn) {
+					break
+				}
+				waitTxn.abort()
+				lockInfo.pq.Pop()
+			}
 			return true
 		}
 	}
