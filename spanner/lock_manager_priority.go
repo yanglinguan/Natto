@@ -233,9 +233,9 @@ func (lm *lockManagerPriority) lockExclusive(txn *transaction, key string) bool 
 		}
 	} else if txn.priority {
 		if writer.Status != PREPARED && !writer.priority {
+			lockInfo.writer = txn
 			lockAcquired = true
 			writer.abort()
-			lockInfo.writer = txn
 		}
 	}
 
@@ -291,6 +291,7 @@ func (lm *lockManagerPriority) lockShared(txn *transaction, key string) bool {
 	} else if txn.priority {
 		if writer.Status != PREPARED && !writer.priority {
 			writer.abort()
+			lockInfo.readers[txn.txnId] = txn
 			for lockInfo.pq.Len() != 0 {
 				waitTxn := lockInfo.pq.Peek()
 				if !waitTxn.isOlderThan(txn) {
