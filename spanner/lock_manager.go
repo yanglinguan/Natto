@@ -46,13 +46,14 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	}
 
 	for lockInfo.pq.Len() != 0 {
-		waitTxn := lockInfo.pq.Pop()
+		waitTxn := lockInfo.pq.Peek()
 		logrus.Debugf("lock release txn %v wait txn %v try to acquire lock of key %v",
 			txn.txnId, waitTxn.txnId, key)
 
 		if waitTxn.Status == ABORTED {
 			logrus.Debugf("lock release txn %v wait txn %v is already aborted",
 				txn.txnId, waitTxn.txnId)
+			lockInfo.pq.Pop()
 			continue
 		}
 		grant := false
@@ -62,10 +63,6 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 			grant = lm.lockExclusive(waitTxn, key)
 		}
 
-		if waitTxn.Status == ABORTED {
-			continue
-		}
-
 		if !grant {
 			logrus.Debugf("lock release txn %v wait txn %v in the queue cannot get lock of key %v",
 				txn.txnId, waitTxn.txnId, key)
@@ -73,6 +70,7 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 		}
 		logrus.Debugf("lock release txn %v wait txn %v in the queue get lock of key %v",
 			txn.txnId, waitTxn.txnId, key)
+		lockInfo.pq.Pop()
 		waitTxn.removeWaitKey(key)
 		if len(waitTxn.getWaitKey()) == 0 {
 			logrus.Debugf("lock release txn %v wait txn %v get all locks of keys",
@@ -154,8 +152,8 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 		return true
 	}
 
+	lockUpgraded := false
 	wound := make(map[string]*transaction)
-	hasOlderTxn := false
 	for _, reader := range readers {
 		if reader.txnId == txn.txnId {
 			continue
@@ -169,34 +167,15 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 			} else {
 				wound[reader.txnId] = reader
 			}
-		} else {
-			hasOlderTxn = true
 		}
 	}
 
-	// wound the txns that are younger than txn
-	// if there is a writer, wound list is empty
-	for _, w := range wound {
-		delete(readers, w.txnId)
-		w.abort()
-	}
-
-	if hasOlderTxn {
-		// there is an older txn hold the shared lock
-		// txn wait to upgrade the txn
-		lockInfo.waitToUpgrade = txn
-		lockInfo.pq.Push(txn)
-		txn.addWaitKey(key, EXCLUSIVE)
-		return false
-	}
-
-	// there is no older txn holds the shared lock, check if there is writer on this key
 	if writer == nil {
 		logrus.Debugf("txn %v upgraded key %v", txn.txnId, key)
 		delete(readers, txn.txnId)
 		lockInfo.writer = txn
 		lockInfo.waitToUpgrade = nil
-		return true
+		lockUpgraded = true
 	} else if txn.isOlderThan(writer) {
 		logrus.Debugf("key %v txn %v is older than writer %v", key, txn.txnId, writer.txnId)
 		if writer.Status == PREPARED {
@@ -209,11 +188,19 @@ func (lm *lockManager) lockUpgrade(txn *transaction, key string) bool {
 			lockInfo.waitToUpgrade = nil
 			delete(readers, txn.txnId)
 			writer.abort()
-			return true
+			lockUpgraded = true
 		}
 	}
 
-	// the writer is older than txn, txn waits
+	if lockUpgraded {
+		for _, reader := range wound {
+			logrus.Debugf("txn %v wound reader %v of key %v", txn.txnId, reader.txnId, key)
+			delete(readers, reader.txnId)
+			reader.abort()
+		}
+		return true
+	}
+
 	logrus.Debugf("txn %v wait to upgrade key %v", txn.txnId, key)
 	lockInfo.waitToUpgrade = txn
 	lockInfo.pq.Push(txn)
@@ -227,20 +214,17 @@ func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 	if _, exist := lockInfo.readers[txn.txnId]; exist {
 		return lm.lockUpgrade(txn, key)
 	}
-
 	logrus.Debugf("txn %v requires exclusive lock of key %v", txn.txnId, key)
 	readers := lockInfo.readers
 	writer := lockInfo.writer
-
+	wound := make([]*transaction, 0)
 	// if there is no reader and writer, txn grants the exclusive lock
 	if len(readers) == 0 && writer == nil {
 		logrus.Debugf("txn %v acquired exclusive lock of key %v", txn.txnId, key)
 		lockInfo.writer = txn
 		return true
 	}
-
-	hasOlderTxn := false
-	wound := make([]*transaction, 0)
+	lockAcquired := false
 	for _, reader := range readers {
 		if txn.isOlderThan(reader) {
 			logrus.Debugf("key %v txn %v is older than reader %v", key, txn.txnId, reader.txnId)
@@ -250,27 +234,13 @@ func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 				return false
 			}
 			wound = append(wound, reader)
-		} else {
-			hasOlderTxn = true
 		}
-	}
-
-	for _, w := range wound {
-		w.abort()
-		delete(readers, w.txnId)
-	}
-
-	if hasOlderTxn {
-		// txn waits
-		lockInfo.pq.Push(txn)
-		txn.addWaitKey(key, EXCLUSIVE)
-		return false
 	}
 
 	if writer == nil {
 		logrus.Debugf("txn %v acquired exclusive lock of key %v", txn.txnId, key)
 		lockInfo.writer = txn
-		return true
+		lockAcquired = true
 	} else if txn.isOlderThan(writer) {
 		logrus.Debugf("key %v txn %v is older than writer %v",
 			key, txn.txnId, writer.txnId)
@@ -284,8 +254,17 @@ func (lm *lockManager) lockExclusive(txn *transaction, key string) bool {
 				key, txn.txnId, writer.txnId)
 			lockInfo.writer = txn
 			writer.abort()
-			return true
+			lockAcquired = true
 		}
+	}
+
+	if lockAcquired {
+		for _, reader := range wound {
+			logrus.Debugf("key %v txn %v wound reader %v", key, txn.txnId, reader.txnId)
+			delete(readers, reader.txnId)
+			reader.abort()
+		}
+		return true
 	}
 
 	logrus.Debugf("txn %v wait to acquire exclusive lock of key %v", txn.txnId, key)
