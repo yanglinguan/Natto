@@ -120,12 +120,12 @@ func (lm *lockManagerPow) lockUpgrade(txn *transaction, key string) bool {
 		}
 	}
 
-	if len(wound) < len(readers)-1 {
-		if lm.pushToQueue(txn, key, EXCLUSIVE) {
-			lockInfo.waitToUpgrade = txn
-		}
-		return false
-	}
+	//if len(wound) < len(readers)-1 {
+	//	if lm.pushToQueue(txn, key, EXCLUSIVE) {
+	//		lockInfo.waitToUpgrade = txn
+	//	}
+	//	return false
+	//}
 
 	if writer == nil {
 		logrus.Debugf("txn %v upgraded key %v", txn.txnId, key)
@@ -210,17 +210,17 @@ func (lm *lockManagerPow) lockExclusive(txn *transaction, key string) bool {
 				return false
 			}
 			wound = append(wound, reader)
-		} else {
+		} else if txn.priority {
 			if reader.Status != PREPARED && !reader.priority && len(reader.waitKeys) > 0 {
 				wound = append(wound, reader)
 			}
 		}
 	}
 
-	if len(wound) < len(readers) {
-		lm.pushToQueue(txn, key, EXCLUSIVE)
-		return false
-	}
+	//if len(wound) < len(readers) {
+	//	lm.pushToQueue(txn, key, EXCLUSIVE)
+	//	return false
+	//}
 
 	if writer == nil {
 		logrus.Debugf("txn %v acquired exclusive lock of key %v", txn.txnId, key)
