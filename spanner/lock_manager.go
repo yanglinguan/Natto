@@ -46,14 +46,13 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 	}
 
 	for lockInfo.pq.Len() != 0 {
-		waitTxn := lockInfo.pq.Peek()
+		waitTxn := lockInfo.pq.Pop()
 		logrus.Debugf("lock release txn %v wait txn %v try to acquire lock of key %v",
 			txn.txnId, waitTxn.txnId, key)
 
 		if waitTxn.Status == ABORTED {
 			logrus.Debugf("lock release txn %v wait txn %v is already aborted",
 				txn.txnId, waitTxn.txnId)
-			lockInfo.pq.Pop()
 			continue
 		}
 		grant := false
@@ -63,6 +62,10 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 			grant = lm.lockExclusive(waitTxn, key)
 		}
 
+		if waitTxn.Status == ABORTED {
+			continue
+		}
+
 		if !grant {
 			logrus.Debugf("lock release txn %v wait txn %v in the queue cannot get lock of key %v",
 				txn.txnId, waitTxn.txnId, key)
@@ -70,7 +73,6 @@ func (lm *lockManager) lockRelease(txn *transaction, key string) {
 		}
 		logrus.Debugf("lock release txn %v wait txn %v in the queue get lock of key %v",
 			txn.txnId, waitTxn.txnId, key)
-		lockInfo.pq.Pop()
 		waitTxn.removeWaitKey(key)
 		if len(waitTxn.getWaitKey()) == 0 {
 			logrus.Debugf("lock release txn %v wait txn %v get all locks of keys",
