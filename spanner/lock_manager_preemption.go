@@ -205,17 +205,17 @@ func (lm *lockManagerPreemption) lockExclusive(txn *transaction, key string) boo
 				return false
 			}
 			wound = append(wound, reader)
-		} else {
+		} else if txn.priority {
 			if reader.Status != PREPARED && !reader.priority {
 				wound = append(wound, reader)
 			}
 		}
 	}
 
-	if len(wound) < len(readers) {
-		lm.pushToQueue(txn, key, EXCLUSIVE)
-		return false
-	}
+	//if len(wound) < len(readers) {
+	//	lm.pushToQueue(txn, key, EXCLUSIVE)
+	//	return false
+	//}
 
 	if writer == nil {
 		logrus.Debugf("txn %v acquired exclusive lock of key %v", txn.txnId, key)
