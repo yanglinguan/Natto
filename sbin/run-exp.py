@@ -30,6 +30,8 @@ arg_parser.add_argument('-N', '--noBuildDeploy', help="run without build and dep
                         action='store_true')
 arg_parser.add_argument('-cp', '--cpuProfile', help="turn on cpu profiling",
                         action='store_true')
+arg_parser.add_argument('-b', '--bandwidth', dest="bandwidth",
+                        help='measure network bandwidth', action='store_true')
 
 # for email notification
 arg_parser.add_argument('-e', '--senderEmail', dest="senderEmail", nargs='?',
@@ -83,7 +85,9 @@ def deploy_servers(run_list, threads, run_dir, machines_server):
     server_scp_files.append(utils.binPath + "carousel-server")
     for ip, machine in machines_server.items():
         thread = threading.Thread(target=scp_exec,
-                                args=(machine.get_ssh_client(), machine.get_scp_client(), ip, run_dir, server_scp_files, machine.ids))
+                                  args=(
+                                      machine.get_ssh_client(), machine.get_scp_client(), ip, run_dir, server_scp_files,
+                                      machine.ids))
         threads.append(thread)
         thread.start()
     print("deploy servers threads started")
@@ -97,7 +101,9 @@ def deploy_client(run_list, threads, run_dir, machines_client):
         if len(machine.ids) == 0:
             continue
         thread = threading.Thread(target=scp_exec,
-                                  args=(machine.get_ssh_client(), machine.get_scp_client(), ip, client_dir, client_scp_files))
+                                  args=(
+                                      machine.get_ssh_client(), machine.get_scp_client(), ip, client_dir,
+                                      client_scp_files))
         threads.append(thread)
         thread.start()
     print("deploy clients threads started")
@@ -151,7 +157,7 @@ def getRunExpNum(f):
 def run_exp(i, run_conf, machines_client, machines_server, machines_network_measure):
     finishes = 0
     errorRun = []
-    #for item in run_list:
+    # for item in run_list:
     f = run_conf[0]
     x = run_conf[1]
     if i < x:
@@ -160,7 +166,8 @@ def run_exp(i, run_conf, machines_client, machines_server, machines_network_meas
     nextRun = getNextRunCount(f)
     thread = threading.Thread(
         target=runone.run_config,
-        args=(f, args.debug, nextRun, args.cpuProfile, machines_client, machines_server, machines_network_measure))
+        args=(f, args.debug, nextRun, args.cpuProfile, machines_client, machines_server, machines_network_measure,
+              args.bandwidth))
     thread.start()
     thread.join(timeout)
     # p = multiprocessing.Process(
@@ -171,7 +178,10 @@ def run_exp(i, run_conf, machines_client, machines_server, machines_network_meas
     if thread.is_alive():
         print("config " + f + " is still running after " + str(timeout / 60) + " min, kill it at " +
               datetime.datetime.now().strftime("%H:%M:%S"))
-        subprocess.call([bin_path + "stop.py", "-c", f])
+        if args.bandwidth:
+            subprocess.call([bin_path + "stop.py", "-b -c", f])
+        else:
+            subprocess.call([bin_path + "stop.py", "-c", f])
         # p.terminate()
         thread.join()
         errorRun.append(f.split(".")[0] + "-" + str(i))
@@ -224,7 +234,7 @@ def getSortkey(f):
 
 
 def sort_run_list(run_list):
-    exp_list = ["txnRate","zipfAlpha", "workload_highPriority"]
+    exp_list = ["txnRate", "zipfAlpha", "workload_highPriority"]
     result_map = {}
     not_found = []
     for rc in run_list:
@@ -296,7 +306,7 @@ def main():
     machines_server = utils.parse_server_machine(config)
 
     utils.create_ssh_client([machines_client, machines_server, machines_network_measure])
-    
+
     if not args.noBuildDeploy:
         start_build = time.time()
         build()
@@ -321,20 +331,20 @@ def main():
             print("set varince", rlist[0][0])
             set_network_delay(rlist[0][0])
         print(rlist)
-        #for run_conf in rlist:
+        # for run_conf in rlist:
         #    for i in range(n):
         for i in range(n):
             for run_conf in rlist:
-                #print(run_conf)
+                # print(run_conf)
                 run_exp(i, run_conf, machines_client, machines_server, machines_network_measure)
-                #if succ:
+                # if succ:
                 #    finishes += finish
-                #else:
+                # else:
                 #    for f in failed:
                 #        errorRun.append(f)
                 #    error = ",".join(failed)
                 #    notification("need to rerun config " + error + " exp failed")
-                    # return
+                # return
 
     # if finishes > 1 or len(errorRun) > 0:
     error = ",".join(errorRun)

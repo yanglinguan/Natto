@@ -9,6 +9,8 @@ arg_parser = argparse.ArgumentParser(description="stop exp.")
 # Cluster configuration file
 arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
                         help='configuration file', required=True)
+arg_parser.add_argument('-b', '--bandwidth', dest="bandwidth",
+                        help='measure network bandwidth', action='store_true')
 args = arg_parser.parse_args()
 
 # Reads configurations
@@ -28,7 +30,10 @@ def stop_servers(threads, machines_server):
     for ip, machine in machines_server.items():
         for server_id in machine.ids:
             server_dir = run_dir + "/server-" + str(server_id)
-            cmd = "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*"
+            cmd = ""
+            if args.bandwidth:
+                cmd = "sudo pkill iftop;"
+            cmd += "killall -9 carousel-server; cd " + server_dir + "; rm -r raft-*"
             print(cmd + " # at " + ip)
             thread = threading.Thread(target=ssh_exec_thread,
                                       args=(machine.ssh_client, cmd))
@@ -39,6 +44,8 @@ def stop_servers(threads, machines_server):
 def stop_clients(threads, machines_client):
     for ip, machine in machines_client.items():
         cmd = "killall -9 client"
+        if args.bandwidth:
+            cmd += "; sudo pkill iftop"
         print(cmd + " # at " + ip)
         thread = threading.Thread(target=ssh_exec_thread,
                                   args=(machine.ssh_client, cmd))

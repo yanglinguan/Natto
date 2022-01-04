@@ -10,7 +10,7 @@ import utils
 def scp_client_log_exec(new_dir, ssh, scp, ip, client_dir):
     # client_dir = config["experiment"]["runDir"] + "/client"
     stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.log " + client_dir + "/*.statistic")
-    #stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.statistic")
+    # stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.statistic")
     log_files = stdout.read().split()
     for log in log_files:
         scp.get(log, new_dir)
@@ -88,8 +88,8 @@ def collect_server_log(new_dir, machines_server, run_dir):
         if len(machine.ids) == 0:
             continue
         thread = threading.Thread(
-                target=scp_server_log_exec,
-                args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), run_dir, machine.ids, ip))
+            target=scp_server_log_exec,
+            args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), run_dir, machine.ids, ip))
         threads.append(thread)
         thread.start()
 
@@ -97,12 +97,15 @@ def collect_server_log(new_dir, machines_server, run_dir):
         thread.join()
 
 
-def ssh_exec_thread(ssh_client, command, ip, servers=None, stop=False):
+def ssh_exec_thread(ssh_client, command, ip, servers=None, stop=False, measure_bandwidth=False):
     stdin, stdout, stderr = ssh_client.exec_command(command)
     print(stdout.read())
     print(stderr.read())
     if servers is None:
         if not stop:
+            if measure_bandwidth:
+                ssh_client.exec_command("sudo pkill iftop")
+                print("stop measure bandwidth on client " + ip)
             print("clients on " + ip + " finishes")
     else:
         if not stop:
@@ -151,7 +154,7 @@ def start_network_measure(machines_network_measure, debug, config_file_name, run
         thread.join()
 
 
-def start_clients(machines_client, debug, config_file_name, run_dir):
+def start_clients(machines_client, debug, config_file_name, run_dir, measure_bandwidth):
     threads = list()
     client_cmd = utils.get_client_cmd(debug)
     start_time = str(int((time.time() + 5) * 1000 * 1000 * 1000))
@@ -166,7 +169,8 @@ def start_clients(machines_client, debug, config_file_name, run_dir):
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done; wait"
         cmd += loop
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread,
+                                  args=(machine.get_ssh_client(), cmd, ip, None, False, measure_bandwidth))
         threads.append(thread)
         thread.start()
 
@@ -189,7 +193,7 @@ def stop_servers(machines_server, run_dir):
     threads = list()
     for ip, machine in machines_server.items():
         server_dir = run_dir + "/server-$id"
-        #exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
+        # exe = "cd " + server_dir + "; " + "rm -r raft-*; rm -r *.log;"
         exe = "cd " + server_dir + "; " + "rm -r raft-*;"
         loop = "for id in " + ' '.join(machine.ids) + "; do " + exe + " done"
         cmd = "killall -9 carousel-server; " + loop
@@ -207,7 +211,7 @@ def stop_network_measure(machines_network_measure):
     for ip, machine in machines_network_measure.items():
         cmd = "killall -9 networkMeasure"
         print(cmd + " # at " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip, ip, True))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
         threads.append(thread)
         thread.start()
 
@@ -228,11 +232,47 @@ def stop_clients(machines_client):
         thread.join()
 
 
-def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines_server, machines_network_measure):
+def start_measure_bandwidth(machines_server, machines_client, run_dir):
+    threads = list()
+    for ip, machine in machines_server.items():
+        log_file = run_dir + "/bandwidth-server-" + ip + ".log"
+        cmd = "sudo -b iftop -t -L 0 > " + log_file
+        print(cmd + " # at server " + ip)
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_scp_client(), cmd, ip))
+        threads.append(thread)
+        thread.start()
+
+    for ip, machine in machines_client.items():
+        log_file = run_dir + "/bandwidth-client-" + ip + ".log"
+        cmd = "sudo -b iftop -t -L 0 > " + log_file
+        print(cmd + " # at client " + ip)
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_scp_client(), cmd, ip))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+
+def stop_measure_bandwidth(machines_server):
+    threads = list()
+    for ip, machine in machines_server.items():
+        cmd = "sudo pkill iftop"
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+
+
+def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines_server, machines_network_measure,
+               measure_bandwidth):
     config = utils.load_config(config_file_name)
     run_dir = utils.get_run_dir(config)
     turn_on_network_measure = utils.is_network_measure(config)
-    #stop_servers(machines_server, run_dir)
+    # stop_servers(machines_server, run_dir)
     start_time = time.time()
     start_servers(machines_server, debug, config_file_name, run_dir, cpuProfile)
     time.sleep(15)
@@ -240,7 +280,10 @@ def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines
     start_server_use = end_start_server - start_time
     print("start server use (+15s) %.5fs" % start_server_use)
     end_start_network_measure = time.time()
-    if utils.is_network_measure(config):
+    if measure_bandwidth:
+        print("start measure bandwidth")
+        start_measure_bandwidth(machines_server, machines_client, run_dir)
+    if turn_on_network_measure:
         start_network_measure(machines_network_measure, debug, config_file_name, run_dir)
         time.sleep(5)
         end_start_network_measure = time.time()
@@ -248,10 +291,13 @@ def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines
         print("start network measure used %.5fs" % start_network_measure_use)
     start_client_time = datetime.datetime.now().strftime("%H:%M:%S")
     print("start client at time " + start_client_time)
-    start_clients(machines_client, debug, config_file_name, run_dir)
+    start_clients(machines_client, debug, config_file_name, run_dir, measure_bandwidth)
     end_client = time.time()
     client_use = end_client - end_start_network_measure
     print("clients finish used %.5fs" % client_use)
+    if measure_bandwidth:
+        print("stop bandwidth measure")
+        stop_measure_bandwidth(machines_server)
     dir_name = collect_client_log(machines_client, i, config_file_name, run_dir)
     if debug:
         if turn_on_network_measure:
@@ -266,9 +312,9 @@ def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines
     print("collect log used %.5fs" % collect_use)
     if turn_on_network_measure:
         stop_network_measure(machines_network_measure)
-    #print_server_status(dir_name, debug, config_file_name)
+    # print_server_status(dir_name, debug, config_file_name)
     stop_servers(machines_server, run_dir)
-    #collect_server_log(dir_name, machines_server, run_dir)
+    # collect_server_log(dir_name, machines_server, run_dir)
     end_time = time.time()
     stop_server_use = end_time - end_collect
     print("stop client and server use %.5f" % stop_server_use)
@@ -279,7 +325,6 @@ def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines
     # print("server finish used %.5fs" % server_use)
     # print("collect log used %.5fs" % collect_use)
     print("stop client and server use %.5f" % stop_server_use)
-
 
 # if __name__ == "__main__":
 #     main()
