@@ -70,7 +70,39 @@ def collect_networkMeasure_log(new_dir, machines_network_measure, run_dir):
         thread.join()
 
 
-def scp_server_log_exec(new_dir, ssh, scp, run_dir, ids, ip):
+def scp_bandwidth_log(new_dir, ssh, scp, ip, run_dir):
+    stdin, stdout, stderr = ssh.exec_command("ls " + run_dir + "/bandwidth*.log")
+    log_files = stdout.read().split()
+    for log in log_files:
+        scp.get(log, new_dir)
+    ssh.exec_command("rm " + run_dir + "/bandwidth*.log")
+    print("collect bandwidth log from " + ip)
+
+
+def collect_bandwidth_log(new_dir, machines_server, machines_client, run_dir):
+    threads = list()
+    for ip, machine in machines_server.items():
+        if len(machine.ids) == 0:
+            continue
+        thread = threading.Thread(
+            target=scp_bandwidth_log,
+            args=(new_dir, machine.get_scp_client(), machine.get_scp_client(), ip, run_dir)
+        )
+        threads.append(thread)
+        thread.start()
+
+    for ip, machine in machines_client.items():
+        if len(machine.ids) == 0:
+            continue
+        thread = threading.Thread(
+            target=scp_bandwidth_log,
+            args=(new_dir, machine.get_scp_client(), machine.get_scp_client(), ip, run_dir)
+        )
+        threads.append(thread)
+        thread.start()
+
+
+def scp_server_log_exec(new_dir, ssh, scp, run_dir, ids, ip, measure_bandwidth):
     for s_id in ids:
         server_dir = run_dir + "/server-" + str(s_id)
         stdin, stdout, stderr = ssh.exec_command("ls " + server_dir + "/*.log")
@@ -82,14 +114,15 @@ def scp_server_log_exec(new_dir, ssh, scp, run_dir, ids, ip):
         print("collect server log " + server_dir + " from " + ip)
 
 
-def collect_server_log(new_dir, machines_server, run_dir):
+def collect_server_log(new_dir, machines_server, run_dir, measure_bandwidth):
     threads = list()
     for ip, machine in machines_server.items():
         if len(machine.ids) == 0:
             continue
         thread = threading.Thread(
             target=scp_server_log_exec,
-            args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), run_dir, machine.ids, ip))
+            args=(
+            new_dir, machine.get_ssh_client(), machine.get_scp_client(), run_dir, machine.ids, ip, measure_bandwidth))
         threads.append(thread)
         thread.start()
 
@@ -266,7 +299,6 @@ def stop_measure_bandwidth(machines_server):
         thread.join()
 
 
-
 def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines_server, machines_network_measure,
                measure_bandwidth):
     config = utils.load_config(config_file_name)
@@ -299,6 +331,8 @@ def run_config(config_file_name, debug, i, cpuProfile, machines_client, machines
         print("stop bandwidth measure")
         stop_measure_bandwidth(machines_server)
     dir_name = collect_client_log(machines_client, i, config_file_name, run_dir)
+    if measure_bandwidth:
+        collect_bandwidth_log(dir_name, machines_server, machines_client, run_dir)
     if debug:
         if turn_on_network_measure:
             collect_networkMeasure_log(dir_name, machines_network_measure, run_dir)
