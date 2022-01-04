@@ -43,7 +43,7 @@ args = arg_parser.parse_args()
 
 bin_path = "/home/l69yang/Projects/go/src/Carousel-GTS/sbin/"
 
-timeout =10 * 60
+timeout = 15 * 60
 n = 1
 if args.num is not None:
     n = int(args.num)

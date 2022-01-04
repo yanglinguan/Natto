@@ -92,7 +92,12 @@ for dc_id, dst_list in enumerate(config["experiment"]["latency"]["oneWayDelay"])
 print(dc_delay_map)
 
 variance = config["experiment"]["latency"]["variance"]
-loss = config["experiment"]["latency"]["packetLoss"]
+loss = "off"
+correlation = "off"
+if "packetLoss" in config["experiment"]["latency"]:
+    loss = config["experiment"]["latency"]["packetLoss"]
+    if "correlation" in config["experiment"]["latency"]:
+        correlation = config["experiment"]["latency"]["correlation"]
 if variance != "off":
     variance = float(variance) / 100.0
 distribution = config["experiment"]["latency"]["distribution"]
@@ -140,7 +145,10 @@ for dc_id in dc_ip_list:
                 shell_cmd += " %s distribution %s" % \
                              (var, distribution)
             if loss != "off":
-                shell_cmd += " loss %s" % (loss)
+                if correlation == "off":
+                    shell_cmd += " loss %s" % (loss)
+                else:
+                    shell_cmd += " loss %s %s" % (loss, correlation) 
             
             shell_cmd += ";"
                 

@@ -261,6 +261,8 @@ func (w *SmallBankWorkload) setHighPriorityTxnType(t string) {
 		w.highPriorityTxn = SB_TXN_WRITE_CHECK
 	} else if t == TRANSACT_SAVINGS {
 		w.highPriorityTxn = SB_TXN_TRANSACT_SAVINGS
+	} else if t == SEND_PAMENT {
+		w.highPriorityTxn = SB_TXN_SEND_PAYMENT
 	} else {
 		w.highPriorityTxn = -1
 	}

@@ -185,7 +185,7 @@ def main():
                         val = 0
                     if x_name == "latency_packetLoss": 
                         if val == "off":
-                            val = "0%"
+                            val = "0"
                         else:
                             val = str(int(float(val[:-1]) * 100))
                     ev["varExp"] += str(val)
