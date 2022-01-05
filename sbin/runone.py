@@ -134,6 +134,7 @@ def ssh_exec_thread(ssh_client, command, ip, servers=None, stop=False, measure_b
     stdin, stdout, stderr = ssh_client.exec_command(command)
     print(stdout.read())
     print(stderr.read())
+    print(command + " start at " + ip)
     if servers is None:
         if not stop:
             if measure_bandwidth:
