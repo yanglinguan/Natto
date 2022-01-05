@@ -10,10 +10,29 @@ arg_parser = argparse.ArgumentParser(description="tcp exp.")
 # Cluster configuration file
 arg_parser.add_argument('-c', '--config', dest='config', nargs='?',
                         help='configuration file', required=True)
+arg_parser.add_argument('-d', '--dir', dest='dir', nargs='?',
+                        help='log store to dir', required=True)
 args = arg_parser.parse_args()
 
 # Reads configurations
 config = utils.load_config(args.config)
+run_dir = utils.get_run_dir(config)
+leader_ips = ["10.0.3.1",
+              "10.0.3.7",
+              "10.0.3.10",
+              "10.0.3.13",
+              "10.0.2.10"]
+
+
+def scp_tcp_log_exec(ssh, scp, ip):
+    # client_dir = config["experiment"]["runDir"] + "/client"
+    stdin, stdout, stderr = ssh.exec_command("ls " + run_dir + "/tcp*.log ")
+    # stdin, stdout, stderr = ssh.exec_command("ls " + client_dir + "/*.statistic")
+    log_files = stdout.read().split()
+    for log in log_files:
+        scp.get(log, args.dir)
+    ssh.exec_command("rm " + run_dir + "/tcp*.log")
+    print("collect tcp log from " + ip)
 
 
 def ssh_exec_thread(ssh_client, command):
@@ -22,13 +41,22 @@ def ssh_exec_thread(ssh_client, command):
     print(stderr.read())
 
 
+def collect_log(machines_server):
+    threads = []
+    for ip, server in machines_server.items():
+        if ip not in leader_ips:
+            continue
+        thread = threading.Thread(
+            target=scp_tcp_log_exec,
+            args=(server.ssh_client, server.scp_client, ip)
+        )
+        threads.append(thread)
+        thread.start()
+    for t in threads:
+        t.join()
+
+
 def main():
-    run_dir = utils.get_run_dir(config)
-    leader_ips = ["10.0.3.1",
-                  "10.0.3.7",
-                  "10.0.3.10",
-                  "10.0.3.13",
-                  "10.0.2.10"]
     machines_server = utils.parse_server_machine(config)
     utils.create_ssh_client(machines_server)
     for sip, server in machines_server.items():
@@ -52,6 +80,7 @@ def main():
             t.join()
 
         server.ssh_client.exec_command("killall -9 iperf3")
+    collect_log(machines_server)
 
 
 if __name__ == "__main__":
