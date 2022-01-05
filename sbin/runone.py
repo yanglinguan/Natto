@@ -86,7 +86,7 @@ def collect_bandwidth_log(new_dir, machines_server, machines_client, run_dir):
             continue
         thread = threading.Thread(
             target=scp_bandwidth_log,
-            args=(new_dir, machine.get_scp_client(), machine.get_scp_client(), ip, run_dir)
+            args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), ip, run_dir)
         )
         threads.append(thread)
         thread.start()
@@ -96,7 +96,7 @@ def collect_bandwidth_log(new_dir, machines_server, machines_client, run_dir):
             continue
         thread = threading.Thread(
             target=scp_bandwidth_log,
-            args=(new_dir, machine.get_scp_client(), machine.get_scp_client(), ip, run_dir)
+            args=(new_dir, machine.get_ssh_client(), machine.get_scp_client(), ip, run_dir)
         )
         threads.append(thread)
         thread.start()
@@ -271,7 +271,7 @@ def start_measure_bandwidth(machines_server, machines_client, run_dir):
         log_file = run_dir + "/bandwidth-server-" + ip + ".log"
         cmd = "sudo -b iftop -t -L 0 > " + log_file
         print(cmd + " # at server " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_scp_client(), cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
         threads.append(thread)
         thread.start()
 
@@ -279,7 +279,7 @@ def start_measure_bandwidth(machines_server, machines_client, run_dir):
         log_file = run_dir + "/bandwidth-client-" + ip + ".log"
         cmd = "sudo -b iftop -t -L 0 > " + log_file
         print(cmd + " # at client " + ip)
-        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_scp_client(), cmd, ip))
+        thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
         threads.append(thread)
         thread.start()
 
