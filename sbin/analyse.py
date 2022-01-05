@@ -38,9 +38,18 @@ high = 50 * 1000000000
 # high = 225 * 100000000
 
 def get_rate(dir_name, f, key):
-    rates = [l.split()[4] for l in open(os.path.join(dir_name, f), "r").readlines() if l.startswith(key)]
-    mb = [float(s[:-2]) / 1000 if s.endswith("Kb") else float(s[:-2]) for s in rates]
-    mb.sort()
+    rates = [l.split()[3] for l in open(os.path.join(dir_name, f), "r").readlines() if l.startswith(key) and len(l.split()) > 3]
+    mb = []
+    for r in rates:
+        if len(r) < 3:
+            continue
+        m = float(r[:-2])
+        if r.endswith("Mb"):
+            mb.append(m)
+        elif r.endswith("Kb"):
+            mb.append(m/1000)
+    mb.sort(reverse=True)
+    #print(mb)
     return mb
 
 
