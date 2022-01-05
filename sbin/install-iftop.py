@@ -28,7 +28,7 @@ def main():
     machines_server = utils.parse_server_machine(config)
     machines_client = utils.parse_client_machine(config)
     utils.create_ssh_client([machines_server, machines_client])
-    install_cmd = "sudo apt-get install -y libpcap-dev; sudo apt-get install -y ncurses-dev; cd iftop-*; ./configure; make; sudo make install"
+    install_cmd = "sudo apt install iftop"
     for ip, machine in machines_client.items():
         thread = threading.Thread(
             target=ssh_exec_thread,
