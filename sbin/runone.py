@@ -265,29 +265,31 @@ def stop_clients(machines_client):
     for thread in threads:
         thread.join()
 
+def exec_bandwidth(cmd):
+    os.system(cmd)
 
 def start_measure_bandwidth(machines_server, machines_client, run_dir):
-    # threads = list()
+    threads = list()
     for ip, machine in machines_server.items():
         log_file = run_dir + "/bandwidth-server-" + ip + ".log"
         cmd = "ssh -t " + ip + " \"sudo -b iftop -t -L 0 > " + log_file + "\""
         print(cmd)
-        subprocess.call([cmd])
+        os.system(cmd)
         # print(cmd + " # at server " + ip)
-        # thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
-        # threads.append(thread)
-        # thread.start()
+        #thread = threading.Thread(target=exec_bandwidth, args=(str(cmd)))
+        #threads.append(thread)
+        #thread.start()
 
     for ip, machine in machines_client.items():
         log_file = run_dir + "/bandwidth-client-" + ip + ".log"
         cmd = "ssh -t " + ip + " \"sudo -b iftop -t -L 0 > " + log_file + "\""
         print(cmd)
-        subprocess.call([cmd])
-        # thread = threading.Thread(target=ssh_exec_thread, args=(machine.get_ssh_client(), cmd, ip))
-        # threads.append(thread)
-        # thread.start()
+        os.system(cmd)
+        #thread = threading.Thread(target=exec_bandwidth, args=(str(cmd)))
+        #threads.append(thread)
+        #thread.start()
 
-    # for thread in threads:
+    #for thread in threads:
     #     thread.join()
 
 
