@@ -4,6 +4,8 @@ import argparse
 import threading
 
 import utils
+import os
+import time
 
 arg_parser = argparse.ArgumentParser(description="tcp exp.")
 
@@ -35,8 +37,10 @@ def scp_tcp_log_exec(ssh, scp, ip):
     print("collect tcp log from " + ip)
 
 
-def ssh_exec_thread(ssh_client, command):
+def ssh_exec_thread(ssh_client, ip, command):
+    print("exec " + command + " # at " + ip)
     stdin, stdout, stderr = ssh_client.exec_command(command)
+    print("finish " + command + " # at " + ip)
     print(stdout.read())
     print(stderr.read())
 
@@ -55,31 +59,36 @@ def collect_log(machines_server):
     for t in threads:
         t.join()
 
+def exec_cmd(ssh_client, cmd):
+    ssh_client.exec_command(cmd)
+
 
 def main():
     machines_server = utils.parse_server_machine(config)
-    utils.create_ssh_client(machines_server)
+    utils.create_ssh_client([machines_server])
+    if os.path.isdir(args.dir):
+        os.system("rm -rf " + args.dir + "/*")
+    else:
+        os.mkdir(args.dir)
+
     for sip, server in machines_server.items():
         if sip not in leader_ips:
             continue
-        cmd = "iperf3 -s &"
-        server.ssh_client.exec_command(cmd)
-        threads = []
         for cip, client in machines_server.items():
             if cip == sip or cip not in leader_ips:
                 continue
+            cmd = "iperf3 -s"
+            th = threading.Thread(target=exec_cmd, args=(server.ssh_client, cmd))
+            th.start()
+            print("execed " + cmd + " # at " + sip)
+            time.sleep(2)
             log_file = run_dir + "tcp-" + sip + "-" + cip + ".log"
-            cmd = "iperf3 -c " + sip + " -t 250 -i /tmp > " + log_file
-            thread = threading.Thread(
-                target=ssh_exec_thread,
-                args=(client.ssh_client, cmd),
-            )
-            threads.append(thread)
-            thread.start()
-        for t in threads:
-            t.join()
-
-        server.ssh_client.exec_command("killall -9 iperf3")
+            cmd = "ssh " + cip + " \"" + "iperf3 -c " + sip + " -t 250 -i /tmp > " + log_file + "\""
+            print("exec " + cmd)
+            os.system(cmd)
+            print("finish " + cmd)
+            server.ssh_client.exec_command("killall -9 iperf3")
+            time.sleep(2)
     collect_log(machines_server)
 
 

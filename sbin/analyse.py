@@ -56,7 +56,7 @@ def get_rate(dir_name, f, key):
 def analyse_bandwidth(dir_name):
     bandwidth_log = [f for f in os.listdir(dir_name) if f.startswith("bandwidth")]
     if len(bandwidth_log) == 0:
-        return
+        return {}
     leader_ips = ["10.0.3.1",
                   "10.0.3.7",
                   "10.0.3.10",
