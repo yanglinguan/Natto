@@ -300,6 +300,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		baseTxn.writeData[ccId1] = ""
 		baseTxn.writeData[csId1] = ""
 		baseTxn.writeData[ccId2] = ""
+		baseTxn.txnType = AMALGATE
 		return &TxnAmalgamate{BaseTxn: baseTxn}
 
 	case SB_TXN_BALANCE:
@@ -308,6 +309,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		ccId, csId := w.getCheckingID(cId), w.getSavingsID(cId)
 		baseTxn.readKeys = append(baseTxn.readKeys, ccId)
 		baseTxn.readKeys = append(baseTxn.readKeys, csId)
+		baseTxn.txnType = BALANCE
 		return &TxnBalance{BaseTxn: baseTxn}
 
 	case SB_TXN_DEPOSIT_CHECKING:
@@ -317,6 +319,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		baseTxn.readKeys = append(baseTxn.readKeys, ccId)
 		baseTxn.writeKeys = append(baseTxn.writeKeys, ccId)
 		baseTxn.writeData[ccId] = ""
+		baseTxn.txnType = DEPOSIT_CHECKING
 		return &TxnDepositChecking{BaseTxn: baseTxn}
 
 	case SB_TXN_SEND_PAYMENT:
@@ -334,6 +337,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		baseTxn.writeKeys = append(baseTxn.writeKeys, ccId2)
 		baseTxn.writeData[ccId1] = ""
 		baseTxn.writeData[ccId2] = ""
+		baseTxn.txnType = SEND_PAMENT
 		return &TxnSendPayment{BaseTxn: baseTxn}
 
 	case SB_TXN_TRANSACT_SAVINGS:
@@ -343,6 +347,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		baseTxn.readKeys = append(baseTxn.readKeys, csId)
 		baseTxn.writeKeys = append(baseTxn.writeKeys, csId)
 		baseTxn.writeData[csId] = ""
+		baseTxn.txnType = TRANSACT_SAVINGS
 		return &TxnTransactSavings{BaseTxn: baseTxn}
 
 	case SB_TXN_WRITE_CHECK:
@@ -355,6 +360,7 @@ func (w *SmallBankWorkload) GenTxn() Txn {
 		baseTxn.readKeys = append(baseTxn.readKeys, csId)
 		baseTxn.writeKeys = append(baseTxn.writeKeys, ccId)
 		baseTxn.writeData[ccId] = ""
+		baseTxn.txnType = WRITE_CHECK
 		return &TxnWriteCheck{BaseTxn: baseTxn}
 
 	default:

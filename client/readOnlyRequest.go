@@ -6,8 +6,8 @@ type ReadOnly struct {
 	*ReadAndPrepare
 }
 
-func NewReadOnly(txnId string, priority bool, readKeyList []string, writeKeyList []string) *ReadOnly {
-	op := &ReadOnly{NewReadAndPrepareOp(txnId, priority, readKeyList, writeKeyList)}
+func NewReadOnly(txnId string, priority bool, txnType string, readKeyList []string, writeKeyList []string) *ReadOnly {
+	op := &ReadOnly{NewReadAndPrepareOp(txnId, priority, txnType, readKeyList, writeKeyList)}
 
 	return op
 }

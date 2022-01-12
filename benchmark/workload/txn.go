@@ -14,6 +14,8 @@ type Txn interface {
 	SetPriority(p bool)
 
 	GenWriteData(readData map[string]string)
+	GetTxnType() string
+	SetTxnType(string)
 }
 
 type BaseTxn struct {
@@ -22,6 +24,7 @@ type BaseTxn struct {
 	writeKeys []string
 	writeData map[string]string
 	priority  bool
+	txnType   string
 }
 
 func (t *BaseTxn) GetTxnId() string {
@@ -42,6 +45,14 @@ func (t *BaseTxn) GetWriteData() map[string]string {
 
 func (t *BaseTxn) GetPriority() bool {
 	return t.priority
+}
+
+func (t *BaseTxn) GetTxnType() string {
+	return t.txnType
+}
+
+func (t *BaseTxn) SetTxnType(tp string) {
+	t.txnType = tp
 }
 
 func (t *BaseTxn) SetPriority(p bool) {

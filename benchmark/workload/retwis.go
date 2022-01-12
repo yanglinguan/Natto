@@ -84,6 +84,8 @@ func (retwis *RetwisWorkload) GenTxn() Txn {
 		log.Fatal("Txn generation error: uncovered percentage to generate a txn")
 		return nil
 	}
+
+	txn.SetTxnType(txnTypeStr)
 	if retwis.hasHPTxn {
 		txn.SetPriority(txnTypeStr == retwis.highPriorityTxn)
 	}

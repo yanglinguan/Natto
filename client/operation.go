@@ -11,6 +11,7 @@ type ReadOp interface {
 	GetReadKeyList() []string
 	GetWriteKeyList() []string
 	GetPriority() bool
+	GetTxnType() string
 	SetKeyValue(key, value string)
 	SetAbort(abort bool)
 	ClearReadKeyList()  // set read key List to nil

@@ -64,6 +64,7 @@ func (op *TapirTxnOp) Execute() {
 		op.txn.GetReadKeys(),
 		op.txn.GetWriteKeys(),
 		op.txn.GetPriority(),
+		op.txn.GetTxnType(),
 		op.tapirClient.config)
 
 	readSet := make(map[int32][]string)

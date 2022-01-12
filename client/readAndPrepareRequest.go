@@ -17,10 +17,11 @@ type ReadAndPrepare struct {
 	isAbort      bool
 	wait         chan bool
 	priority     bool
+	txnType      string
 	unblocked    bool
 }
 
-func NewReadAndPrepareOp(txnId string, priority bool, readKeyList []string, writeKeyList []string) *ReadAndPrepare {
+func NewReadAndPrepareOp(txnId string, priority bool, txnType string, readKeyList []string, writeKeyList []string) *ReadAndPrepare {
 	r := &ReadAndPrepare{
 		txnId:        txnId,
 		readKeyList:  readKeyList,
@@ -29,6 +30,7 @@ func NewReadAndPrepareOp(txnId string, priority bool, readKeyList []string, writ
 		isAbort:      false,
 		wait:         make(chan bool, 1),
 		priority:     priority,
+		txnType:      txnType,
 	}
 
 	return r
@@ -182,6 +184,10 @@ func (op *ReadAndPrepare) ClearWriteKeyList() {
 
 func (op *ReadAndPrepare) GetPriority() bool {
 	return op.priority
+}
+
+func (op *ReadAndPrepare) GetTxnType() string {
+	return op.txnType
 }
 
 func (op *ReadAndPrepare) SetKeyValue(key, value string) {

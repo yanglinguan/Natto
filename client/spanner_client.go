@@ -70,6 +70,7 @@ func (op *spannerOp) execute(client *SpannerClient) {
 		op.txn.GetReadKeys(),
 		op.txn.GetWriteKeys(),
 		op.txn.GetPriority(),
+		op.txn.GetTxnType(),
 		client.config)
 
 	execRecord := client.txnStore.getCurrentExecution(txnId)

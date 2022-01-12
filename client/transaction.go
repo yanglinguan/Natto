@@ -26,6 +26,7 @@ func (t *TxnStore) addTxn(
 	readKeyList []string,
 	writeKeyList []string,
 	priority bool,
+	txnType string,
 	config configuration.Configuration) {
 	//txnId := op.GetTxnId()
 
@@ -39,7 +40,7 @@ func (t *TxnStore) addTxn(
 		// otherwise add new txn
 		logrus.Debugf("Add NEW txn %v", txnId)
 		t.store[txnId] = NewTransaction(
-			txnId, readKeyList, writeKeyList, priority, config)
+			txnId, readKeyList, writeKeyList, priority, txnType, config)
 	}
 
 	rpcTxnId := t.genTxnIdToServer(txnId)
@@ -122,7 +123,7 @@ func (t *TxnStore) PrintTxnStatisticData(clientId int) {
 			}
 		}
 
-		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		s := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 			txn.txnId, // 0
 			txn.executions[txn.execCount].commitResult,                             // 1
 			txn.executions[txn.execCount].endTime.Sub(txn.startTime).Nanoseconds(), // 2
@@ -134,6 +135,7 @@ func (t *TxnStore) PrintTxnStatisticData(clientId int) {
 			txn.priority,       // 8
 			passTimestampTxn,   // 9
 			passTimestampAbort, // 10
+			txn.txnType,
 		)
 		_, err = file.WriteString(s)
 		if err != nil {
@@ -164,6 +166,7 @@ type Transaction struct {
 	participatedPartitions []int32
 	serverDcIds            map[int]bool
 	serverIdList           []int
+	txnType                string
 }
 
 func NewTransaction(
@@ -171,6 +174,7 @@ func NewTransaction(
 	readKeyList []string,
 	writeKeyList []string,
 	priority bool,
+	txnType string,
 	config configuration.Configuration) *Transaction {
 	t := &Transaction{
 		txnId:        txnId,
@@ -182,6 +186,7 @@ func NewTransaction(
 		//endTime:      time.Time{},
 		execCount:  0,
 		executions: make([]*ExecutionRecord, 0),
+		txnType:    txnType,
 	}
 
 	t.partitionSet, t.participants = separatePartition(readKeyList, writeKeyList, config)

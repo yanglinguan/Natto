@@ -163,7 +163,7 @@ func getTxnId(clientId int, txnId string) string {
 }
 
 func (c *Client) ExecTxn(txn workload.Txn) (bool, bool, time.Duration, time.Duration) {
-	readResult, isAbort := c.ReadAndPrepare(txn.GetReadKeys(), txn.GetWriteKeys(), txn.GetTxnId(), txn.GetPriority())
+	readResult, isAbort := c.ReadAndPrepare(txn.GetReadKeys(), txn.GetWriteKeys(), txn.GetTxnId(), txn.GetPriority(), txn.GetTxnType())
 
 	if isAbort {
 		retry, waitTime := c.Abort(txn.GetTxnId())
@@ -186,14 +186,14 @@ func (c *Client) Close() {
 	c.PrintTxnStatisticData()
 }
 
-func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string, priority bool) (map[string]string, bool) {
+func (c *Client) ReadAndPrepare(readKeyList []string, writeKeyList []string, txnId string, priority bool, txnType string) (map[string]string, bool) {
 	var op ReadOp
 	// append the client
 	tId := getTxnId(c.clientId, txnId)
 	if len(writeKeyList) > 0 {
-		op = NewReadAndPrepareOp(tId, priority, readKeyList, writeKeyList)
+		op = NewReadAndPrepareOp(tId, priority, txnType, readKeyList, writeKeyList)
 	} else {
-		op = NewReadOnly(tId, priority, readKeyList, writeKeyList)
+		op = NewReadOnly(tId, priority, txnType, readKeyList, writeKeyList)
 
 	}
 	c.operations <- op
@@ -278,6 +278,7 @@ func (c *Client) addTxnIfNotExist(op ReadOp) {
 		op.GetReadKeyList(),
 		op.GetWriteKeyList(),
 		op.GetPriority(),
+		op.GetTxnType(),
 		c.Config)
 }
 
