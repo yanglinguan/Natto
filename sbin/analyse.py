@@ -17,6 +17,8 @@ arg_parser.add_argument('-c', '--configFile', dest='configFile', nargs='*',
                         help='configuration file', required=False)
 arg_parser.add_argument('-f', '--force', dest='force',
                         help="force to analyse", action='store_true', required=False)
+arg_parser.add_argument('-nr', '--noReadOnly', dest="noReadOnly", required=False,
+                        help="no include the read only txn", action='store_true')
 
 args = arg_parser.parse_args()
 
@@ -38,7 +40,8 @@ high = 50 * 1000000000
 # high = 225 * 100000000
 
 def get_rate(dir_name, f, key):
-    rates = [l.split()[3] for l in open(os.path.join(dir_name, f), "r").readlines() if l.startswith(key) and len(l.split()) > 3]
+    rates = [l.split()[3] for l in open(os.path.join(dir_name, f), "r").readlines() if
+             l.startswith(key) and len(l.split()) > 3]
     mb = []
     for r in rates:
         if len(r) < 3:
@@ -47,9 +50,9 @@ def get_rate(dir_name, f, key):
         if r.endswith("Mb"):
             mb.append(m)
         elif r.endswith("Kb"):
-            mb.append(m/1000)
+            mb.append(m / 1000)
     mb.sort(reverse=True)
-    #print(mb)
+    # print(mb)
     return mb
 
 
@@ -104,8 +107,6 @@ def analyse_bandwidth(dir_name):
     }
 
     return result
-
-
 
 
 def analyse_fastPath(dir_name):
@@ -243,14 +244,17 @@ def load_statistic(dir_name):
                 line = line.strip()
                 if line.startswith("#"):
                     continue
-                txn_count += 1
                 items = line.split(",")
+                read_only = items[7] == "true"
+                if read_only and args.noReadOnly:
+                    continue
+                txn_count += 1
                 txn_id = items[0]
                 commit = int(items[1]) == 1
                 latency = float(items[2]) / 1000000  # ms
                 start = float(items[3])
                 end = float(items[4])
-                read_only = items[7] == "true"
+
                 exe_count = int(items[6])
                 priority = False
                 passTimestampTxn = 0
