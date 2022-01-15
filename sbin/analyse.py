@@ -19,6 +19,7 @@ arg_parser.add_argument('-f', '--force', dest='force',
                         help="force to analyse", action='store_true', required=False)
 arg_parser.add_argument('-nr', '--noReadOnly', dest="noReadOnly", required=False,
                         help="no include the read only txn", action='store_true')
+arg_parser.add_argument('-inc', '--increase', dest="increase", action='store_true', required=False)
 
 args = arg_parser.parse_args()
 
@@ -746,6 +747,38 @@ def print_result(result, prefix):
     print("--------------------------------------------")
 
 
+def incRate(base, path, prefix):
+    lists = os.listdir(path)
+    result = {"p95_high": [], "p95_low": []}
+    result_files = [f for f in lists if f.startswith(prefix) and f.endswith(".result")]
+    if len(result_files) == 0:
+        return
+
+    base_high = base["p95_high"]
+    base_low = base["p95_low"]
+    for f in result_files:
+        fp = open(os.path.join(path, f), "r")
+        data = json.load(fp)
+        fp.close()
+        cur_high = data["p95_high"]
+        cur_low = data["p95_low"]
+        result["p95_high"].append((cur_high - base_high) / base_high)
+        result["p95_low"].append((cur_low - base_low) / base_low)
+
+    for key in result:
+        value = result[key]
+        mean = numpy.average(value)
+        error = 1.96 * (numpy.std(value) / math.sqrt(len(value)))
+        result[key] = {"mean": mean, "error": error}
+
+    cf = open(os.path.join(path, prefix[:-1] + ".json"), "r")
+    config = json.load(cf)
+    result["config"] = config
+    file_name = prefix[:-1] + ".finalInc"
+    with open(file_name, "w") as f:
+        json.dump(result, f, indent=4)
+
+
 def error_bar(path, prefix):
     lists = os.listdir(path)
     result = {}
@@ -824,6 +857,24 @@ def main():
         if f.endswith(".json"):
             prefix = f.split(".")[0] + "-"
             error_bar(path, prefix)
+
+    if args.increase:
+        base = {}
+        for f in lists:
+            if f.endswith(".json"):
+                prefix = f.split(".")[0]
+                if prefix.endswith("txnRate-10"):
+                    fp = open(os.path.join(path, prefix + ".final"), "r")
+                    base = json.load(fp)
+                    fp.close()
+                    break
+        for f in lists:
+            if f.endswith(".json"):
+                prefix = f.split(".")[0]
+                if prefix.endswith("txnRate-10"):
+                    continue
+                prefix += '-'
+                incRate(base, path, prefix)
 
 
 if __name__ == "__main__":
