@@ -754,14 +754,16 @@ def incRate(base, path, prefix):
     if len(result_files) == 0:
         return
 
-    base_high = base["p95_high"]
-    base_low = base["p95_low"]
+    base_high = base["p95_high"]["mean"]
+    base_low = base["p95_low"]["mean"]
     for f in result_files:
+        print(f)
         fp = open(os.path.join(path, f), "r")
         data = json.load(fp)
         fp.close()
         cur_high = data["p95_high"]
         cur_low = data["p95_low"]
+        print(cur_high, cur_low)
         result["p95_high"].append((cur_high - base_high) / base_high)
         result["p95_low"].append((cur_low - base_low) / base_low)
 
@@ -813,6 +815,7 @@ def error_bar(path, prefix):
         json.dump(result, f, indent=4)
 
 
+
 def result_file_exist(dr):
     result_file = dr + ".result"
     if os.path.exists(result_file):
@@ -859,20 +862,15 @@ def main():
             error_bar(path, prefix)
 
     if args.increase:
-        base = {}
-        for f in lists:
-            if f.endswith(".json"):
-                prefix = f.split(".")[0]
-                if prefix.endswith("txnRate-10"):
-                    fp = open(os.path.join(path, prefix + ".final"), "r")
-                    base = json.load(fp)
-                    fp.close()
-                    break
         for f in lists:
             if f.endswith(".json"):
                 prefix = f.split(".")[0]
                 if prefix.endswith("txnRate-10"):
                     continue
+                idx = prefix.rindex('-')
+                baseF = prefix[0:idx] + "-" + "10.final"
+                fp = open(os.path.join(path, baseF), "r")
+                base = json.load(fp)
                 prefix += '-'
                 incRate(base, path, prefix)
 
