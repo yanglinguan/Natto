@@ -732,8 +732,12 @@ def analyse(dir_name):
         result[k] = bandwidth_result[k]
 
     file_name = os.path.basename(path)
-    with open(file_name + ".result", "w") as f:
-        json.dump(result, f, indent=4)
+    if args.noReadOnly:
+        with open(file_name + ".resultNR", "w") as f:
+            json.dump(result, f, indent=4)
+    else:
+        with open(file_name + ".result", "w") as f:
+            json.dump(result, f, indent=4)
 
 
 def print_result(result, prefix):
@@ -750,7 +754,10 @@ def print_result(result, prefix):
 def incRate(base, path, prefix):
     lists = os.listdir(path)
     result = {"p95_high": [], "p95_low": []}
-    result_files = [f for f in lists if f.startswith(prefix) and f.endswith(".result")]
+    suffix = ".result"
+    if args.noReadOnly:
+        suffix += "NR"
+    result_files = [f for f in lists if f.startswith(prefix) and f.endswith(suffix)]
     if len(result_files) == 0:
         return
 
@@ -777,6 +784,8 @@ def incRate(base, path, prefix):
     config = json.load(cf)
     result["config"] = config
     file_name = prefix[:-1] + ".finalInc"
+    if args.noReadOnly:
+        file_name = prefix[:-1] + ".finalNRInc"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
 
@@ -784,7 +793,10 @@ def incRate(base, path, prefix):
 def error_bar(path, prefix):
     lists = os.listdir(path)
     result = {}
-    result_files = [f for f in lists if f.startswith(prefix) and f.endswith(".result")]
+    suffix = ".result"
+    if args.noReadOnly:
+        suffix += "NR"
+    result_files = [f for f in lists if f.startswith(prefix) and f.endswith(suffix)]
     if len(result_files) == 0:
         return
     for f in result_files:
@@ -811,13 +823,16 @@ def error_bar(path, prefix):
     config = json.load(cf)
     result["config"] = config
     file_name = prefix[:-1] + ".final"
+    if args.noReadOnly:
+        file_name = prefix[:-1] + ".finalNR"
     with open(file_name, "w") as f:
         json.dump(result, f, indent=4)
 
 
-
 def result_file_exist(dr):
     result_file = dr + ".result"
+    if args.noReadOnly:
+        result_file = dr + ".resultNR"
     if os.path.exists(result_file):
         return True
     return False
@@ -869,6 +884,8 @@ def main():
                     continue
                 idx = prefix.rindex('-')
                 baseF = prefix[0:idx] + "-" + "10.final"
+                if args.noReadOnly:
+                    baseF = prefix[0:idx] + "-" + "10.finalNR"
                 fp = open(os.path.join(path, baseF), "r")
                 base = json.load(fp)
                 prefix += '-'
