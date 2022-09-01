@@ -19,3 +19,4 @@ exp-result/*
 *.pyc
 exp/*
 sbin/graph-script/
+.idea
