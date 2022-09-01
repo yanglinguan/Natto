@@ -20,13 +20,14 @@ type Server struct {
 	gRPCServer *grpc.Server
 	config     configuration.Configuration
 
-	storage *Storage // interface of different store, occ or gts (global timestamp)
+	storage *Storage
 
 	// schedule the txn by timestamp order
 	scheduler Scheduler
 
 	coordinator *Coordinator
 
+	// create different operations based on different model 2pl, occ or gts (global timestamp)
 	operationCreator OperationCreator
 
 	raft *Raft

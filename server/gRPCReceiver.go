@@ -11,59 +11,6 @@ import (
 	"time"
 )
 
-//type ReadAndPrepareResultSender struct {
-//	stream rpc.Carousel_ReadAndPrepareServer
-//	readResult chan *rpc.ReadAndPrepareReply
-//}
-//
-//func NewReadAndPrepareResultSender(stream rpc.Carousel_ReadAndPrepareServer) *ReadAndPrepareResultSender {
-//	s := &ReadAndPrepareResultSender{
-//		stream: stream,
-//		readResult: make(chan *rpc.ReadAndPrepareReply, 102400),
-//	}
-//	go s.run()
-//	return s
-//}
-//
-//func (r *ReadAndPrepareResultSender) run() {
-//	for {
-//		result := <- r.readResult
-//		err := r.stream.Send(result)
-//		if err != nil {
-//			logrus.Fatalf("send error %v", err)
-//		}
-//	}
-//}
-//
-//func (r *ReadAndPrepareResultSender) Send(result *rpc.ReadAndPrepareReply) {
-//	r.readResult <- result
-//}
-//
-//func (server *Server) ReadAndPrepare(stream rpc.Carousel_ReadAndPrepareServer) error {
-//	logrus.Println("Started stream")
-//	sender := NewReadAndPrepareResultSender(stream)
-//	for {
-//		request, err := stream.Recv()
-//		logrus.Println("Received value")
-//		if err == io.EOF {
-//			return nil
-//		}
-//		if err != nil {
-//			return err
-//		}
-//
-//		if int(request.Txn.CoordPartitionId) == server.partitionId {
-//			op := NewReadAndPrepareCoordinator(request)
-//			server.coordinator.AddOperation(op)
-//		}
-//
-//		if !request.IsNotParticipant {
-//			requestOp := server.operationCreator.createReadAndPrepareOp(request, sender)
-//			server.scheduler.AddOperation(requestOp)
-//		}
-//	}
-//}
-
 func (server *Server) ReadAndPrepare(ctx context.Context,
 	request *rpc.ReadAndPrepareRequest) (*rpc.ReadAndPrepareReply, error) {
 	logrus.Infof("RECEIVE ReadAndPrepare %v readOnly %v",
@@ -89,7 +36,6 @@ func (server *Server) ReadAndPrepare(ctx context.Context,
 	requestOp := server.operationCreator.createReadAndPrepareOp(request)
 
 	server.scheduler.AddOperation(requestOp)
-	//server.StartOp(requestOp)
 
 	// block until read result is ready
 	requestOp.BlockClient()
@@ -107,21 +53,7 @@ func (server *Server) ReadOnly(cts context.Context, request *rpc.ReadAndPrepareR
 		return nil, status.Error(codes.Aborted, strconv.Itoa(server.GetLeaderServerId()))
 	}
 
-	//if int(request.Txn.CoordPartitionId) == server.partitionId {
-	//	op := NewReadAndPrepareCoordinator(request)
-	//	server.coordinator.AddOperation(op)
-	//}
-
-	//if request.IsNotParticipant {
-	//	reply := &rpc.ReadAndPrepareReply{
-	//		KeyValVerList: make([]*rpc.KeyValueVersion, 0),
-	//	}
-	//
-	//	return reply, nil
-	//}
-
 	requestOp := server.operationCreator.createReadOnlyOp(request)
-	//server.StartOp(requestOp)
 	server.scheduler.AddOperation(requestOp)
 	requestOp.BlockClient()
 
